@@ -51,6 +51,9 @@ For either agent, the practical flow is:
 2. convert raw JSONL into training samples
 3. train and test the model
 
+If you want a one-step path from raw JSONL to a trained artifact, use `train-v0-raw`.
+If you want synchronized R/O and app training from the same shuffled raw file, use `train-v0-raw-dual`.
+
 There are two kinds of files:
 
 - `metadata.json`: the legal action space for each scenario
@@ -115,6 +118,17 @@ python3 -m recommendation_agents.cli train-v0 \
   --metadata artifacts/ro_metadata.json \
   --samples artifacts/two_scenarios_firststep/v0_samples.jsonl \
   --output artifacts/two_scenarios_firststep/ro_model \
+  --device auto
+```
+
+Or do conversion plus training in one command:
+
+```bash
+python3 -m recommendation_agents.cli train-v0-raw \
+  --input docs/synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl \
+  --output artifacts/two_scenarios_firststep/ro_model \
+  --metadata artifacts/ro_metadata.json \
+  --label-type ro \
   --device auto
 ```
 
@@ -259,6 +273,17 @@ python3 -m recommendation_agents.cli train-v0 \
   --device auto
 ```
 
+Or do conversion plus training in one command:
+
+```bash
+python3 -m recommendation_agents.cli train-v0-raw \
+  --input docs/synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl \
+  --output artifacts/two_scenarios_firststep/app_model \
+  --metadata artifacts/app_metadata.json \
+  --label-type app \
+  --device auto
+```
+
 Recommended output directory name:
 
 - `artifacts/two_scenarios_firststep/app_model`
@@ -295,6 +320,48 @@ python3 -m recommendation_agents.cli choose-v0 \
   --metadata artifacts/app_metadata.json \
   --sample artifacts/two_scenarios_firststep/score_arrive_office.json \
   --device auto
+```
+
+## Dual Training
+
+If you want both models from the same raw JSONL in one run, train them with one shared shuffled stream and interleaved train/eval windows:
+
+```bash
+python3 -m recommendation_agents.cli train-v0-raw-dual \
+  --input "docs/bandit_v0_firststep_no_triggers_1000eps(1).jsonl" \
+  --output artifacts/bandit_v0_firststep_dual \
+  --ro-metadata artifacts/ro_metadata.json \
+  --app-metadata artifacts/app_metadata.json \
+  --alpha 0.15 \
+  --alpha-end 0.01 \
+  --device cpu \
+  --train-window 100 \
+  --eval-window 10 \
+  --progress-every 100 \
+  --shuffle-seed 0 \
+  --tensorboard-logdir artifacts/bandit_v0_firststep_dual/tensorboard
+```
+
+This writes:
+
+- `artifacts/bandit_v0_firststep_dual/ro_model`
+- `artifacts/bandit_v0_firststep_dual/app_model`
+- `artifacts/bandit_v0_firststep_dual/dual_training_summary.json`
+- `artifacts/bandit_v0_firststep_dual/tensorboard`
+
+What this dual command does:
+
+- shuffles the raw rows once
+- uses the same sample order for `RO` and `APP`
+- trains for `100` rows, then evaluates top-1 for `10` rows
+- decays LinUCB exploration from `alpha` to `alpha-end`
+- logs separate `[RO]` and `[APP]` metrics after each eval block
+- writes TensorBoard scalars for `RO` and `APP` train/eval reward and accuracy
+
+Launch TensorBoard with:
+
+```bash
+tensorboard --logdir artifacts/bandit_v0_firststep_dual/tensorboard
 ```
 
 ## What the Sample Files Look Like After Conversion

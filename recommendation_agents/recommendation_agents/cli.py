@@ -9,7 +9,7 @@ from pathlib import Path
 from recommendation_agents.catalog import build_app_metadata_from_catalog_markdown, build_ro_metadata_from_catalog_markdown
 from recommendation_agents.raw_synthetic import convert_raw_sequence_to_v0, convert_raw_sequence_to_v0_app
 from recommendation_agents.schemas import ScoreRequest
-from recommendation_agents.trainer import choose_v0, score_v0, train_v0
+from recommendation_agents.trainer import choose_v0, score_v0, train_v0, train_v0_dual_from_raw, train_v0_from_raw
 
 
 def _display_action_id(model_action_id: str) -> str:
@@ -35,6 +35,111 @@ def build_parser() -> argparse.ArgumentParser:
     )
     train_parser.add_argument("--l2", type=float, default=1.0, help="L2 regularization for LinUCB")
     train_parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=1000,
+        help="Log interval training metrics every N samples",
+    )
+    train_parser.add_argument(
+        "--device",
+        default="auto",
+        help="Execution device. Examples: auto, cpu, cuda, cuda:0. Uses CPU when GPU is unavailable.",
+    )
+
+    train_raw_parser = subparsers.add_parser(
+        "train-v0-raw",
+        help="Convert raw JSONL and train the V0 masked LinUCB model in one step",
+    )
+    train_raw_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
+    train_raw_parser.add_argument("--output", required=True, help="Directory to write model artifacts")
+    train_raw_parser.add_argument(
+        "--metadata",
+        required=False,
+        help="Optional metadata JSON. If omitted, metadata is inferred from the raw file.",
+    )
+    train_raw_parser.add_argument(
+        "--label-type",
+        choices=("ro", "app"),
+        default="ro",
+        help="Which label column to train on: R/O actions or app categories",
+    )
+    train_raw_parser.add_argument(
+        "--reward",
+        type=float,
+        default=1.0,
+        help="Reward assigned to each kept raw row during conversion",
+    )
+    train_raw_parser.add_argument("--alpha", type=float, default=0.15, help="LinUCB exploration coefficient")
+    train_raw_parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=1000,
+        help="Log interval training metrics every N samples",
+    )
+    train_raw_parser.add_argument(
+        "--default-bonus",
+        type=float,
+        default=0.75,
+        help="Additive prior bonus for the scenario default action",
+    )
+    train_raw_parser.add_argument("--l2", type=float, default=1.0, help="L2 regularization for LinUCB")
+    train_raw_parser.add_argument(
+        "--device",
+        default="auto",
+        help="Execution device. Examples: auto, cpu, cuda, cuda:0. Uses CPU when GPU is unavailable.",
+    )
+
+    train_dual_raw_parser = subparsers.add_parser(
+        "train-v0-raw-dual",
+        help="Train interleaved R/O and app LinUCB models from one shuffled raw JSONL",
+    )
+    train_dual_raw_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
+    train_dual_raw_parser.add_argument("--output", required=True, help="Directory to write the dual model artifacts")
+    train_dual_raw_parser.add_argument(
+        "--ro-metadata",
+        required=True,
+        help="Metadata JSON for the R/O model action mask",
+    )
+    train_dual_raw_parser.add_argument(
+        "--app-metadata",
+        required=True,
+        help="Metadata JSON for the app model action mask",
+    )
+    train_dual_raw_parser.add_argument(
+        "--reward",
+        type=float,
+        default=1.0,
+        help="Reward assigned to each kept raw row during conversion",
+    )
+    train_dual_raw_parser.add_argument("--alpha", type=float, default=0.15, help="Starting LinUCB exploration coefficient")
+    train_dual_raw_parser.add_argument(
+        "--alpha-end",
+        type=float,
+        default=0.01,
+        help="Final LinUCB exploration coefficient after linear decay",
+    )
+    train_dual_raw_parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=100,
+        help="Log after every N train samples during the interleaved loop",
+    )
+    train_dual_raw_parser.add_argument("--train-window", type=int, default=100, help="How many shuffled rows to train on per cycle")
+    train_dual_raw_parser.add_argument("--eval-window", type=int, default=10, help="How many shuffled rows to eval on per cycle")
+    train_dual_raw_parser.add_argument("--shuffle-seed", type=int, default=0, help="Seed used to shuffle the shared raw rows")
+    train_dual_raw_parser.add_argument(
+        "--tensorboard-logdir",
+        required=False,
+        help="Optional TensorBoard log directory. Defaults to <output>/tensorboard",
+    )
+    train_dual_raw_parser.add_argument(
+        "--default-bonus",
+        type=float,
+        default=0.75,
+        help="Additive prior bonus for the scenario default action",
+    )
+    train_dual_raw_parser.add_argument("--l2", type=float, default=1.0, help="L2 regularization for LinUCB")
+    train_dual_raw_parser.add_argument(
         "--device",
         default="auto",
         help="Execution device. Examples: auto, cpu, cuda, cuda:0. Uses CPU when GPU is unavailable.",
@@ -142,8 +247,86 @@ def main() -> None:
             default_bonus=args.default_bonus,
             l2=args.l2,
             device=args.device,
+            progress_every=args.progress_every,
         )
         print(json.dumps(metrics.__dict__, indent=2, sort_keys=True))
+        return
+
+    if args.command == "train-v0-raw":
+        summary = train_v0_from_raw(
+            input_path=args.input,
+            output_dir=args.output,
+            metadata_path=args.metadata,
+            reward=args.reward,
+            label_type=args.label_type,
+            alpha=args.alpha,
+            default_bonus=args.default_bonus,
+            l2=args.l2,
+            device=args.device,
+            progress_every=args.progress_every,
+        )
+        print(
+            json.dumps(
+                {
+                    "input_path": summary.input_path,
+                    "metadata_path": summary.metadata_path,
+                    "samples_path": summary.samples_path,
+                    "label_type": summary.label_type,
+                    "reward": summary.reward,
+                    "conversion": summary.conversion,
+                    "training": summary.training.__dict__,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+
+    if args.command == "train-v0-raw-dual":
+        summary = train_v0_dual_from_raw(
+            input_path=args.input,
+            output_dir=args.output,
+            ro_metadata_path=args.ro_metadata,
+            app_metadata_path=args.app_metadata,
+            reward=args.reward,
+            alpha=args.alpha,
+            alpha_end=args.alpha_end,
+            default_bonus=args.default_bonus,
+            l2=args.l2,
+            device=args.device,
+            progress_every=args.progress_every,
+            train_window=args.train_window,
+            eval_window=args.eval_window,
+            shuffle_seed=args.shuffle_seed,
+            tensorboard_logdir=args.tensorboard_logdir,
+        )
+        print(
+            json.dumps(
+                {
+                    "input_path": summary.input_path,
+                    "output_dir": summary.output_dir,
+                    "tensorboard_logdir": summary.tensorboard_logdir,
+                    "reward": summary.reward,
+                    "alpha_start": summary.alpha_start,
+                    "alpha_end": summary.alpha_end,
+                    "train_window": summary.train_window,
+                    "eval_window": summary.eval_window,
+                    "shuffle_seed": summary.shuffle_seed,
+                    "ro": {
+                        "metadata_path": summary.ro.metadata_path,
+                        "artifact_dir": summary.ro.artifact_dir,
+                        "metrics": summary.ro.metrics.__dict__,
+                    },
+                    "app": {
+                        "metadata_path": summary.app.metadata_path,
+                        "artifact_dir": summary.app.artifact_dir,
+                        "metrics": summary.app.metrics.__dict__,
+                    },
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return
 
     if args.command == "score-v0":
