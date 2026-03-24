@@ -1,0 +1,913 @@
+{
+  "AFTER_LUNCH_WALK": {
+    "scenario_id": "AFTER_LUNCH_WALK",
+    "scenario_name": "After-Lunch Walk",
+    "category": "health",
+    "time_window": "lunch",
+    "state_options": [
+      "home_daytime_rest",
+      "home_daytime_rest_dark",
+      "home_daytime_rest_lying"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "ARRIVE_DINING": {
+    "scenario_id": "ARRIVE_DINING",
+    "scenario_name": "Arrive at Restaurant/Cafe",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_restaurant_lunch",
+      "at_restaurant_dinner",
+      "at_restaurant_other",
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "ARRIVE_OFFICE": {
+    "scenario_id": "ARRIVE_OFFICE",
+    "scenario_name": "Arrive at Office",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_arriving",
+      "office_working",
+      "office_lunch_break",
+      "office_overtime",
+      "office_late_overtime",
+      "office_rest_day"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "ARRIVE_TRANSIT_HUB": {
+    "scenario_id": "ARRIVE_TRANSIT_HUB",
+    "scenario_name": "Arrive at Transit Hub",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "at_metro",
+      "at_rail_station",
+      "at_airport",
+      "at_transit_hub"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "CAFE_QUIET": {
+    "scenario_id": "CAFE_QUIET",
+    "scenario_name": "Quiet Cafe",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "CAFE_STAY": {
+    "scenario_id": "CAFE_STAY",
+    "scenario_name": "Stay at a Cafe",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "CAL_HAS_EVENTS": {
+    "scenario_id": "CAL_HAS_EVENTS",
+    "scenario_name": "Today's Schedule Reminder",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "COMMUTE_EVENING": {
+    "scenario_id": "COMMUTE_EVENING",
+    "scenario_name": "Arrive Home After Work",
+    "category": "commute",
+    "time_window": "evening",
+    "state_options": [
+      "home_evening",
+      "home_evening_dark",
+      "home_evening_lying",
+      "home_evening_noisy"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_overtime",
+      "office_working_focused",
+      "office_working_noisy",
+      "commuting_drive_home",
+      "commuting_transit_home",
+      "commuting_walk_home",
+      "commuting_cycle_home"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "COMMUTE_FROM_HOME": {
+    "scenario_id": "COMMUTE_FROM_HOME",
+    "scenario_name": "Commute from Home",
+    "category": "commute",
+    "time_window": "travel_day",
+    "state_options": [
+      "commuting_walk_out",
+      "commuting_cycle_out",
+      "commuting_drive_out",
+      "commuting_transit_out"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_workday_lying"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "COMMUTE_MORNING": {
+    "scenario_id": "COMMUTE_MORNING",
+    "scenario_name": "Morning Commute to Office",
+    "category": "commute",
+    "time_window": "morning",
+    "state_options": [
+      "office_arriving"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_workday_lying",
+      "commuting_walk_out",
+      "commuting_cycle_out",
+      "commuting_drive_out",
+      "commuting_transit_out"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "CYCLING": {
+    "scenario_id": "CYCLING",
+    "scenario_name": "Cycling",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_cycling",
+      "commuting_cycle_out",
+      "commuting_cycle_home"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "DELIVERY_AT_OFFICE": {
+    "scenario_id": "DELIVERY_AT_OFFICE",
+    "scenario_name": "Package Delivery at Office",
+    "category": "delivery",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "office_arriving"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "EDUCATION_LONG_SIT": {
+    "scenario_id": "EDUCATION_LONG_SIT",
+    "scenario_name": "Long Sitting at Tutoring Class",
+    "category": "education",
+    "time_window": "workday_day",
+    "state_options": [
+      "at_education",
+      "at_education_class"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "EDUCATION_WAITING": {
+    "scenario_id": "EDUCATION_WAITING",
+    "scenario_name": "Waiting at Tutoring Class",
+    "category": "education",
+    "time_window": "workday_day",
+    "state_options": [
+      "at_education",
+      "at_education_class",
+      "at_education_break"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "EVENING_AT_OFFICE": {
+    "scenario_id": "EVENING_AT_OFFICE",
+    "scenario_name": "Evening at Office",
+    "category": "work",
+    "time_window": "evening",
+    "state_options": [
+      "office_overtime"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "FLIGHT_BOARDING": {
+    "scenario_id": "FLIGHT_BOARDING",
+    "scenario_name": "Flight Boarding Reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "at_rail_station",
+      "at_airport",
+      "at_transit_hub"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "GYM_LONG_STAY": {
+    "scenario_id": "GYM_LONG_STAY",
+    "scenario_name": "Long Stay at Gym",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "GYM_REST": {
+    "scenario_id": "GYM_REST",
+    "scenario_name": "Rest at Gym",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "at_gym"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_AFTERNOON": {
+    "scenario_id": "HOME_AFTERNOON",
+    "scenario_name": "Afternoon at Home",
+    "category": "home",
+    "time_window": "afternoon",
+    "state_options": [
+      "home_daytime_rest",
+      "home_daytime_rest_dark",
+      "home_daytime_rest_lying"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_AFTER_GYM": {
+    "scenario_id": "HOME_AFTER_GYM",
+    "scenario_name": "Return Home After Gym",
+    "category": "exercise",
+    "time_window": "office_day",
+    "state_options": [
+      "home_evening",
+      "home_daytime_workday",
+      "home_daytime_rest",
+      "home_morning_workday",
+      "home_morning_rest"
+    ],
+    "precondition_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_DARK_LONG": {
+    "scenario_id": "HOME_DARK_LONG",
+    "scenario_name": "Extended Dark Indoor Time at Home",
+    "category": "health",
+    "time_window": "office_day",
+    "state_options": [
+      "home_daytime_workday_dark",
+      "home_daytime_rest_dark"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_EVENING_DARK": {
+    "scenario_id": "HOME_EVENING_DARK",
+    "scenario_name": "Dark Evening at Home",
+    "category": "home",
+    "time_window": "evening",
+    "state_options": [
+      "home_evening_dark"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_EVENING_NOISY": {
+    "scenario_id": "HOME_EVENING_NOISY",
+    "scenario_name": "Noisy Evening at Home",
+    "category": "home",
+    "time_window": "evening",
+    "state_options": [
+      "home_evening_noisy"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_LATE_NIGHT": {
+    "scenario_id": "HOME_LATE_NIGHT",
+    "scenario_name": "Late Night at Home",
+    "category": "sleep",
+    "time_window": "late_night",
+    "state_options": [
+      "home_sleeping",
+      "home_sleeping_lying"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_LUNCH": {
+    "scenario_id": "HOME_LUNCH",
+    "scenario_name": "Lunch at Home",
+    "category": "dining",
+    "time_window": "lunch",
+    "state_options": [
+      "home_daytime_workday",
+      "home_daytime_rest"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOME_TO_GYM": {
+    "scenario_id": "HOME_TO_GYM",
+    "scenario_name": "Arrive at Gym from Home",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_rest",
+      "home_daytime_workday",
+      "home_daytime_rest",
+      "home_evening"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOSPITAL_APPOINTMENT": {
+    "scenario_id": "HOSPITAL_APPOINTMENT",
+    "scenario_name": "Hospital Appointment Reminder",
+    "category": "health",
+    "time_window": "any",
+    "state_options": [
+      "at_health",
+      "at_health_inpatient"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "HOTEL_CHECKIN": {
+    "scenario_id": "HOTEL_CHECKIN",
+    "scenario_name": "Hotel Check-In Reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "at_rail_station",
+      "at_airport",
+      "at_transit_hub"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "IN_MEETING": {
+    "scenario_id": "IN_MEETING",
+    "scenario_name": "In a Meeting",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "home_daytime_workday"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "LATE_NIGHT_NOISY": {
+    "scenario_id": "LATE_NIGHT_NOISY",
+    "scenario_name": "Late-Night Noisy Venue",
+    "category": "social",
+    "time_window": "late_night",
+    "state_options": [
+      "unknown_noisy",
+      "at_social"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "LATE_NIGHT_OVERTIME": {
+    "scenario_id": "LATE_NIGHT_OVERTIME",
+    "scenario_name": "Late-Night Overtime",
+    "category": "work",
+    "time_window": "late_night",
+    "state_options": [
+      "office_overtime",
+      "office_late_overtime"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "LATE_NIGHT_PHONE": {
+    "scenario_id": "LATE_NIGHT_PHONE",
+    "scenario_name": "Phone Use While Lying Down Late at Night",
+    "category": "sleep",
+    "time_window": "late_night",
+    "state_options": [
+      "home_sleeping_lying"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "LATE_RETURN_HOME": {
+    "scenario_id": "LATE_RETURN_HOME",
+    "scenario_name": "Return Home Late at Night",
+    "category": "home",
+    "time_window": "evening",
+    "state_options": [
+      "home_sleeping",
+      "home_sleeping_lying"
+    ],
+    "precondition_options": [
+      "office_overtime",
+      "office_late_overtime",
+      "driving",
+      "commuting_drive_home",
+      "commuting_transit_home",
+      "commuting_walk_home"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "LEAVE_OFFICE": {
+    "scenario_id": "LEAVE_OFFICE",
+    "scenario_name": "Leave Office",
+    "category": "commute",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "office_overtime",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_overtime",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "LONG_DRIVE": {
+    "scenario_id": "LONG_DRIVE",
+    "scenario_name": "Long-Distance Drive",
+    "category": "commute",
+    "time_window": "travel_day",
+    "state_options": [
+      "driving",
+      "commuting_drive_out",
+      "commuting_drive_home"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "LONG_OUTDOOR_WALK": {
+    "scenario_id": "LONG_OUTDOOR_WALK",
+    "scenario_name": "Long Outdoor Walk",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "MEETING_UPCOMING": {
+    "scenario_id": "MEETING_UPCOMING",
+    "scenario_name": "Meeting Starting Soon",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "MORNING_COFFEE": {
+    "scenario_id": "MORNING_COFFEE",
+    "scenario_name": "Morning Coffee",
+    "category": "dining",
+    "time_window": "morning",
+    "state_options": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "MORNING_EXERCISE": {
+    "scenario_id": "MORNING_EXERCISE",
+    "scenario_name": "Morning Exercise",
+    "category": "exercise",
+    "time_window": "morning",
+    "state_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "MOVIE_TICKET": {
+    "scenario_id": "MOVIE_TICKET",
+    "scenario_name": "Movie Ticket Pickup Reminder",
+    "category": "entertainment",
+    "time_window": "any",
+    "state_options": [
+      "at_social",
+      "at_restaurant_other"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "NOISY_GATHERING": {
+    "scenario_id": "NOISY_GATHERING",
+    "scenario_name": "Noisy Gathering",
+    "category": "social",
+    "time_window": "any",
+    "state_options": [
+      "unknown_noisy",
+      "at_social"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "NO_MEETINGS": {
+    "scenario_id": "NO_MEETINGS",
+    "scenario_name": "No Meetings Today",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_arriving",
+      "office_working"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "OFFICE_FOCUS_LONG": {
+    "scenario_id": "OFFICE_FOCUS_LONG",
+    "scenario_name": "Long Focus Session at Office",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working_focused"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "OFFICE_LONG_SESSION": {
+    "scenario_id": "OFFICE_LONG_SESSION",
+    "scenario_name": "Extended Office Session",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "OFFICE_LUNCH_OUT": {
+    "scenario_id": "OFFICE_LUNCH_OUT",
+    "scenario_name": "Office Lunch Break Outing",
+    "category": "work",
+    "time_window": "lunch",
+    "state_options": [
+      "office_arriving",
+      "office_working",
+      "office_lunch_break"
+    ],
+    "precondition_options": [
+      "office_arriving",
+      "office_working",
+      "office_lunch_break"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "OFFICE_TO_CAFE": {
+    "scenario_id": "OFFICE_TO_CAFE",
+    "scenario_name": "From Office to Cafe",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy",
+      "office_lunch_break"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "OUTDOOR_RUNNING": {
+    "scenario_id": "OUTDOOR_RUNNING",
+    "scenario_name": "Outdoor Running",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_running"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "PARK_WALK": {
+    "scenario_id": "PARK_WALK",
+    "scenario_name": "Short Walk in the Park",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "QUIET_HOME": {
+    "scenario_id": "QUIET_HOME",
+    "scenario_name": "Quiet Time at Home",
+    "category": "home",
+    "time_window": "office_day",
+    "state_options": [
+      "home_evening",
+      "home_daytime_workday",
+      "home_daytime_rest",
+      "home_morning_workday",
+      "home_morning_rest"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "REMOTE_MEETING": {
+    "scenario_id": "REMOTE_MEETING",
+    "scenario_name": "Departing for an Offsite Meeting",
+    "category": "commute",
+    "time_window": "office_day",
+    "state_options": [
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "RETURN_OFFICE_AFTER_LUNCH": {
+    "scenario_id": "RETURN_OFFICE_AFTER_LUNCH",
+    "scenario_name": "Return to Office After Lunch",
+    "category": "work",
+    "time_window": "lunch",
+    "state_options": [
+      "office_working",
+      "office_working_focused"
+    ],
+    "precondition_options": [
+      "at_restaurant_lunch",
+      "at_restaurant_other",
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "RIDESHARE_PICKUP": {
+    "scenario_id": "RIDESHARE_PICKUP",
+    "scenario_name": "Rideshare Pickup Reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "outdoor_walking",
+      "stationary_unknown"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "SCHOOL_QUIET": {
+    "scenario_id": "SCHOOL_QUIET",
+    "scenario_name": "Quiet Time at School",
+    "category": "education",
+    "time_window": "workday_day",
+    "state_options": [
+      "at_education_class"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "SHOPPING": {
+    "scenario_id": "SHOPPING",
+    "scenario_name": "Shopping",
+    "category": "shopping",
+    "time_window": "any",
+    "state_options": [
+      "at_shopping"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "TRAIN_DEPARTURE": {
+    "scenario_id": "TRAIN_DEPARTURE",
+    "scenario_name": "High-Speed Rail Departure Reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "at_rail_station",
+      "at_airport",
+      "at_transit_hub"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "UNKNOWN_LONG_STAY": {
+    "scenario_id": "UNKNOWN_LONG_STAY",
+    "scenario_name": "Long Stay at Unknown Location",
+    "category": "other",
+    "time_window": "any",
+    "state_options": [
+      "stationary_unknown",
+      "unknown_noisy",
+      "unknown_dark",
+      "unknown_settled",
+      "unknown_lying"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "WAKE_UP": {
+    "scenario_id": "WAKE_UP",
+    "scenario_name": "Wake Up at Home",
+    "category": "morning",
+    "time_window": "morning",
+    "state_options": [
+      "home_morning_workday",
+      "home_morning_rest"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "WEEKDAY_HOME_DAY": {
+    "scenario_id": "WEEKDAY_HOME_DAY",
+    "scenario_name": "Weekday Daytime at Home",
+    "category": "home",
+    "time_window": "office_day",
+    "state_options": [
+      "home_daytime_workday",
+      "home_daytime_workday_dark",
+      "home_daytime_workday_lying"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "WEEKEND_MORNING": {
+    "scenario_id": "WEEKEND_MORNING",
+    "scenario_name": "Weekend Morning",
+    "category": "morning",
+    "time_window": "morning",
+    "state_options": [
+      "home_morning_rest",
+      "home_morning_rest_lying"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "WEEKEND_OUTDOOR_WALK": {
+    "scenario_id": "WEEKEND_OUTDOOR_WALK",
+    "scenario_name": "Weekend Outdoor Walk",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  },
+  "WEEKEND_OUTING": {
+    "scenario_id": "WEEKEND_OUTING",
+    "scenario_name": "Weekend Outing",
+    "category": "shopping",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking",
+      "at_shopping"
+    ],
+    "precondition_options": [
+      "none"
+    ],
+    "notes": "first-timestep-only v0 episode"
+  }
+}

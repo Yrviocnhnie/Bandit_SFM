@@ -1,0 +1,1939 @@
+{
+  "generator": "generate_bandit_v0_firststep_no_triggers.py",
+  "mode": "v0_first_timestep_only_no_trigger_scenarios",
+  "episodes_per_scenario": 1000,
+  "default_ratio": 1.0,
+  "seed": 7,
+  "ignored_trigger_scenarios_count": 4,
+  "ignored_trigger_scenarios": [
+    "GYM_WORKOUT",
+    "HOME_EVENING",
+    "OFFICE_AFTERNOON",
+    "WEEKEND_OVERTIME"
+  ],
+  "included_scenarios_count": 61,
+  "included_scenarios": [
+    {
+      "scenario_id": "AFTER_LUNCH_WALK",
+      "scenario_name": "After-Lunch Walk",
+      "category": "health",
+      "candidate_ro_action_ids": [
+        "lunch_walk",
+        "after_lunch_walk_route",
+        "after_lunch_walk_tracking"
+      ],
+      "default_ro_id": "after_lunch_walk_tracking",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "AFTER_LUNCH_WALK",
+        "scenario_name": "After-Lunch Walk",
+        "category": "health",
+        "time_window": "lunch",
+        "state_options": [
+          "home_daytime_rest",
+          "home_daytime_rest_dark",
+          "home_daytime_rest_lying"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "ARRIVE_DINING",
+      "scenario_name": "Arrive at Restaurant/Cafe",
+      "category": "dining",
+      "candidate_ro_action_ids": [
+        "arrive_dining_enjoy_meal",
+        "dining_payment"
+      ],
+      "default_ro_id": "dining_payment",
+      "default_app_category": "shopping",
+      "plan": {
+        "scenario_id": "ARRIVE_DINING",
+        "scenario_name": "Arrive at Restaurant/Cafe",
+        "category": "dining",
+        "time_window": "office_day",
+        "state_options": [
+          "at_restaurant_lunch",
+          "at_restaurant_dinner",
+          "at_restaurant_other",
+          "at_cafe",
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "ARRIVE_OFFICE",
+      "scenario_name": "Arrive at Office",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "arrive_office_coffee",
+        "arrive_office_schedule",
+        "arrive_office_todo_list"
+      ],
+      "default_ro_id": "arrive_office_schedule",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "ARRIVE_OFFICE",
+        "scenario_name": "Arrive at Office",
+        "category": "work",
+        "time_window": "office_day",
+        "state_options": [
+          "office_arriving",
+          "office_working",
+          "office_lunch_break",
+          "office_overtime",
+          "office_late_overtime",
+          "office_rest_day"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "ARRIVE_TRANSIT_HUB",
+      "scenario_name": "Arrive at Transit Hub",
+      "category": "travel",
+      "candidate_ro_action_ids": [
+        "arrive_transit_hub_ready_departure",
+        "arrive_transit_hub_travel_info"
+      ],
+      "default_ro_id": "arrive_transit_hub_ready_departure",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "ARRIVE_TRANSIT_HUB",
+        "scenario_name": "Arrive at Transit Hub",
+        "category": "travel",
+        "time_window": "travel_day",
+        "state_options": [
+          "at_metro",
+          "at_rail_station",
+          "at_airport",
+          "at_transit_hub"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "CAFE_QUIET",
+      "scenario_name": "Quiet Cafe",
+      "category": "dining",
+      "candidate_ro_action_ids": [
+        "cafe_quiet_focus",
+        "cafe_quiet_schedule",
+        "cafe_quiet_silent"
+      ],
+      "default_ro_id": "cafe_quiet_silent",
+      "default_app_category": "reading",
+      "plan": {
+        "scenario_id": "CAFE_QUIET",
+        "scenario_name": "Quiet Cafe",
+        "category": "dining",
+        "time_window": "office_day",
+        "state_options": [
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "CAFE_STAY",
+      "scenario_name": "Stay at a Cafe",
+      "category": "dining",
+      "candidate_ro_action_ids": [
+        "cafe_relax",
+        "cafe_stay_schedule",
+        "cafe_stay_payment"
+      ],
+      "default_ro_id": "cafe_stay_payment",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "CAFE_STAY",
+        "scenario_name": "Stay at a Cafe",
+        "category": "dining",
+        "time_window": "office_day",
+        "state_options": [
+          "at_cafe",
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "CAL_HAS_EVENTS",
+      "scenario_name": "Today's Schedule Reminder",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "cal_has_events_quick_look",
+        "cal_overview"
+      ],
+      "default_ro_id": "cal_overview",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "CAL_HAS_EVENTS",
+        "scenario_name": "Today's Schedule Reminder",
+        "category": "work",
+        "time_window": "office_day",
+        "state_options": [
+          "office_working",
+          "home_daytime_workday",
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "COMMUTE_EVENING",
+      "scenario_name": "Arrive Home After Work",
+      "category": "commute",
+      "candidate_ro_action_ids": [
+        "arrive_home_relax",
+        "commute_evening_schedule",
+        "commute_evening_todo_list"
+      ],
+      "default_ro_id": "commute_evening_schedule",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "COMMUTE_EVENING",
+        "scenario_name": "Arrive Home After Work",
+        "category": "commute",
+        "time_window": "evening",
+        "state_options": [
+          "home_evening",
+          "home_evening_dark",
+          "home_evening_lying",
+          "home_evening_noisy"
+        ],
+        "precondition_options": [
+          "office_working",
+          "office_overtime",
+          "office_working_focused",
+          "office_working_noisy",
+          "commuting_drive_home",
+          "commuting_transit_home",
+          "commuting_walk_home",
+          "commuting_cycle_home"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "COMMUTE_FROM_HOME",
+      "scenario_name": "Commute from Home",
+      "category": "commute",
+      "candidate_ro_action_ids": [
+        "commute_from_home_prepare",
+        "commute_traffic"
+      ],
+      "default_ro_id": "commute_traffic",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "COMMUTE_FROM_HOME",
+        "scenario_name": "Commute from Home",
+        "category": "commute",
+        "time_window": "travel_day",
+        "state_options": [
+          "commuting_walk_out",
+          "commuting_cycle_out",
+          "commuting_drive_out",
+          "commuting_transit_out"
+        ],
+        "precondition_options": [
+          "home_morning_workday",
+          "home_morning_workday_lying"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "COMMUTE_MORNING",
+      "scenario_name": "Morning Commute to Office",
+      "category": "commute",
+      "candidate_ro_action_ids": [
+        "commute_morning_settle_in",
+        "arrive_work_schedule",
+        "commute_morning_todo_list"
+      ],
+      "default_ro_id": "arrive_work_schedule",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "COMMUTE_MORNING",
+        "scenario_name": "Morning Commute to Office",
+        "category": "commute",
+        "time_window": "morning",
+        "state_options": [
+          "office_arriving"
+        ],
+        "precondition_options": [
+          "home_morning_workday",
+          "home_morning_workday_lying",
+          "commuting_walk_out",
+          "commuting_cycle_out",
+          "commuting_drive_out",
+          "commuting_transit_out"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "CYCLING",
+      "scenario_name": "Cycling",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "cycling_safe_ride",
+        "cycle_tracking",
+        "cycling_weather"
+      ],
+      "default_ro_id": "cycle_tracking",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "CYCLING",
+        "scenario_name": "Cycling",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "outdoor_cycling",
+          "commuting_cycle_out",
+          "commuting_cycle_home"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "DELIVERY_AT_OFFICE",
+      "scenario_name": "Package Delivery at Office",
+      "category": "delivery",
+      "candidate_ro_action_ids": [
+        "delivery_pickup",
+        "delivery_at_office_show_pickup_info"
+      ],
+      "default_ro_id": "delivery_at_office_show_pickup_info",
+      "default_app_category": "shopping",
+      "plan": {
+        "scenario_id": "DELIVERY_AT_OFFICE",
+        "scenario_name": "Package Delivery at Office",
+        "category": "delivery",
+        "time_window": "office_day",
+        "state_options": [
+          "office_working",
+          "office_arriving"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "EDUCATION_LONG_SIT",
+      "scenario_name": "Long Sitting at Tutoring Class",
+      "category": "education",
+      "candidate_ro_action_ids": [
+        "edu_long_sit_move",
+        "education_long_sit_schedule",
+        "education_long_sit_todo_list"
+      ],
+      "default_ro_id": "edu_long_sit_move",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "EDUCATION_LONG_SIT",
+        "scenario_name": "Long Sitting at Tutoring Class",
+        "category": "education",
+        "time_window": "workday_day",
+        "state_options": [
+          "at_education",
+          "at_education_class"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "EDUCATION_WAITING",
+      "scenario_name": "Waiting at Tutoring Class",
+      "category": "education",
+      "candidate_ro_action_ids": [
+        "edu_wait_tip",
+        "education_waiting_schedule",
+        "education_waiting_todo_list"
+      ],
+      "default_ro_id": "education_waiting_schedule",
+      "default_app_category": "news",
+      "plan": {
+        "scenario_id": "EDUCATION_WAITING",
+        "scenario_name": "Waiting at Tutoring Class",
+        "category": "education",
+        "time_window": "workday_day",
+        "state_options": [
+          "at_education",
+          "at_education_class",
+          "at_education_break"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "EVENING_AT_OFFICE",
+      "scenario_name": "Evening at Office",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "evening_office_rest",
+        "evening_office_traffic",
+        "evening_office_todo_list"
+      ],
+      "default_ro_id": "evening_office_traffic",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "EVENING_AT_OFFICE",
+        "scenario_name": "Evening at Office",
+        "category": "work",
+        "time_window": "evening",
+        "state_options": [
+          "office_overtime"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "FLIGHT_BOARDING",
+      "scenario_name": "Flight Boarding Reminder",
+      "category": "travel",
+      "candidate_ro_action_ids": [
+        "flight_info",
+        "flight_boarding_details"
+      ],
+      "default_ro_id": "flight_boarding_details",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "FLIGHT_BOARDING",
+        "scenario_name": "Flight Boarding Reminder",
+        "category": "travel",
+        "time_window": "travel_day",
+        "state_options": [
+          "at_rail_station",
+          "at_airport",
+          "at_transit_hub"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "GYM_LONG_STAY",
+      "scenario_name": "Long Stay at Gym",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "gym_long_stay_recover",
+        "gym_long_stay_timer"
+      ],
+      "default_ro_id": "gym_long_stay_recover",
+      "default_app_category": "health",
+      "plan": {
+        "scenario_id": "GYM_LONG_STAY",
+        "scenario_name": "Long Stay at Gym",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "at_gym",
+          "at_gym_exercising"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "GYM_REST",
+      "scenario_name": "Rest at Gym",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "gym_rest_prepare",
+        "gym_rest_timer"
+      ],
+      "default_ro_id": "gym_rest_timer",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "GYM_REST",
+        "scenario_name": "Rest at Gym",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "at_gym"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_AFTERNOON",
+      "scenario_name": "Afternoon at Home",
+      "category": "home",
+      "candidate_ro_action_ids": [
+        "home_afternoon_relax",
+        "home_afternoon_schedule",
+        "home_afternoon_todo_list"
+      ],
+      "default_ro_id": "home_afternoon_todo_list",
+      "default_app_category": "reading",
+      "plan": {
+        "scenario_id": "HOME_AFTERNOON",
+        "scenario_name": "Afternoon at Home",
+        "category": "home",
+        "time_window": "afternoon",
+        "state_options": [
+          "home_daytime_rest",
+          "home_daytime_rest_dark",
+          "home_daytime_rest_lying"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_AFTER_GYM",
+      "scenario_name": "Return Home After Gym",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "post_gym_stretch",
+        "post_gym_water",
+        "home_after_gym_recovery_timer"
+      ],
+      "default_ro_id": "home_after_gym_recovery_timer",
+      "default_app_category": "health",
+      "plan": {
+        "scenario_id": "HOME_AFTER_GYM",
+        "scenario_name": "Return Home After Gym",
+        "category": "exercise",
+        "time_window": "office_day",
+        "state_options": [
+          "home_evening",
+          "home_daytime_workday",
+          "home_daytime_rest",
+          "home_morning_workday",
+          "home_morning_rest"
+        ],
+        "precondition_options": [
+          "at_gym",
+          "at_gym_exercising"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_DARK_LONG",
+      "scenario_name": "Extended Dark Indoor Time at Home",
+      "category": "health",
+      "candidate_ro_action_ids": [
+        "open_curtains",
+        "home_dark_long_weather",
+        "home_dark_long_eye_comfort"
+      ],
+      "default_ro_id": "open_curtains",
+      "default_app_category": "reading",
+      "plan": {
+        "scenario_id": "HOME_DARK_LONG",
+        "scenario_name": "Extended Dark Indoor Time at Home",
+        "category": "health",
+        "time_window": "office_day",
+        "state_options": [
+          "home_daytime_workday_dark",
+          "home_daytime_rest_dark"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_EVENING_DARK",
+      "scenario_name": "Dark Evening at Home",
+      "category": "home",
+      "candidate_ro_action_ids": [
+        "home_evening_dark_relax",
+        "evening_dark_eye"
+      ],
+      "default_ro_id": "evening_dark_eye",
+      "default_app_category": "entertainment",
+      "plan": {
+        "scenario_id": "HOME_EVENING_DARK",
+        "scenario_name": "Dark Evening at Home",
+        "category": "home",
+        "time_window": "evening",
+        "state_options": [
+          "home_evening_dark"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_EVENING_NOISY",
+      "scenario_name": "Noisy Evening at Home",
+      "category": "home",
+      "candidate_ro_action_ids": [
+        "home_evening_noisy_settle",
+        "evening_noisy_volume",
+        "home_evening_noisy_vibration"
+      ],
+      "default_ro_id": "evening_noisy_volume",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "HOME_EVENING_NOISY",
+        "scenario_name": "Noisy Evening at Home",
+        "category": "home",
+        "time_window": "evening",
+        "state_options": [
+          "home_evening_noisy"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_LATE_NIGHT",
+      "scenario_name": "Late Night at Home",
+      "category": "sleep",
+      "candidate_ro_action_ids": [
+        "home_late_night_sleep_and_charge",
+        "sleep_eye_comfort",
+        "home_late_night_tomorrow_schedule"
+      ],
+      "default_ro_id": "home_late_night_sleep_and_charge",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "HOME_LATE_NIGHT",
+        "scenario_name": "Late Night at Home",
+        "category": "sleep",
+        "time_window": "late_night",
+        "state_options": [
+          "home_sleeping",
+          "home_sleeping_lying"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_LUNCH",
+      "scenario_name": "Lunch at Home",
+      "category": "dining",
+      "candidate_ro_action_ids": [
+        "lunch_eat",
+        "home_lunch_nearby_restaurants"
+      ],
+      "default_ro_id": "lunch_eat",
+      "default_app_category": "shopping",
+      "plan": {
+        "scenario_id": "HOME_LUNCH",
+        "scenario_name": "Lunch at Home",
+        "category": "dining",
+        "time_window": "lunch",
+        "state_options": [
+          "home_daytime_workday",
+          "home_daytime_rest"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOME_TO_GYM",
+      "scenario_name": "Arrive at Gym from Home",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "home_to_gym_hydration",
+        "gym_start",
+        "home_to_gym_timer"
+      ],
+      "default_ro_id": "gym_start",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "HOME_TO_GYM",
+        "scenario_name": "Arrive at Gym from Home",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "at_gym",
+          "at_gym_exercising"
+        ],
+        "precondition_options": [
+          "home_morning_workday",
+          "home_morning_rest",
+          "home_daytime_workday",
+          "home_daytime_rest",
+          "home_evening"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOSPITAL_APPOINTMENT",
+      "scenario_name": "Hospital Appointment Reminder",
+      "category": "health",
+      "candidate_ro_action_ids": [
+        "hospital_info",
+        "hospital_appointment_details"
+      ],
+      "default_ro_id": "hospital_appointment_details",
+      "default_app_category": "health",
+      "plan": {
+        "scenario_id": "HOSPITAL_APPOINTMENT",
+        "scenario_name": "Hospital Appointment Reminder",
+        "category": "health",
+        "time_window": "any",
+        "state_options": [
+          "at_health",
+          "at_health_inpatient"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "HOTEL_CHECKIN",
+      "scenario_name": "Hotel Check-In Reminder",
+      "category": "travel",
+      "candidate_ro_action_ids": [
+        "hotel_info",
+        "hotel_checkin_details"
+      ],
+      "default_ro_id": "hotel_checkin_details",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "HOTEL_CHECKIN",
+        "scenario_name": "Hotel Check-In Reminder",
+        "category": "travel",
+        "time_window": "travel_day",
+        "state_options": [
+          "at_rail_station",
+          "at_airport",
+          "at_transit_hub"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "IN_MEETING",
+      "scenario_name": "In a Meeting",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "in_meeting_follow_up_notes",
+        "meeting_dnd",
+        "in_meeting_notes_entry"
+      ],
+      "default_ro_id": "meeting_dnd",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "IN_MEETING",
+        "scenario_name": "In a Meeting",
+        "category": "work",
+        "time_window": "office_day",
+        "state_options": [
+          "office_working",
+          "home_daytime_workday"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "LATE_NIGHT_NOISY",
+      "scenario_name": "Late-Night Noisy Venue",
+      "category": "social",
+      "candidate_ro_action_ids": [
+        "late_noisy_safety",
+        "late_night_noisy_vibration",
+        "late_night_noisy_max_volume"
+      ],
+      "default_ro_id": "late_night_noisy_vibration",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "LATE_NIGHT_NOISY",
+        "scenario_name": "Late-Night Noisy Venue",
+        "category": "social",
+        "time_window": "late_night",
+        "state_options": [
+          "unknown_noisy",
+          "at_social"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "LATE_NIGHT_OVERTIME",
+      "scenario_name": "Late-Night Overtime",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "late_night_overtime_rest_and_wrap_up",
+        "late_night_overtime_eye_comfort"
+      ],
+      "default_ro_id": "late_night_overtime_rest_and_wrap_up",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "LATE_NIGHT_OVERTIME",
+        "scenario_name": "Late-Night Overtime",
+        "category": "work",
+        "time_window": "late_night",
+        "state_options": [
+          "office_overtime",
+          "office_late_overtime"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "LATE_NIGHT_PHONE",
+      "scenario_name": "Phone Use While Lying Down Late at Night",
+      "category": "sleep",
+      "candidate_ro_action_ids": [
+        "put_phone_down",
+        "late_night_phone_eye_comfort"
+      ],
+      "default_ro_id": "put_phone_down",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "LATE_NIGHT_PHONE",
+        "scenario_name": "Phone Use While Lying Down Late at Night",
+        "category": "sleep",
+        "time_window": "late_night",
+        "state_options": [
+          "home_sleeping_lying"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "LATE_RETURN_HOME",
+      "scenario_name": "Return Home Late at Night",
+      "category": "home",
+      "candidate_ro_action_ids": [
+        "late_home_rest",
+        "late_home_dnd"
+      ],
+      "default_ro_id": "late_home_rest",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "LATE_RETURN_HOME",
+        "scenario_name": "Return Home Late at Night",
+        "category": "home",
+        "time_window": "evening",
+        "state_options": [
+          "home_sleeping",
+          "home_sleeping_lying"
+        ],
+        "precondition_options": [
+          "office_overtime",
+          "office_late_overtime",
+          "driving",
+          "commuting_drive_home",
+          "commuting_transit_home",
+          "commuting_walk_home"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "LEAVE_OFFICE",
+      "scenario_name": "Leave Office",
+      "category": "commute",
+      "candidate_ro_action_ids": [
+        "leave_office_clock_out",
+        "leave_traffic",
+        "leave_office_weather"
+      ],
+      "default_ro_id": "leave_traffic",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "LEAVE_OFFICE",
+        "scenario_name": "Leave Office",
+        "category": "commute",
+        "time_window": "office_day",
+        "state_options": [
+          "office_working",
+          "office_overtime",
+          "office_working_focused",
+          "office_working_noisy"
+        ],
+        "precondition_options": [
+          "office_working",
+          "office_overtime",
+          "office_working_focused",
+          "office_working_noisy"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "LONG_DRIVE",
+      "scenario_name": "Long-Distance Drive",
+      "category": "commute",
+      "candidate_ro_action_ids": [
+        "drive_rest",
+        "long_drive_rest_area"
+      ],
+      "default_ro_id": "drive_rest",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "LONG_DRIVE",
+        "scenario_name": "Long-Distance Drive",
+        "category": "commute",
+        "time_window": "travel_day",
+        "state_options": [
+          "driving",
+          "commuting_drive_out",
+          "commuting_drive_home"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "LONG_OUTDOOR_WALK",
+      "scenario_name": "Long Outdoor Walk",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "walk_rest",
+        "long_outdoor_walk_nearby_places"
+      ],
+      "default_ro_id": "walk_rest",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "LONG_OUTDOOR_WALK",
+        "scenario_name": "Long Outdoor Walk",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "outdoor_walking"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "MEETING_UPCOMING",
+      "scenario_name": "Meeting Starting Soon",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "meeting_prep",
+        "meeting_upcoming_dnd",
+        "meeting_upcoming_details"
+      ],
+      "default_ro_id": "meeting_upcoming_details",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "MEETING_UPCOMING",
+        "scenario_name": "Meeting Starting Soon",
+        "category": "work",
+        "time_window": "office_day",
+        "state_options": [
+          "office_working",
+          "home_daytime_workday",
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "MORNING_COFFEE",
+      "scenario_name": "Morning Coffee",
+      "category": "dining",
+      "candidate_ro_action_ids": [
+        "morning_coffee_start_day",
+        "coffee_schedule",
+        "morning_coffee_todo_list"
+      ],
+      "default_ro_id": "coffee_schedule",
+      "default_app_category": "news",
+      "plan": {
+        "scenario_id": "MORNING_COFFEE",
+        "scenario_name": "Morning Coffee",
+        "category": "dining",
+        "time_window": "morning",
+        "state_options": [
+          "at_cafe",
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "MORNING_EXERCISE",
+      "scenario_name": "Morning Exercise",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "morning_exercise_warm_up",
+        "exercise_tracking",
+        "morning_exercise_timer"
+      ],
+      "default_ro_id": "exercise_tracking",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "MORNING_EXERCISE",
+        "scenario_name": "Morning Exercise",
+        "category": "exercise",
+        "time_window": "morning",
+        "state_options": [
+          "at_gym",
+          "at_gym_exercising"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "MOVIE_TICKET",
+      "scenario_name": "Movie Ticket Pickup Reminder",
+      "category": "entertainment",
+      "candidate_ro_action_ids": [
+        "movie_info",
+        "movie_ticket_details",
+        "movie_ticket_payment"
+      ],
+      "default_ro_id": "movie_ticket_details",
+      "default_app_category": "entertainment",
+      "plan": {
+        "scenario_id": "MOVIE_TICKET",
+        "scenario_name": "Movie Ticket Pickup Reminder",
+        "category": "entertainment",
+        "time_window": "any",
+        "state_options": [
+          "at_social",
+          "at_restaurant_other"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "NOISY_GATHERING",
+      "scenario_name": "Noisy Gathering",
+      "category": "social",
+      "candidate_ro_action_ids": [
+        "noisy_gathering_stay_safe",
+        "noisy_volume",
+        "noisy_gathering_vibration"
+      ],
+      "default_ro_id": "noisy_gathering_vibration",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "NOISY_GATHERING",
+        "scenario_name": "Noisy Gathering",
+        "category": "social",
+        "time_window": "any",
+        "state_options": [
+          "unknown_noisy",
+          "at_social"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "NO_MEETINGS",
+      "scenario_name": "No Meetings Today",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "focus_work",
+        "no_meetings_todo_list"
+      ],
+      "default_ro_id": "no_meetings_todo_list",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "NO_MEETINGS",
+        "scenario_name": "No Meetings Today",
+        "category": "work",
+        "time_window": "office_day",
+        "state_options": [
+          "office_arriving",
+          "office_working"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "OFFICE_FOCUS_LONG",
+      "scenario_name": "Long Focus Session at Office",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "focus_break",
+        "office_focus_long_eye_comfort"
+      ],
+      "default_ro_id": "focus_break",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "OFFICE_FOCUS_LONG",
+        "scenario_name": "Long Focus Session at Office",
+        "category": "work",
+        "time_window": "office_day",
+        "state_options": [
+          "office_working_focused"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "OFFICE_LONG_SESSION",
+      "scenario_name": "Extended Office Session",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "long_office_break",
+        "long_office_water",
+        "office_long_session_todo_list"
+      ],
+      "default_ro_id": "long_office_break",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "OFFICE_LONG_SESSION",
+        "scenario_name": "Extended Office Session",
+        "category": "work",
+        "time_window": "office_day",
+        "state_options": [
+          "office_working",
+          "office_working_focused",
+          "office_working_noisy"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "OFFICE_LUNCH_OUT",
+      "scenario_name": "Office Lunch Break Outing",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "office_lunch_out_take_break",
+        "office_lunch_out_payment"
+      ],
+      "default_ro_id": "office_lunch_out_payment",
+      "default_app_category": "shopping",
+      "plan": {
+        "scenario_id": "OFFICE_LUNCH_OUT",
+        "scenario_name": "Office Lunch Break Outing",
+        "category": "work",
+        "time_window": "lunch",
+        "state_options": [
+          "office_arriving",
+          "office_working",
+          "office_lunch_break"
+        ],
+        "precondition_options": [
+          "office_arriving",
+          "office_working",
+          "office_lunch_break"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "OFFICE_TO_CAFE",
+      "scenario_name": "From Office to Cafe",
+      "category": "dining",
+      "candidate_ro_action_ids": [
+        "cafe_break",
+        "office_to_cafe_payment"
+      ],
+      "default_ro_id": "office_to_cafe_payment",
+      "default_app_category": "shopping",
+      "plan": {
+        "scenario_id": "OFFICE_TO_CAFE",
+        "scenario_name": "From Office to Cafe",
+        "category": "dining",
+        "time_window": "office_day",
+        "state_options": [
+          "at_cafe",
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "office_working",
+          "office_working_focused",
+          "office_working_noisy",
+          "office_lunch_break"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "OUTDOOR_RUNNING",
+      "scenario_name": "Outdoor Running",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "outdoor_running_hydration",
+        "run_tracking",
+        "outdoor_running_timer"
+      ],
+      "default_ro_id": "run_tracking",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "OUTDOOR_RUNNING",
+        "scenario_name": "Outdoor Running",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "outdoor_running"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "PARK_WALK",
+      "scenario_name": "Short Walk in the Park",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "walk_enjoy",
+        "park_walk_route",
+        "park_walk_tracking"
+      ],
+      "default_ro_id": "park_walk_tracking",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "PARK_WALK",
+        "scenario_name": "Short Walk in the Park",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "outdoor_walking"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "QUIET_HOME",
+      "scenario_name": "Quiet Time at Home",
+      "category": "home",
+      "candidate_ro_action_ids": [
+        "quiet_relax",
+        "quiet_home_eye_comfort"
+      ],
+      "default_ro_id": "quiet_relax",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "QUIET_HOME",
+        "scenario_name": "Quiet Time at Home",
+        "category": "home",
+        "time_window": "office_day",
+        "state_options": [
+          "home_evening",
+          "home_daytime_workday",
+          "home_daytime_rest",
+          "home_morning_workday",
+          "home_morning_rest"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "REMOTE_MEETING",
+      "scenario_name": "Departing for an Offsite Meeting",
+      "category": "commute",
+      "candidate_ro_action_ids": [
+        "meeting_depart",
+        "remote_meeting_travel_info",
+        "remote_meeting_details"
+      ],
+      "default_ro_id": "remote_meeting_travel_info",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "REMOTE_MEETING",
+        "scenario_name": "Departing for an Offsite Meeting",
+        "category": "commute",
+        "time_window": "office_day",
+        "state_options": [
+          "home_daytime_workday",
+          "at_cafe_quiet"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "RETURN_OFFICE_AFTER_LUNCH",
+      "scenario_name": "Return to Office After Lunch",
+      "category": "work",
+      "candidate_ro_action_ids": [
+        "return_office_after_lunch_settle",
+        "return_office_schedule",
+        "return_office_todo"
+      ],
+      "default_ro_id": "return_office_todo",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "RETURN_OFFICE_AFTER_LUNCH",
+        "scenario_name": "Return to Office After Lunch",
+        "category": "work",
+        "time_window": "lunch",
+        "state_options": [
+          "office_working",
+          "office_working_focused"
+        ],
+        "precondition_options": [
+          "at_restaurant_lunch",
+          "at_restaurant_other",
+          "at_cafe",
+          "at_cafe_quiet"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "RIDESHARE_PICKUP",
+      "scenario_name": "Rideshare Pickup Reminder",
+      "category": "travel",
+      "candidate_ro_action_ids": [
+        "ride_info",
+        "rideshare_pickup_details"
+      ],
+      "default_ro_id": "rideshare_pickup_details",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "RIDESHARE_PICKUP",
+        "scenario_name": "Rideshare Pickup Reminder",
+        "category": "travel",
+        "time_window": "travel_day",
+        "state_options": [
+          "outdoor_walking",
+          "stationary_unknown"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "SCHOOL_QUIET",
+      "scenario_name": "Quiet Time at School",
+      "category": "education",
+      "candidate_ro_action_ids": [
+        "school_quiet_focus",
+        "school_silent"
+      ],
+      "default_ro_id": "school_silent",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "SCHOOL_QUIET",
+        "scenario_name": "Quiet Time at School",
+        "category": "education",
+        "time_window": "workday_day",
+        "state_options": [
+          "at_education_class"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "SHOPPING",
+      "scenario_name": "Shopping",
+      "category": "shopping",
+      "candidate_ro_action_ids": [
+        "shopping_greeting",
+        "shopping_payment"
+      ],
+      "default_ro_id": "shopping_payment",
+      "default_app_category": "shopping",
+      "plan": {
+        "scenario_id": "SHOPPING",
+        "scenario_name": "Shopping",
+        "category": "shopping",
+        "time_window": "any",
+        "state_options": [
+          "at_shopping"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "TRAIN_DEPARTURE",
+      "scenario_name": "High-Speed Rail Departure Reminder",
+      "category": "travel",
+      "candidate_ro_action_ids": [
+        "train_info",
+        "train_departure_details"
+      ],
+      "default_ro_id": "train_departure_details",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "TRAIN_DEPARTURE",
+        "scenario_name": "High-Speed Rail Departure Reminder",
+        "category": "travel",
+        "time_window": "travel_day",
+        "state_options": [
+          "at_rail_station",
+          "at_airport",
+          "at_transit_hub"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "UNKNOWN_LONG_STAY",
+      "scenario_name": "Long Stay at Unknown Location",
+      "category": "other",
+      "candidate_ro_action_ids": [
+        "unknown_add_place",
+        "unknown_long_stay_nearby_places"
+      ],
+      "default_ro_id": "unknown_add_place",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "UNKNOWN_LONG_STAY",
+        "scenario_name": "Long Stay at Unknown Location",
+        "category": "other",
+        "time_window": "any",
+        "state_options": [
+          "stationary_unknown",
+          "unknown_noisy",
+          "unknown_dark",
+          "unknown_settled",
+          "unknown_lying"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "WAKE_UP",
+      "scenario_name": "Wake Up at Home",
+      "category": "morning",
+      "candidate_ro_action_ids": [
+        "wake_up_greeting",
+        "wake_schedule",
+        "wake_up_weather"
+      ],
+      "default_ro_id": "wake_schedule",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "WAKE_UP",
+        "scenario_name": "Wake Up at Home",
+        "category": "morning",
+        "time_window": "morning",
+        "state_options": [
+          "home_morning_workday",
+          "home_morning_rest"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "WEEKDAY_HOME_DAY",
+      "scenario_name": "Weekday Daytime at Home",
+      "category": "home",
+      "candidate_ro_action_ids": [
+        "weekday_home_day_relax",
+        "weekday_home_day_schedule",
+        "weekday_home_day_todo_list"
+      ],
+      "default_ro_id": "weekday_home_day_schedule",
+      "default_app_category": "productivity",
+      "plan": {
+        "scenario_id": "WEEKDAY_HOME_DAY",
+        "scenario_name": "Weekday Daytime at Home",
+        "category": "home",
+        "time_window": "office_day",
+        "state_options": [
+          "home_daytime_workday",
+          "home_daytime_workday_dark",
+          "home_daytime_workday_lying"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "WEEKEND_MORNING",
+      "scenario_name": "Weekend Morning",
+      "category": "morning",
+      "candidate_ro_action_ids": [
+        "weekend_greeting",
+        "weekend_weather",
+        "weekend_morning_schedule"
+      ],
+      "default_ro_id": "weekend_weather",
+      "default_app_category": "social",
+      "plan": {
+        "scenario_id": "WEEKEND_MORNING",
+        "scenario_name": "Weekend Morning",
+        "category": "morning",
+        "time_window": "morning",
+        "state_options": [
+          "home_morning_rest",
+          "home_morning_rest_lying"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "WEEKEND_OUTDOOR_WALK",
+      "scenario_name": "Weekend Outdoor Walk",
+      "category": "exercise",
+      "candidate_ro_action_ids": [
+        "walk_enjoy",
+        "weekend_outdoor_walk_route",
+        "weekend_outdoor_walk_weather"
+      ],
+      "default_ro_id": "weekend_outdoor_walk_route",
+      "default_app_category": "music",
+      "plan": {
+        "scenario_id": "WEEKEND_OUTDOOR_WALK",
+        "scenario_name": "Weekend Outdoor Walk",
+        "category": "exercise",
+        "time_window": "any",
+        "state_options": [
+          "outdoor_walking"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    },
+    {
+      "scenario_id": "WEEKEND_OUTING",
+      "scenario_name": "Weekend Outing",
+      "category": "shopping",
+      "candidate_ro_action_ids": [
+        "outing_enjoy",
+        "weekend_outing_weather",
+        "weekend_outing_nearby_places"
+      ],
+      "default_ro_id": "weekend_outing_weather",
+      "default_app_category": "navigation",
+      "plan": {
+        "scenario_id": "WEEKEND_OUTING",
+        "scenario_name": "Weekend Outing",
+        "category": "shopping",
+        "time_window": "any",
+        "state_options": [
+          "outdoor_walking",
+          "at_shopping"
+        ],
+        "precondition_options": [
+          "none"
+        ],
+        "notes": "first-timestep-only v0 episode"
+      },
+      "episode_count": 1000,
+      "ro_default_episode_count": 1000,
+      "ro_alternative_episode_count": 0,
+      "app_default_episode_count": 1000,
+      "app_alternative_episode_count": 0
+    }
+  ],
+  "total_rows": 61000
+}

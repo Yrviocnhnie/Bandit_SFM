@@ -52,11 +52,11 @@ This generates **about 1,000 episodes for each included scenario** into one JSON
 python generate_bandit_v0_firststep_no_triggers.py \
   --rules default_rules_1_english.json \
   --actions scenario_recommendation_actions_v4_english.md \
-  --output bandit_v0_firststep_no_triggers_1000eps.jsonl \
-  --metadata bandit_v0_firststep_no_triggers_1000eps_metadata.json \
-  --plan-output scenario_generation_plan_v0_firststep_no_triggers.json \
+  --output bandit_v0_firststep_no_triggers_1000eps_default_data.jsonl \
+  --metadata bandit_v0_firststep_no_triggers_1000eps_default_metadata.json \
+  --plan-output scenario_generation_plan_v0_firststep_no_deault_triggers.json \
   --episodes-per-scenario 1000 \
-  --default-ratio 0.70 \
+  --default-ratio 1.0 \
   --seed 7
 ```
 
