@@ -1,0 +1,2818 @@
+[
+  {
+    "id": "sc_02",
+    "name": "Arrive office",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_arriving,office_working,office_lunch_break,office_overtime,office_late_overtime,office_rest_day"
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "ARRIVE_OFFICE",
+    "scenarioName": "Arrive office",
+    "scenarioNameEn": "Arrive office",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "arrive_office_schedule",
+        "type": "card",
+        "payload": "{\"title\":\"Today's schedule\",\"body\":\"Check today\u2019s meetings and to-do items.\"}"
+      },
+      {
+        "id": "arrive_office_coffee",
+        "type": "suggestion",
+        "payload": "Start the day with a cup of coffee."
+      },
+      {
+        "id": "arrive_office_clock_out",
+        "type": "notification",
+        "payload": "{\"title\":\"Clock-out reminder\",\"body\":\"Do not forget to clock out before leaving the office.\"}",
+        "trigger": "exit"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_walk_out,commuting_cycle_out,commuting_drive_out,commuting_transit_out",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_06",
+    "name": "Office lunch out",
+    "conditions": [
+      {
+        "key": "wifiLost",
+        "op": "eq",
+        "value": "true"
+      },
+      {
+        "key": "wifiLostCategory",
+        "op": "eq",
+        "value": "work"
+      },
+      {
+        "key": "hour",
+        "op": "gte",
+        "value": "11"
+      },
+      {
+        "key": "hour",
+        "op": "lte",
+        "value": "13"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_arriving,office_working,office_lunch_break",
+        "withinMs": 3600000
+      }
+    ],
+    "priority": 1.8,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "OFFICE_LUNCH_OUT",
+    "scenarioName": "Office lunch out",
+    "scenarioNameEn": "Office lunch out",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 1200000,
+    "suggestions": [
+      {
+        "id": "lunch_restaurant",
+        "type": "card",
+        "payload": "{\"title\":\"Lunch recommendation\",\"body\":\"Nearby restaurant recommendations.\"}"
+      },
+      {
+        "id": "lunch_payment",
+        "type": "service",
+        "payload": "{\"action\":\"show_payment_qr\",\"title\":\"Payment QR code ready\"}"
+      }
+    ]
+  },
+  {
+    "id": "sc_08",
+    "name": "Office afternoon",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,office_working_noisy"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "OFFICE_AFTERNOON",
+    "scenarioName": "Office afternoon",
+    "scenarioNameEn": "Office afternoon",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "afternoon_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Time to drink water and keep your fluid intake up.\"}",
+        "trigger": "duration:3600"
+      },
+      {
+        "id": "afternoon_eye_care",
+        "type": "notification",
+        "payload": "{\"title\":\"Eye-care reminder\",\"body\":\"Rest your eyes and look into the distance for 20 seconds.\"}",
+        "trigger": "duration:5400"
+      },
+      {
+        "id": "afternoon_stretch",
+        "type": "notification",
+        "payload": "{\"title\":\"Activity reminder\",\"body\":\"Get up, walk around, and stretch your body.\"}",
+        "trigger": "duration:7200"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_arriving,office_working,office_lunch_break",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_09",
+    "name": "Leave office",
+    "conditions": [
+      {
+        "key": "wifiLost",
+        "op": "eq",
+        "value": "true"
+      },
+      {
+        "key": "wifiLostCategory",
+        "op": "eq",
+        "value": "work"
+      },
+      {
+        "key": "hour",
+        "op": "gte",
+        "value": "17"
+      },
+      {
+        "key": "hour",
+        "op": "lte",
+        "value": "20"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_overtime,office_working_focused,office_working_noisy",
+        "withinMs": 3600000
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "LEAVE_OFFICE",
+    "scenarioName": "Leave office",
+    "scenarioNameEn": "Leave office",
+    "category": "commute",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "leave_traffic",
+        "type": "card",
+        "payload": "{\"title\":\"Commute traffic\",\"body\":\"Check the route home and live traffic.\"}"
+      },
+      {
+        "id": "leave_nav",
+        "type": "service",
+        "payload": "{\"action\":\"start_navigation\",\"destination\":\"home\"}"
+      }
+    ]
+  },
+  {
+    "id": "sc_11",
+    "name": "Weekday home daytime",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_workday,home_daytime_workday_dark,home_daytime_workday_lying"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "WEEKDAY_HOME_DAY",
+    "scenarioName": "Weekday home daytime",
+    "scenarioNameEn": "Weekday home daytime",
+    "category": "home",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "home_work_focus",
+        "type": "suggestion",
+        "payload": "Stay focused and work efficiently."
+      },
+      {
+        "id": "home_work_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Remember to drink some water.\"}"
+      },
+      {
+        "id": "home_work_stretch",
+        "type": "notification",
+        "payload": "{\"title\":\"Activity reminder\",\"body\":\"Get up, walk around, and move a little.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_workday,home_morning_workday_lying",
+        "withinMs": 10800000
+      }
+    ]
+  },
+  {
+    "id": "sc_13",
+    "name": "Arrive transit hub",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_metro,at_rail_station,at_airport,at_transit_hub"
+      }
+    ],
+    "priority": 2.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "ARRIVE_TRANSIT_HUB",
+    "scenarioName": "Arrive transit hub",
+    "scenarioNameEn": "Arrive transit hub",
+    "category": "travel",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 1200000,
+    "suggestions": [
+      {
+        "id": "transit_info",
+        "type": "card",
+        "payload": "{\"title\":\"Travel information\",\"body\":\"Check flight/train status and gate/platform information.\"}"
+      },
+      {
+        "id": "transit_boarding",
+        "type": "service",
+        "payload": "{\"action\":\"show_boarding_pass\",\"title\":\"Boarding pass/Ticket ready\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_walk_out,commuting_cycle_out,commuting_drive_out,commuting_transit_out",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_15",
+    "name": "Late night overtime",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_overtime,office_late_overtime"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "LATE_NIGHT_OVERTIME",
+    "scenarioName": "Late night overtime",
+    "scenarioNameEn": "Late night overtime",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "overtime_rest",
+        "type": "notification",
+        "payload": "{\"title\":\"Take a break\",\"body\":\"Working overtime is tiring. Stay safe on the way home.\"}"
+      },
+      {
+        "id": "overtime_nav",
+        "type": "service",
+        "payload": "{\"action\":\"start_navigation\",\"destination\":\"home\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,office_working_noisy,office_overtime",
+        "withinMs": 10800000
+      }
+    ]
+  },
+  {
+    "id": "sc_16",
+    "name": "Weekend overtime",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "office_rest_day"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "WEEKEND_OVERTIME",
+    "scenarioName": "Weekend overtime",
+    "scenarioNameEn": "Weekend overtime",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "weekend_work_rest",
+        "type": "suggestion",
+        "payload": "Weekend overtime is tiring. Remember to balance work and rest."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_arriving,office_rest_day",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_17",
+    "name": "Evening at office",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "office_overtime"
+      }
+    ],
+    "priority": 1.2,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "EVENING_AT_OFFICE",
+    "scenarioName": "Evening at office",
+    "scenarioNameEn": "Evening at office",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "evening_office_rest",
+        "type": "suggestion",
+        "payload": "Balance work and rest, and leave work at a reasonable time."
+      },
+      {
+        "id": "evening_office_traffic",
+        "type": "card",
+        "payload": "{\"title\":\"Traffic information\",\"body\":\"Current traffic on the way home looks good.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,office_working_noisy,office_overtime",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_18",
+    "name": "Wake up",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_workday,home_morning_rest"
+      },
+      {
+        "key": "ps_motion",
+        "op": "eq",
+        "value": "walking"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "WAKE_UP",
+    "scenarioName": "Wake up",
+    "scenarioNameEn": "Wake up",
+    "category": "morning",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "wake_weather",
+        "type": "card",
+        "payload": "{\"title\":\"Today's weather\",\"body\":\"Check today\u2019s weather.\"}"
+      },
+      {
+        "id": "wake_schedule",
+        "type": "card",
+        "payload": "{\"title\":\"Today's schedule\",\"body\":\"Check today\u2019s plans.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_sleeping,home_sleeping_lying",
+        "withinMs": 1800000
+      }
+    ]
+  },
+  {
+    "id": "sc_19",
+    "name": "Morning exercise",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_gym,at_gym_exercising"
+      },
+      {
+        "key": "ps_time",
+        "op": "in",
+        "value": "dawn,morning"
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "MORNING_EXERCISE",
+    "scenarioName": "Morning exercise",
+    "scenarioNameEn": "Morning exercise",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "exercise_tracking",
+        "type": "service",
+        "payload": "{\"action\":\"start_workout_tracking\",\"type\":\"morning_exercise\"}"
+      },
+      {
+        "id": "exercise_music",
+        "type": "media",
+        "payload": "{\"action\":\"play_playlist\",\"playlist\":\"workout\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_workday,home_morning_rest,home_morning_rest_lying",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_21",
+    "name": "Shopping",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "at_shopping"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "SHOPPING",
+    "scenarioName": "Shopping",
+    "scenarioNameEn": "Shopping",
+    "category": "shopping",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "shopping_payment",
+        "type": "service",
+        "payload": "{\"action\":\"show_payment_qr\",\"title\":\"Payment QR code ready\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_drive_out,commuting_walk_out,outdoor_walking",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_22",
+    "name": "Home evening",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,home_evening_dark,home_evening_lying,home_evening_noisy"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "HOME_EVENING",
+    "scenarioName": "Home evening",
+    "scenarioNameEn": "Home evening",
+    "category": "home",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "evening_relax",
+        "type": "suggestion",
+        "payload": "Relax and enjoy the evening."
+      },
+      {
+        "id": "evening_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Remember to drink some water.\"}",
+        "trigger": "duration:3600"
+      },
+      {
+        "id": "evening_eye_care",
+        "type": "notification",
+        "payload": "{\"title\":\"Eye-care reminder\",\"body\":\"You have been looking at the screen too long. Give your eyes a break.\"}",
+        "trigger": "duration:3600"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_drive_home,commuting_transit_home,commuting_walk_home,commuting_cycle_home",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_23",
+    "name": "Arrive restaurant/cafe",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_restaurant_lunch,at_restaurant_dinner,at_restaurant_other,at_cafe,at_cafe_quiet"
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "ARRIVE_DINING",
+    "scenarioName": "Arrive restaurant/cafe",
+    "scenarioNameEn": "Arrive restaurant/cafe",
+    "category": "dining",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "dining_payment",
+        "type": "service",
+        "payload": "{\"action\":\"show_payment_qr\",\"title\":\"Payment QR code ready\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "outdoor_walking,at_shopping,commuting_walk_out,commuting_drive_out",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_25",
+    "name": "Home late night",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_sleeping,home_sleeping_lying"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "HOME_LATE_NIGHT",
+    "scenarioName": "Home late night",
+    "scenarioNameEn": "Home late night",
+    "category": "sleep",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "sleep_reminder",
+        "type": "notification",
+        "payload": "{\"title\":\"Bedtime reminder\",\"body\":\"It is best to rest soon. Sufficient sleep is important.\"}"
+      },
+      {
+        "id": "sleep_dnd",
+        "type": "setting",
+        "payload": "{\"action\":\"dnd_on\",\"reason\":\"It is late at night. Turn on Do Not Disturb.\"}"
+      },
+      {
+        "id": "sleep_eye_comfort",
+        "type": "setting",
+        "payload": "{\"action\":\"eye_comfort_on\",\"reason\":\"Turn on eye comfort mode.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,home_evening_dark,home_evening_lying,home_evening_noisy",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_26",
+    "name": "Weekend morning",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_rest,home_morning_rest_lying"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "WEEKEND_MORNING",
+    "scenarioName": "Weekend morning",
+    "scenarioNameEn": "Weekend morning",
+    "category": "morning",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "weekend_greeting",
+        "type": "card",
+        "payload": "{\"title\":\"Happy weekend\",\"body\":\"There is no work scheduled today, so relax and enjoy it.\"}"
+      },
+      {
+        "id": "weekend_weather",
+        "type": "card",
+        "payload": "{\"title\":\"Today's weather\",\"body\":\"Check the weather and decide today\u2019s plans.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_sleeping,home_sleeping_lying",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_27",
+    "name": "Weekend outing",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "outdoor_walking,at_shopping"
+      },
+      {
+        "key": "ps_dayType",
+        "op": "in",
+        "value": "weekend,holiday"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "WEEKEND_OUTING",
+    "scenarioName": "Weekend outing",
+    "scenarioNameEn": "Weekend outing",
+    "category": "shopping",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "outing_enjoy",
+        "type": "suggestion",
+        "payload": "Enjoy your weekend."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_rest,home_morning_rest_lying,home_daytime_rest",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_32",
+    "name": "Park walk",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "outdoor_walking"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "lt",
+        "value": "1800"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "PARK_WALK",
+    "scenarioName": "Park walk",
+    "scenarioNameEn": "Park walk",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "walk_enjoy",
+        "type": "suggestion",
+        "payload": "Enjoy your walk."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_rest,home_daytime_workday,outdoor_walking",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_36",
+    "name": "Long drive",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "driving,commuting_drive_out,commuting_drive_home"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "3600"
+      }
+    ],
+    "priority": 2.5,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "LONG_DRIVE",
+    "scenarioName": "Long drive",
+    "scenarioNameEn": "Long drive",
+    "category": "commute",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "drive_rest",
+        "type": "notification",
+        "payload": "{\"title\":\"Break reminder\",\"body\":\"You have been driving for over an hour. Stop at a service area and rest for 15 minutes.\"}"
+      },
+      {
+        "id": "drive_rest_30min",
+        "type": "notification",
+        "payload": "{\"title\":\"Break reminder\",\"body\":\"You have been driving for 30 minutes. Remember to rest when needed.\"}",
+        "trigger": "duration:1800"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_drive_out,driving",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_38",
+    "name": "Late return home",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_sleeping,home_sleeping_lying"
+      },
+      {
+        "key": "hour",
+        "op": "gte",
+        "value": "22"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_overtime,office_late_overtime,driving,commuting_drive_home,commuting_transit_home,commuting_walk_home",
+        "withinMs": 7200000
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "LATE_RETURN_HOME",
+    "scenarioName": "Late return home",
+    "scenarioNameEn": "Late return home",
+    "category": "home",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "late_home_rest",
+        "type": "notification",
+        "payload": "{\"title\":\"Rest early\",\"body\":\"You are home. Freshen up and rest as soon as you can.\"}"
+      },
+      {
+        "id": "late_home_dnd",
+        "type": "setting",
+        "payload": "{\"action\":\"dnd_on\",\"reason\":\"You arrived home late at night. Get ready to rest.\"}"
+      }
+    ]
+  },
+  {
+    "id": "sc_39",
+    "name": "Home afternoon",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_rest,home_daytime_rest_dark,home_daytime_rest_lying"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "HOME_AFTERNOON",
+    "scenarioName": "Home afternoon",
+    "scenarioNameEn": "Home afternoon",
+    "category": "home",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "afternoon_relax",
+        "type": "suggestion",
+        "payload": "The afternoon is a good time for a short rest or some reading."
+      },
+      {
+        "id": "afternoon_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Remember to drink some water.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_rest,home_morning_workday,home_daytime_workday",
+        "withinMs": 10800000
+      }
+    ]
+  },
+  {
+    "id": "sc_40",
+    "name": "Morning coffee",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_cafe,at_cafe_quiet"
+      },
+      {
+        "key": "ps_time",
+        "op": "in",
+        "value": "dawn,morning"
+      }
+    ],
+    "priority": 1.8,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "MORNING_COFFEE",
+    "scenarioName": "Morning coffee",
+    "scenarioNameEn": "Morning coffee",
+    "category": "dining",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "coffee_schedule",
+        "type": "card",
+        "payload": "{\"title\":\"Today's schedule\",\"body\":\"Check today\u2019s plans.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_workday,home_morning_rest,commuting_walk_out",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_43",
+    "name": "Cafe stay",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_cafe,at_cafe_quiet"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "600"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "CAFE_STAY",
+    "scenarioName": "Cafe stay",
+    "scenarioNameEn": "Cafe stay",
+    "category": "dining",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "cafe_relax",
+        "type": "suggestion",
+        "payload": "Enjoy your coffee time."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_cafe,at_cafe_quiet",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_49",
+    "name": "Quiet home",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,home_daytime_workday,home_daytime_rest,home_morning_workday,home_morning_rest"
+      },
+      {
+        "key": "ps_sound",
+        "op": "eq",
+        "value": "quiet"
+      }
+    ],
+    "priority": 0.8,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "QUIET_HOME",
+    "scenarioName": "Quiet home",
+    "scenarioNameEn": "Quiet home",
+    "category": "home",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "quiet_relax",
+        "type": "suggestion",
+        "payload": "Quiet time is good for reading or meditation."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_workday,home_daytime_rest,home_morning_workday,home_morning_rest,home_evening",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_50",
+    "name": "Gym workout",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "at_gym_exercising"
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "GYM_WORKOUT",
+    "scenarioName": "Gym workout",
+    "scenarioNameEn": "Gym workout",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "gym_tracking",
+        "type": "service",
+        "payload": "{\"action\":\"start_workout_tracking\",\"type\":\"gym\"}"
+      },
+      {
+        "id": "gym_music",
+        "type": "media",
+        "payload": "{\"action\":\"play_playlist\",\"playlist\":\"workout\"}"
+      },
+      {
+        "id": "gym_cooldown",
+        "type": "notification",
+        "payload": "{\"title\":\"Stretch reminder\",\"body\":\"The workout is over. Do not forget to stretch and relax.\"}",
+        "trigger": "exit"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_gym",
+        "withinMs": 1800000
+      }
+    ]
+  },
+  {
+    "id": "sc_50b",
+    "name": "Gym rest",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "at_gym"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "GYM_REST",
+    "scenarioName": "Gym rest",
+    "scenarioNameEn": "Gym rest",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "gym_rest_warmup",
+        "type": "suggestion",
+        "payload": "You are at the gym. Get ready to start your warm-up."
+      },
+      {
+        "id": "gym_rest_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Remember to hydrate before and after exercise.\"}"
+      },
+      {
+        "id": "gym_rest_music",
+        "type": "media",
+        "payload": "{\"action\":\"play_playlist\",\"playlist\":\"workout\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_gym_exercising",
+        "withinMs": 1800000
+      }
+    ]
+  },
+  {
+    "id": "sc_50c",
+    "name": "Gym long stay",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_gym,at_gym_exercising"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "3600"
+      }
+    ],
+    "priority": 1.8,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "GYM_LONG_STAY",
+    "scenarioName": "Gym long stay",
+    "scenarioNameEn": "Gym long stay",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "gym_long_stretch",
+        "type": "notification",
+        "payload": "{\"title\":\"Stretch reminder\",\"body\":\"You have been at the gym for over an hour. Do not forget to stretch and relax.\"}"
+      },
+      {
+        "id": "gym_long_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Rehydrate and replenish electrolytes after exercise.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_gym,at_gym_exercising",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_52",
+    "name": "Outdoor running",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "outdoor_running"
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "OUTDOOR_RUNNING",
+    "scenarioName": "Outdoor running",
+    "scenarioNameEn": "Outdoor running",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "run_tracking",
+        "type": "service",
+        "payload": "{\"action\":\"start_workout_tracking\",\"type\":\"running\"}"
+      },
+      {
+        "id": "run_music",
+        "type": "media",
+        "payload": "{\"action\":\"play_playlist\",\"playlist\":\"running\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_rest,home_morning_workday,outdoor_walking",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_54",
+    "name": "Noisy gathering",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "unknown_noisy,at_social"
+      },
+      {
+        "key": "ps_time",
+        "op": "in",
+        "value": "evening,night"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "NOISY_GATHERING",
+    "scenarioName": "Noisy gathering",
+    "scenarioNameEn": "Noisy gathering",
+    "category": "social",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "noisy_volume",
+        "type": "setting",
+        "payload": "{\"action\":\"volume_up\",\"reason\":\"The environment is noisy. Increase the volume.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,at_restaurant_dinner,at_social",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_58",
+    "name": "Weekend outdoor walk",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "outdoor_walking"
+      },
+      {
+        "key": "ps_dayType",
+        "op": "in",
+        "value": "weekend,holiday"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "WEEKEND_OUTDOOR_WALK",
+    "scenarioName": "Weekend outdoor walk",
+    "scenarioNameEn": "Weekend outdoor walk",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "walk_enjoy",
+        "type": "suggestion",
+        "payload": "Enjoy the outdoors and breathe some fresh air."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_rest,home_daytime_rest",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_59",
+    "name": "Long outdoor walk",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "outdoor_walking"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "3600"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "LONG_OUTDOOR_WALK",
+    "scenarioName": "Long outdoor walk",
+    "scenarioNameEn": "Long outdoor walk",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "walk_rest",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Remember to hydrate and find a place to rest your feet for a bit.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "outdoor_walking",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_60",
+    "name": "Cycling",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "outdoor_cycling,commuting_cycle_out,commuting_cycle_home"
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "CYCLING",
+    "scenarioName": "Cycling",
+    "scenarioNameEn": "Cycling",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "cycle_tracking",
+        "type": "service",
+        "payload": "{\"action\":\"start_workout_tracking\",\"type\":\"cycling\"}"
+      },
+      {
+        "id": "cycle_music",
+        "type": "media",
+        "payload": "{\"action\":\"play_playlist\",\"playlist\":\"cycling\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_cycle_out,commuting_cycle_home,outdoor_cycling",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_62",
+    "name": "Late-night noisy venue",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "unknown_noisy,at_social"
+      },
+      {
+        "key": "hour",
+        "op": "gte",
+        "value": "22"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "LATE_NIGHT_NOISY",
+    "scenarioName": "Late-night noisy venue",
+    "scenarioNameEn": "Late night noisy venue",
+    "category": "social",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "late_noisy_safety",
+        "type": "notification",
+        "payload": "{\"title\":\"Stay safe\",\"body\":\"It is late at night. Stay safe on the way home.\"}"
+      },
+      {
+        "id": "late_noisy_nav",
+        "type": "service",
+        "payload": "{\"action\":\"start_navigation\",\"destination\":\"home\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,at_social,at_restaurant_dinner",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_70",
+    "name": "Waiting at tutoring",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_education,at_education_quiet,at_education_noisy"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "EDUCATION_WAITING",
+    "scenarioName": "Waiting at tutoring",
+    "scenarioNameEn": "Waiting at tutoring",
+    "category": "education",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "edu_wait_tip",
+        "type": "suggestion",
+        "payload": "While waiting, catch up on news or handle a few to-dos."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_walk_out,commuting_transit_out,at_education",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_71",
+    "name": "Long sitting at tutoring",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_education,at_education_quiet"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gte",
+        "value": "2700"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 3600000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "EDUCATION_LONG_SIT",
+    "scenarioName": "Long sitting at tutoring",
+    "scenarioNameEn": "Long sitting at tutoring",
+    "category": "education",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "edu_long_sit_move",
+        "type": "notification",
+        "payload": "{\"title\":\"Activity reminder\",\"body\":\"You have been waiting for a while. Get up and move around a bit.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_education,at_education_class",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_72",
+    "name": "Home lunch",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_workday,home_daytime_rest"
+      },
+      {
+        "key": "ps_time",
+        "op": "eq",
+        "value": "lunch"
+      }
+    ],
+    "priority": 1.2,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "HOME_LUNCH",
+    "scenarioName": "Home lunch",
+    "scenarioNameEn": "Home lunch",
+    "category": "dining",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "lunch_eat",
+        "type": "suggestion",
+        "payload": "It is time for lunch. Do not forget to eat on time."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_workday,home_daytime_rest",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_73",
+    "name": "After lunch walk",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_rest,home_daytime_rest_dark,home_daytime_rest_lying"
+      },
+      {
+        "key": "ps_time",
+        "op": "eq",
+        "value": "lunch"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "AFTER_LUNCH_WALK",
+    "scenarioName": "After lunch walk",
+    "scenarioNameEn": "After lunch walk",
+    "category": "health",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 1800000,
+    "suggestions": [
+      {
+        "id": "lunch_walk",
+        "type": "suggestion",
+        "payload": "A walk after lunch helps digestion. Go out and walk a bit."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_rest,home_daytime_rest_dark,home_daytime_rest_lying,home_daytime_workday",
+        "withinMs": 1800000
+      }
+    ]
+  },
+  {
+    "id": "sc_commute_morning_arrive",
+    "name": "Morning commute arrive at work",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "office_arriving"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_workday,home_morning_workday_lying,commuting_walk_out,commuting_cycle_out,commuting_drive_out,commuting_transit_out",
+        "withinMs": 7200000
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "COMMUTE_MORNING",
+    "scenarioName": "Morning commute arrive at work",
+    "scenarioNameEn": "Morning commute arrive at work",
+    "category": "commute",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "arrive_work_schedule",
+        "type": "card",
+        "payload": "{\"title\":\"Today's tasks\",\"body\":\"You have arrived at the office. Check today\u2019s work plan.\"}"
+      }
+    ]
+  },
+  {
+    "id": "sc_commute_evening_arrive",
+    "name": "Evening commute arrive home",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,home_evening_dark,home_evening_lying,home_evening_noisy"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_overtime,office_working_focused,office_working_noisy,commuting_drive_home,commuting_transit_home,commuting_walk_home,commuting_cycle_home",
+        "withinMs": 7200000
+      }
+    ],
+    "priority": 2.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "COMMUTE_EVENING",
+    "scenarioName": "Evening commute arrive home",
+    "scenarioNameEn": "Evening commute arrive home",
+    "category": "commute",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "arrive_home_relax",
+        "type": "suggestion",
+        "payload": "You are home. Take a moment to relax."
+      }
+    ]
+  },
+  {
+    "id": "sc_arrive_gym_from_home",
+    "name": "Arrive gym from home",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_gym,at_gym_exercising"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_workday,home_morning_rest,home_daytime_workday,home_daytime_rest,home_evening",
+        "withinMs": 3600000
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "HOME_TO_GYM",
+    "scenarioName": "Arrive gym from home",
+    "scenarioNameEn": "Arrive gym from home",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "gym_start",
+        "type": "service",
+        "payload": "{\"action\":\"start_workout_tracking\",\"type\":\"gym\"}"
+      },
+      {
+        "id": "gym_start_music",
+        "type": "media",
+        "payload": "{\"action\":\"play_playlist\",\"playlist\":\"workout\"}"
+      }
+    ]
+  },
+  {
+    "id": "t2_delivery_at_office",
+    "name": "Package reminder at office",
+    "tier": 2,
+    "category": "delivery",
+    "scenarioId": "DELIVERY_AT_OFFICE",
+    "scenarioName": "Package arrived at office",
+    "scenarioNameEn": "Package arrived at office",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "conditions": [
+      {
+        "key": "sms_delivery_pending",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "_original_conditions_note": "Temporarily removed `wifiGeofence=work` for testing; original condition: [{key:wifiGeofence,op:eq,value:work},{key:sms_delivery_pending,op:eq,value:true}]",
+    "excludeConditions": [
+      [
+        {
+          "key": "ps_motion",
+          "op": "eq",
+          "value": "driving"
+        }
+      ],
+      [
+        {
+          "key": "timeOfDay",
+          "op": "eq",
+          "value": "night"
+        }
+      ]
+    ],
+    "action": {
+      "id": "notify_pick_package",
+      "type": "notification",
+      "payload": "\ud83d\udce6 You have a parcel notification. Since you are at the office, pick it up from the front desk or parcel station when convenient."
+    },
+    "priority": 2.5,
+    "cooldownMs": 3600000,
+    "enabled": true,
+    "suggestions": [
+      {
+        "id": "delivery_pickup",
+        "type": "notification",
+        "payload": "\ud83d\udce6 You have a parcel notification. Pick it up from the front desk or parcel station when convenient."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_arriving",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_cal_upcoming_15",
+    "name": "Meeting starting soon",
+    "conditions": [
+      {
+        "key": "cal_hasUpcoming",
+        "op": "eq",
+        "value": "true"
+      },
+      {
+        "key": "cal_nextMinutes",
+        "op": "lte",
+        "value": "15"
+      }
+    ],
+    "excludeConditions": [
+      [
+        {
+          "key": "cal_inMeeting",
+          "op": "eq",
+          "value": "true"
+        }
+      ]
+    ],
+    "action": {
+      "id": "cal_upcoming_notify",
+      "type": "notification",
+      "payload": "Your meeting is about to start. Get ready."
+    },
+    "priority": 3.0,
+    "cooldownMs": 1800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "MEETING_UPCOMING",
+    "scenarioName": "Meeting starting soon",
+    "scenarioNameEn": "Meeting starting soon",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "meeting_prep",
+        "type": "notification",
+        "payload": "{\"title\":\"Meeting reminder\",\"body\":\"Your meeting is about to start. Get ready.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,home_daytime_workday,at_cafe_quiet",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_cal_in_meeting",
+    "name": "In meeting",
+    "conditions": [
+      {
+        "key": "cal_inMeeting",
+        "op": "eq",
+        "value": "true"
+      },
+      {
+        "key": "ps_motion",
+        "op": "eq",
+        "value": "stationary"
+      }
+    ],
+    "action": {
+      "id": "cal_in_meeting_dnd",
+      "type": "suggestion",
+      "payload": "You are in a meeting. Turn on Do Not Disturb."
+    },
+    "priority": 2.5,
+    "cooldownMs": 3600000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "IN_MEETING",
+    "scenarioName": "In meeting",
+    "scenarioNameEn": "In meeting",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "meeting_dnd",
+        "type": "setting",
+        "payload": "{\"action\":\"dnd_on\",\"reason\":\"You are in a meeting. Turn on Do Not Disturb.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,home_daytime_workday,at_cafe_quiet",
+        "withinMs": 1800000
+      }
+    ]
+  },
+  {
+    "id": "sc_cal_remote_meeting",
+    "name": "Remote meeting departure reminder",
+    "conditions": [
+      {
+        "key": "cal_hasUpcoming",
+        "op": "eq",
+        "value": "true"
+      },
+      {
+        "key": "cal_nextMinutes",
+        "op": "lte",
+        "value": "30"
+      },
+      {
+        "key": "cal_nextLocation",
+        "op": "neq",
+        "value": ""
+      }
+    ],
+    "excludeConditions": [
+      [
+        {
+          "key": "ps_motion",
+          "op": "eq",
+          "value": "driving"
+        }
+      ],
+      [
+        {
+          "key": "cal_inMeeting",
+          "op": "eq",
+          "value": "true"
+        }
+      ]
+    ],
+    "action": {
+      "id": "cal_remote_depart",
+      "type": "notification",
+      "payload": "The meeting has a location. It is best to leave early."
+    },
+    "priority": 3.5,
+    "cooldownMs": 3600000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "REMOTE_MEETING",
+    "scenarioName": "Remote meeting departure",
+    "scenarioNameEn": "Remote meeting departure",
+    "category": "commute",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "meeting_depart",
+        "type": "notification",
+        "payload": "{\"title\":\"Departure reminder\",\"body\":\"The meeting has a location. It is best to leave early.\"}"
+      },
+      {
+        "id": "meeting_nav",
+        "type": "service",
+        "payload": "{\"action\":\"start_navigation\",\"destination\":\"meeting_location\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_workday,at_cafe_quiet",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_cal_no_events",
+    "name": "No meetings today",
+    "conditions": [
+      {
+        "key": "cal_eventCount",
+        "op": "eq",
+        "value": "0"
+      },
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_arriving,office_working"
+      }
+    ],
+    "action": {
+      "id": "cal_no_events_focus",
+      "type": "suggestion",
+      "payload": "There are no meetings today, so it is a good time to focus on work."
+    },
+    "priority": 1.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "NO_MEETINGS",
+    "scenarioName": "No meetings today",
+    "scenarioNameEn": "No meetings today",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "focus_work",
+        "type": "suggestion",
+        "payload": "There are no meetings today, so it is a good time for focused deep work."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_arriving,office_working,home_daytime_workday",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_cal_has_events",
+    "name": "Today's schedule reminder",
+    "conditions": [
+      {
+        "key": "cal_hasUpcoming",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "excludeConditions": [
+      [
+        {
+          "key": "cal_inMeeting",
+          "op": "eq",
+          "value": "true"
+        }
+      ]
+    ],
+    "action": {
+      "id": "cal_has_events_overview",
+      "type": "card",
+      "payload": "{\"title\":\"Schedule reminder\",\"body\":\"You have items on your schedule today. Check the details.\"}"
+    },
+    "priority": 2.0,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "CAL_HAS_EVENTS",
+    "scenarioName": "Today's schedule reminder",
+    "scenarioNameEn": "Today's schedule reminder",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "cal_overview",
+        "type": "card",
+        "payload": "{\"title\":\"Schedule reminder\",\"body\":\"You have items on your schedule today. Check the details.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,home_daytime_workday,at_cafe_quiet",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_80",
+    "name": "Return office after lunch",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_restaurant_lunch,at_restaurant_other,at_cafe,at_cafe_quiet",
+        "withinMs": 3600000
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "RETURN_OFFICE_AFTER_LUNCH",
+    "scenarioName": "Return office after lunch",
+    "scenarioNameEn": "Return office after lunch",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "return_office_todo",
+        "type": "card",
+        "payload": "{\"title\":\"Afternoon tasks\",\"body\":\"Back from lunch. Check the work plan for this afternoon.\"}"
+      }
+    ]
+  },
+  {
+    "id": "sc_81",
+    "name": "Home after gym",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,home_daytime_workday,home_daytime_rest,home_morning_workday,home_morning_rest"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_gym,at_gym_exercising",
+        "withinMs": 3600000
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "HOME_AFTER_GYM",
+    "scenarioName": "Home after gym",
+    "scenarioNameEn": "Home after gym",
+    "category": "exercise",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "post_gym_stretch",
+        "type": "notification",
+        "payload": "{\"title\":\"Stretch and relax\",\"body\":\"Do not forget to stretch after exercise. It helps recovery.\"}"
+      },
+      {
+        "id": "post_gym_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Rehydrate and replenish protein after exercise.\"}"
+      }
+    ]
+  },
+  {
+    "id": "sc_82",
+    "name": "Commuting from home",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_walk_out,commuting_cycle_out,commuting_drive_out,commuting_transit_out"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_morning_workday,home_morning_workday_lying",
+        "withinMs": 1800000
+      }
+    ],
+    "priority": 1.8,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "COMMUTE_FROM_HOME",
+    "scenarioName": "Commuting from home",
+    "scenarioNameEn": "Commuting from home",
+    "category": "commute",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "commute_traffic",
+        "type": "card",
+        "payload": "{\"title\":\"Commute traffic\",\"body\":\"Check the traffic ahead and the estimated arrival time.\"}"
+      }
+    ]
+  },
+  {
+    "id": "sc_83",
+    "name": "Office to cafe",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_cafe,at_cafe_quiet"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,office_working_noisy,office_lunch_break",
+        "withinMs": 3600000
+      }
+    ],
+    "priority": 1.2,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "OFFICE_TO_CAFE",
+    "scenarioName": "Office to cafe",
+    "scenarioNameEn": "Office to cafe",
+    "category": "dining",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "cafe_break",
+        "type": "suggestion",
+        "payload": "Change your environment and enjoy some coffee time."
+      }
+    ]
+  },
+  {
+    "id": "sc_84",
+    "name": "Late-night phone use too long",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "home_sleeping_lying"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "1800"
+      }
+    ],
+    "priority": 1.8,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "LATE_NIGHT_PHONE",
+    "scenarioName": "Late-night phone use too long",
+    "scenarioNameEn": "Late night phone too long",
+    "category": "sleep",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "put_phone_down",
+        "type": "notification",
+        "payload": "{\"title\":\"Put down your phone\",\"body\":\"You have been using your phone while lying down for over 30 minutes. Time to rest.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,home_evening_lying,home_sleeping",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_85",
+    "name": "Long focused office session",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "office_working_focused"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "5400"
+      }
+    ],
+    "priority": 1.5,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "OFFICE_FOCUS_LONG",
+    "scenarioName": "Long focused office session",
+    "scenarioNameEn": "Long focused office session",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "focus_break",
+        "type": "notification",
+        "payload": "{\"title\":\"Activity reminder\",\"body\":\"You have stayed focused for 90 minutes. Get up and move around.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_86",
+    "name": "Home daytime dark for too long",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_workday_dark,home_daytime_rest_dark"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "7200"
+      }
+    ],
+    "priority": 1.2,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "HOME_DARK_LONG",
+    "scenarioName": "Home daytime dark for too long",
+    "scenarioNameEn": "Home daytime dark too long",
+    "category": "health",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "open_curtains",
+        "type": "notification",
+        "payload": "{\"title\":\"Lighting reminder\",\"body\":\"The environment has been dark for over 2 hours. Open the curtains or turn on a light.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_daytime_workday_dark,home_daytime_rest_dark,home_evening_dark",
+        "withinMs": 10800000
+      }
+    ]
+  },
+  {
+    "id": "sc_87",
+    "name": "Long stay at unknown place",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "stationary_unknown,unknown_noisy,unknown_dark,unknown_settled,unknown_lying"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "3600"
+      }
+    ],
+    "priority": 0.5,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "UNKNOWN_LONG_STAY",
+    "scenarioName": "Long stay at unknown place",
+    "scenarioNameEn": "Long stay at unknown place",
+    "category": "other",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "unknown_add_place",
+        "type": "suggestion",
+        "payload": "You have stayed here for quite a while. Do you want to add this as a frequent location?"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "stationary_unknown,unknown_settled",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_88",
+    "name": "Extra-long office session",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,office_working_noisy"
+      },
+      {
+        "key": "state_duration_sec",
+        "op": "gt",
+        "value": "10800"
+      }
+    ],
+    "priority": 1.8,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 1,
+    "scenarioId": "OFFICE_LONG_SESSION",
+    "scenarioName": "Extra-long office session",
+    "scenarioNameEn": "Extra long office session",
+    "category": "work",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "long_office_break",
+        "type": "notification",
+        "payload": "{\"title\":\"Break reminder\",\"body\":\"You have been working for more than 3 hours. Get up, walk around, and take a short break.\"}"
+      },
+      {
+        "id": "long_office_water",
+        "type": "notification",
+        "payload": "{\"title\":\"Hydration reminder\",\"body\":\"Remember to drink water and stay hydrated.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "office_working,office_working_focused,office_working_noisy",
+        "withinMs": 14400000
+      }
+    ]
+  },
+  {
+    "id": "sc_89",
+    "name": "Home evening dark",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "home_evening_dark"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 28800000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "HOME_EVENING_DARK",
+    "scenarioName": "Home evening dark",
+    "scenarioNameEn": "Home evening dark",
+    "category": "home",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "evening_dark_eye",
+        "type": "setting",
+        "payload": "{\"action\":\"eye_comfort_on\",\"reason\":\"The environment is dark. Turn on eye comfort mode.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_drive_home,commuting_transit_home,commuting_walk_home,home_evening",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_90",
+    "name": "Home evening noisy",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "home_evening_noisy"
+      }
+    ],
+    "priority": 0.8,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "HOME_EVENING_NOISY",
+    "scenarioName": "Home evening noisy",
+    "scenarioNameEn": "Home evening noisy",
+    "category": "home",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "evening_noisy_volume",
+        "type": "setting",
+        "payload": "{\"action\":\"volume_up\",\"reason\":\"The environment is noisy. Increase the volume.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,at_social,at_restaurant_dinner",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_91",
+    "name": "School quiet time",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "at_education_quiet"
+      }
+    ],
+    "priority": 1.2,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "SCHOOL_QUIET",
+    "scenarioName": "School quiet time",
+    "scenarioNameEn": "School quiet time",
+    "category": "education",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "school_silent",
+        "type": "setting",
+        "payload": "{\"action\":\"silent_on\",\"reason\":\"The school environment is quiet. Turn on silent mode.\"}"
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_education,at_education_class",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_92",
+    "name": "Quiet cafe",
+    "conditions": [
+      {
+        "key": "state_current",
+        "op": "eq",
+        "value": "at_cafe_quiet"
+      }
+    ],
+    "priority": 1.0,
+    "cooldownMs": 14400000,
+    "enabled": true,
+    "tier": 0,
+    "scenarioId": "CAFE_QUIET",
+    "scenarioName": "Quiet cafe",
+    "scenarioNameEn": "Quiet cafe",
+    "category": "dining",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "suggestions": [
+      {
+        "id": "cafe_quiet_focus",
+        "type": "suggestion",
+        "payload": "A quiet cafe is a good place for focused reading or work."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "at_cafe",
+        "withinMs": 3600000
+      }
+    ]
+  },
+  {
+    "id": "sc_93",
+    "name": "Train departure reminder",
+    "conditions": [
+      {
+        "key": "sms_train_pending",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "action": {
+      "id": "train_info",
+      "type": "notification",
+      "payload": "You have a train trip. Check the train number and seat information in advance."
+    },
+    "priority": 2.5,
+    "cooldownMs": 3600000,
+    "enabled": true,
+    "tier": 2,
+    "scenarioId": "TRAIN_DEPARTURE",
+    "scenarioName": "Train departure reminder",
+    "scenarioNameEn": "Train departure reminder",
+    "category": "travel",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "train_info",
+        "type": "notification",
+        "payload": "You have a train trip. Check the train number and seat information in advance."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_transit_out,at_transit_hub,at_rail_station",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_94",
+    "name": "Flight boarding reminder",
+    "conditions": [
+      {
+        "key": "sms_flight_pending",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "action": {
+      "id": "flight_info",
+      "type": "notification",
+      "payload": "You have a flight. Check the flight number and gate information."
+    },
+    "priority": 2.5,
+    "cooldownMs": 3600000,
+    "enabled": true,
+    "tier": 2,
+    "scenarioId": "FLIGHT_BOARDING",
+    "scenarioName": "Flight boarding reminder",
+    "scenarioNameEn": "Flight boarding reminder",
+    "category": "travel",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "flight_info",
+        "type": "notification",
+        "payload": "You have a flight. Check the flight number and gate information."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_drive_out,commuting_transit_out,at_airport",
+        "withinMs": 10800000
+      }
+    ]
+  },
+  {
+    "id": "sc_95",
+    "name": "Hotel check-in reminder",
+    "conditions": [
+      {
+        "key": "sms_hotel_pending",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "action": {
+      "id": "hotel_info",
+      "type": "notification",
+      "payload": "You have a hotel booking. Check the check-in details."
+    },
+    "priority": 2.0,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 2,
+    "scenarioId": "HOTEL_CHECKIN",
+    "scenarioName": "Hotel check-in reminder",
+    "scenarioNameEn": "Hotel check-in reminder",
+    "category": "travel",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 1800000,
+    "suggestions": [
+      {
+        "id": "hotel_info",
+        "type": "notification",
+        "payload": "You have a hotel booking. Check the check-in details."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_drive_out,commuting_transit_out,at_airport,at_transit_hub",
+        "withinMs": 21600000
+      }
+    ]
+  },
+  {
+    "id": "sc_96",
+    "name": "Movie ticket reminder",
+    "conditions": [
+      {
+        "key": "sms_movie_pending",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "action": {
+      "id": "movie_info",
+      "type": "notification",
+      "payload": "You have movie tickets to collect. Check the pickup code and cinema details."
+    },
+    "priority": 2.0,
+    "cooldownMs": 3600000,
+    "enabled": true,
+    "tier": 2,
+    "scenarioId": "MOVIE_TICKET",
+    "scenarioName": "Movie ticket reminder",
+    "scenarioNameEn": "Movie ticket reminder",
+    "category": "entertainment",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 900000,
+    "suggestions": [
+      {
+        "id": "movie_info",
+        "type": "notification",
+        "payload": "You have movie tickets to collect. Check the pickup code and cinema details."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "home_evening,at_social,at_restaurant_other",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_97",
+    "name": "Hospital appointment reminder",
+    "conditions": [
+      {
+        "key": "sms_hospital_pending",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "action": {
+      "id": "hospital_info",
+      "type": "notification",
+      "payload": "You have a medical appointment. Check the hospital and department details."
+    },
+    "priority": 2.0,
+    "cooldownMs": 7200000,
+    "enabled": true,
+    "tier": 2,
+    "scenarioId": "HOSPITAL_APPOINTMENT",
+    "scenarioName": "Hospital appointment reminder",
+    "scenarioNameEn": "Hospital appointment reminder",
+    "category": "health",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 1800000,
+    "suggestions": [
+      {
+        "id": "hospital_info",
+        "type": "notification",
+        "payload": "You have a medical appointment. Check the hospital and department details."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "commuting_drive_out,commuting_transit_out,at_health",
+        "withinMs": 7200000
+      }
+    ]
+  },
+  {
+    "id": "sc_98",
+    "name": "Rideshare pickup reminder",
+    "conditions": [
+      {
+        "key": "sms_ride_pending",
+        "op": "eq",
+        "value": "true"
+      }
+    ],
+    "action": {
+      "id": "ride_info",
+      "type": "notification",
+      "payload": "Your rideshare is about to arrive. Check the license plate number and pickup point."
+    },
+    "priority": 3.0,
+    "cooldownMs": 1800000,
+    "enabled": true,
+    "tier": 2,
+    "scenarioId": "RIDESHARE_PICKUP",
+    "scenarioName": "Rideshare pickup reminder",
+    "scenarioNameEn": "Rideshare pickup reminder",
+    "category": "travel",
+    "stepIndex": 0,
+    "totalSteps": 1,
+    "timeoutMs": 600000,
+    "suggestions": [
+      {
+        "id": "ride_info",
+        "type": "notification",
+        "payload": "Your rideshare is about to arrive. Check the license plate number and pickup point."
+      }
+    ],
+    "preconditions": [
+      {
+        "key": "state_current",
+        "op": "in",
+        "value": "outdoor_walking,at_social,at_transit_hub",
+        "withinMs": 3600000
+      }
+    ]
+  }
+]
