@@ -252,13 +252,11 @@ This is a realistic feature space for a bandit/UCB agent because it starts with 
 
 `ARRIVE_OFFICE`, `OFFICE_LUNCH_OUT`, `OFFICE_AFTERNOON`, `LEAVE_OFFICE`, `WEEKDAY_HOME_DAY`, `ARRIVE_TRANSIT_HUB`, `LATE_NIGHT_OVERTIME`, `WEEKEND_OVERTIME`, `EVENING_AT_OFFICE`, `MORNING_EXERCISE`, `SHOPPING`, `HOME_EVENING`, `ARRIVE_DINING`, `HOME_LATE_NIGHT`, `WEEKEND_MORNING`, `WEEKEND_OUTING`, `LATE_RETURN_HOME`, `HOME_AFTERNOON`, `MORNING_COFFEE`, `GYM_WORKOUT`, `GYM_REST`, `GYM_LONG_STAY`, `OUTDOOR_RUNNING`, `WEEKEND_OUTDOOR_WALK`, `CYCLING`, `COMMUTE_MORNING`, `COMMUTE_EVENING`, `HOME_TO_GYM`, `WAKE_UP`, `PARK_WALK`, `LONG_DRIVE`, `CAFE_STAY`, `QUIET_HOME`, `NOISY_GATHERING`, `LONG_OUTDOOR_WALK`, `LATE_NIGHT_NOISY`, `DELIVERY_AT_OFFICE`, `EDUCATION_WAITING`, `EDUCATION_LONG_SIT`, `HOME_LUNCH`, `AFTER_LUNCH_WALK`, `MEETING_UPCOMING`, `IN_MEETING`, `REMOTE_MEETING`, `NO_MEETINGS`, `CAL_HAS_EVENTS`, `RETURN_OFFICE_AFTER_LUNCH`, `HOME_AFTER_GYM`, `COMMUTE_FROM_HOME`, `OFFICE_TO_CAFE`, `LATE_NIGHT_PHONE`, `OFFICE_FOCUS_LONG`, `HOME_DARK_LONG`, `UNKNOWN_LONG_STAY`, `OFFICE_LONG_SESSION`, `HOME_EVENING_DARK`, `HOME_EVENING_NOISY`, `SCHOOL_QUIET`, `CAFE_QUIET`, `TRAIN_DEPARTURE`, `FLIGHT_BOARDING`, `HOTEL_CHECKIN`, `MOVIE_TICKET`, `HOSPITAL_APPOINTMENT`, `RIDESHARE_PICKUP`, `unknown`
 
-## Appendix B. StateCode values (64 canonical + model fallback `unknown`)
+## Appendix B. StateCode values (64 canonical)
 
 Canonical `StateCode` values from the spec:
 
 `home_sleeping`, `home_morning_workday`, `home_morning_rest`, `home_daytime_workday`, `home_daytime_rest`, `home_evening`, `home_active`, `office_arriving`, `office_lunch_break`, `office_working`, `office_overtime`, `office_late_overtime`, `office_rest_day`, `commuting_walk_out`, `commuting_walk_home`, `commuting_cycle_out`, `commuting_cycle_home`, `commuting_drive_out`, `commuting_drive_home`, `commuting_transit_out`, `commuting_transit_home`, `driving`, `in_transit`, `at_metro`, `at_rail_station`, `at_airport`, `at_transit_hub`, `outdoor_walking`, `outdoor_running`, `outdoor_cycling`, `outdoor_resting`, `at_restaurant_lunch`, `at_restaurant_dinner`, `at_restaurant_other`, `at_cafe`, `at_gym_exercising`, `at_gym`, `at_shopping`, `at_health`, `at_social`, `at_education`, `at_custom`, `stationary_unknown`, `walking_unknown`, `home_sleeping_lying`, `home_morning_workday_lying`, `home_morning_rest_lying`, `home_daytime_workday_dark`, `home_daytime_workday_lying`, `home_daytime_rest_dark`, `home_daytime_rest_lying`, `home_evening_dark`, `home_evening_lying`, `home_evening_noisy`, `office_working_focused`, `office_working_noisy`, `at_cafe_quiet`, `at_education_class`, `at_education_break`, `at_health_inpatient`, `unknown_noisy`, `unknown_dark`, `unknown_settled`, `unknown_lying`
-
-Model adds one extra fallback class: `unknown`
 
 ## Appendix C. LocationCategory values (17)
 
