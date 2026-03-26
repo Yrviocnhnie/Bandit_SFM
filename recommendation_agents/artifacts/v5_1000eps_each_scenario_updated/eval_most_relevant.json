@@ -1,0 +1,12 @@
+{
+  "app": {
+    "avg_most_relevant_covered_in_top3": 1.605166951011455,
+    "avg_most_relevant_covered_in_top3_ratio": 0.5350556503371516,
+    "sample_count": 12309
+  },
+  "ro": {
+    "avg_most_relevant_covered_in_top3": 1.2879194085628403,
+    "avg_most_relevant_covered_in_top3_ratio": 0.42930646952094675,
+    "sample_count": 12309
+  }
+}

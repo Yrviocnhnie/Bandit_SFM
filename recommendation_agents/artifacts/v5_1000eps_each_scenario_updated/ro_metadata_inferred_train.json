@@ -1,0 +1,698 @@
+{
+  "actions": [
+    {
+      "action_id": "O_ENABLE_VIBRATION",
+      "display_name": "O_ENABLE_VIBRATION"
+    },
+    {
+      "action_id": "O_INCREASE_NOTIFICATION_VOLUME",
+      "display_name": "O_INCREASE_NOTIFICATION_VOLUME"
+    },
+    {
+      "action_id": "O_OPEN_NOTES_QUICK_ENTRY",
+      "display_name": "O_OPEN_NOTES_QUICK_ENTRY"
+    },
+    {
+      "action_id": "O_PROMPT_ADD_FREQUENT_PLACE",
+      "display_name": "O_PROMPT_ADD_FREQUENT_PLACE"
+    },
+    {
+      "action_id": "O_SHOW_BOOKING_DETAILS",
+      "display_name": "O_SHOW_BOOKING_DETAILS"
+    },
+    {
+      "action_id": "O_SHOW_COMMUTE_TRAFFIC",
+      "display_name": "O_SHOW_COMMUTE_TRAFFIC"
+    },
+    {
+      "action_id": "O_SHOW_MEETING_DETAILS",
+      "display_name": "O_SHOW_MEETING_DETAILS"
+    },
+    {
+      "action_id": "O_SHOW_NEARBY_OPTIONS",
+      "display_name": "O_SHOW_NEARBY_OPTIONS"
+    },
+    {
+      "action_id": "O_SHOW_PAYMENT_QR",
+      "display_name": "O_SHOW_PAYMENT_QR"
+    },
+    {
+      "action_id": "O_SHOW_PICKUP_DETAILS",
+      "display_name": "O_SHOW_PICKUP_DETAILS"
+    },
+    {
+      "action_id": "O_SHOW_SCHEDULE",
+      "display_name": "O_SHOW_SCHEDULE"
+    },
+    {
+      "action_id": "O_SHOW_TODAY_TODO",
+      "display_name": "O_SHOW_TODAY_TODO"
+    },
+    {
+      "action_id": "O_SHOW_TRAVEL_INFO",
+      "display_name": "O_SHOW_TRAVEL_INFO"
+    },
+    {
+      "action_id": "O_SHOW_WALKING_ROUTE",
+      "display_name": "O_SHOW_WALKING_ROUTE"
+    },
+    {
+      "action_id": "O_SHOW_WEATHER",
+      "display_name": "O_SHOW_WEATHER"
+    },
+    {
+      "action_id": "O_START_ACTIVITY_TRACKING",
+      "display_name": "O_START_ACTIVITY_TRACKING"
+    },
+    {
+      "action_id": "O_START_CONTEXT_TIMER",
+      "display_name": "O_START_CONTEXT_TIMER"
+    },
+    {
+      "action_id": "O_TURN_ON_DND",
+      "display_name": "O_TURN_ON_DND"
+    },
+    {
+      "action_id": "O_TURN_ON_EYE_COMFORT_MODE",
+      "display_name": "O_TURN_ON_EYE_COMFORT_MODE"
+    },
+    {
+      "action_id": "O_TURN_ON_SILENT_MODE",
+      "display_name": "O_TURN_ON_SILENT_MODE"
+    },
+    {
+      "action_id": "R_AFTER_MEAL_WALK",
+      "display_name": "R_AFTER_MEAL_WALK"
+    },
+    {
+      "action_id": "R_CALENDAR_QUICK_LOOK",
+      "display_name": "R_CALENDAR_QUICK_LOOK"
+    },
+    {
+      "action_id": "R_CAPTURE_MEETING_FOLLOW_UPS",
+      "display_name": "R_CAPTURE_MEETING_FOLLOW_UPS"
+    },
+    {
+      "action_id": "R_CHECK_TRIP_OR_BOOKING_INFO",
+      "display_name": "R_CHECK_TRIP_OR_BOOKING_INFO"
+    },
+    {
+      "action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+      "display_name": "R_CLOCK_OUT_BEFORE_LEAVING"
+    },
+    {
+      "action_id": "R_COMMUTE_STEADY_AND_SAFE",
+      "display_name": "R_COMMUTE_STEADY_AND_SAFE"
+    },
+    {
+      "action_id": "R_DEEP_WORK_WINDOW",
+      "display_name": "R_DEEP_WORK_WINDOW"
+    },
+    {
+      "action_id": "R_DELIVERY_PICKUP_REMINDER",
+      "display_name": "R_DELIVERY_PICKUP_REMINDER"
+    },
+    {
+      "action_id": "R_DEPART_EARLY_FOR_OFFSITE",
+      "display_name": "R_DEPART_EARLY_FOR_OFFSITE"
+    },
+    {
+      "action_id": "R_ENJOY_LEISURE_MOMENT",
+      "display_name": "R_ENJOY_LEISURE_MOMENT"
+    },
+    {
+      "action_id": "R_HOME_RELAX_AND_RESET",
+      "display_name": "R_HOME_RELAX_AND_RESET"
+    },
+    {
+      "action_id": "R_LONG_DRIVE_REST",
+      "display_name": "R_LONG_DRIVE_REST"
+    },
+    {
+      "action_id": "R_MEAL_BREAK",
+      "display_name": "R_MEAL_BREAK"
+    },
+    {
+      "action_id": "R_NOISY_ENV_STAY_SAFE",
+      "display_name": "R_NOISY_ENV_STAY_SAFE"
+    },
+    {
+      "action_id": "R_OPEN_CURTAINS_OR_LIGHT",
+      "display_name": "R_OPEN_CURTAINS_OR_LIGHT"
+    },
+    {
+      "action_id": "R_OUTDOOR_HYDRATE_AND_REST",
+      "display_name": "R_OUTDOOR_HYDRATE_AND_REST"
+    },
+    {
+      "action_id": "R_PLAN_DAY_OVER_COFFEE",
+      "display_name": "R_PLAN_DAY_OVER_COFFEE"
+    },
+    {
+      "action_id": "R_POST_WORKOUT_RECOVERY",
+      "display_name": "R_POST_WORKOUT_RECOVERY"
+    },
+    {
+      "action_id": "R_PREPARE_FOR_MEETING",
+      "display_name": "R_PREPARE_FOR_MEETING"
+    },
+    {
+      "action_id": "R_SLEEP_SOON_AND_CHARGE",
+      "display_name": "R_SLEEP_SOON_AND_CHARGE"
+    },
+    {
+      "action_id": "R_WAITING_TIME_USEFUL",
+      "display_name": "R_WAITING_TIME_USEFUL"
+    },
+    {
+      "action_id": "R_WEEKEND_OR_MORNING_GREETING",
+      "display_name": "R_WEEKEND_OR_MORNING_GREETING"
+    },
+    {
+      "action_id": "R_WORKOUT_PREP",
+      "display_name": "R_WORKOUT_PREP"
+    },
+    {
+      "action_id": "R_WORK_BREAK_AND_STRETCH",
+      "display_name": "R_WORK_BREAK_AND_STRETCH"
+    },
+    {
+      "action_id": "R_WORK_START_SETTLE_IN",
+      "display_name": "R_WORK_START_SETTLE_IN"
+    },
+    {
+      "action_id": "R_WRAP_UP_AND_REST_AFTER_WORK",
+      "display_name": "R_WRAP_UP_AND_REST_AFTER_WORK"
+    }
+  ],
+  "global_action_ids": [
+    "O_ENABLE_VIBRATION",
+    "O_INCREASE_NOTIFICATION_VOLUME",
+    "O_OPEN_NOTES_QUICK_ENTRY",
+    "O_PROMPT_ADD_FREQUENT_PLACE",
+    "O_SHOW_BOOKING_DETAILS",
+    "O_SHOW_COMMUTE_TRAFFIC",
+    "O_SHOW_MEETING_DETAILS",
+    "O_SHOW_NEARBY_OPTIONS",
+    "O_SHOW_PAYMENT_QR",
+    "O_SHOW_PICKUP_DETAILS",
+    "O_SHOW_SCHEDULE",
+    "O_SHOW_TODAY_TODO",
+    "O_SHOW_TRAVEL_INFO",
+    "O_SHOW_WALKING_ROUTE",
+    "O_SHOW_WEATHER",
+    "O_START_ACTIVITY_TRACKING",
+    "O_START_CONTEXT_TIMER",
+    "O_TURN_ON_DND",
+    "O_TURN_ON_EYE_COMFORT_MODE",
+    "O_TURN_ON_SILENT_MODE",
+    "R_AFTER_MEAL_WALK",
+    "R_CALENDAR_QUICK_LOOK",
+    "R_CAPTURE_MEETING_FOLLOW_UPS",
+    "R_CHECK_TRIP_OR_BOOKING_INFO",
+    "R_CLOCK_OUT_BEFORE_LEAVING",
+    "R_COMMUTE_STEADY_AND_SAFE",
+    "R_DEEP_WORK_WINDOW",
+    "R_DELIVERY_PICKUP_REMINDER",
+    "R_DEPART_EARLY_FOR_OFFSITE",
+    "R_ENJOY_LEISURE_MOMENT",
+    "R_HOME_RELAX_AND_RESET",
+    "R_LONG_DRIVE_REST",
+    "R_MEAL_BREAK",
+    "R_NOISY_ENV_STAY_SAFE",
+    "R_OPEN_CURTAINS_OR_LIGHT",
+    "R_OUTDOOR_HYDRATE_AND_REST",
+    "R_PLAN_DAY_OVER_COFFEE",
+    "R_POST_WORKOUT_RECOVERY",
+    "R_PREPARE_FOR_MEETING",
+    "R_SLEEP_SOON_AND_CHARGE",
+    "R_WAITING_TIME_USEFUL",
+    "R_WEEKEND_OR_MORNING_GREETING",
+    "R_WORKOUT_PREP",
+    "R_WORK_BREAK_AND_STRETCH",
+    "R_WORK_START_SETTLE_IN",
+    "R_WRAP_UP_AND_REST_AFTER_WORK"
+  ],
+  "scenario_default_rankings": [
+    {
+      "default_action_ids": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WALKING_ROUTE",
+        "R_AFTER_MEAL_WALK"
+      ],
+      "scenario_id": "AFTER_LUNCH_WALK"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "scenario_id": "ARRIVE_DINING"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_PLAN_DAY_OVER_COFFEE"
+      ],
+      "scenario_id": "ARRIVE_OFFICE"
+    },
+    {
+      "default_action_ids": [
+        "R_CHECK_TRIP_OR_BOOKING_INFO",
+        "O_SHOW_TRAVEL_INFO"
+      ],
+      "scenario_id": "ARRIVE_TRANSIT_HUB"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_SILENT_MODE",
+        "R_DEEP_WORK_WINDOW",
+        "O_SHOW_SCHEDULE"
+      ],
+      "scenario_id": "CAFE_QUIET"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_PAYMENT_QR",
+        "O_SHOW_SCHEDULE",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "scenario_id": "CAFE_STAY"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "R_CALENDAR_QUICK_LOOK"
+      ],
+      "scenario_id": "CAL_HAS_EVENTS"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "R_HOME_RELAX_AND_RESET",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "scenario_id": "COMMUTE_EVENING"
+    },
+    {
+      "default_action_ids": [
+        "R_COMMUTE_STEADY_AND_SAFE",
+        "O_SHOW_COMMUTE_TRAFFIC"
+      ],
+      "scenario_id": "COMMUTE_FROM_HOME"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "R_WORK_START_SETTLE_IN",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "scenario_id": "COMMUTE_MORNING"
+    },
+    {
+      "default_action_ids": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WEATHER",
+        "R_COMMUTE_STEADY_AND_SAFE"
+      ],
+      "scenario_id": "CYCLING"
+    },
+    {
+      "default_action_ids": [
+        "R_DELIVERY_PICKUP_REMINDER",
+        "O_SHOW_PICKUP_DETAILS"
+      ],
+      "scenario_id": "DELIVERY_AT_OFFICE"
+    },
+    {
+      "default_action_ids": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "scenario_id": "EDUCATION_LONG_SIT"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WAITING_TIME_USEFUL"
+      ],
+      "scenario_id": "EDUCATION_WAITING"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "O_SHOW_TODAY_TODO",
+        "R_WRAP_UP_AND_REST_AFTER_WORK"
+      ],
+      "scenario_id": "EVENING_AT_OFFICE"
+    },
+    {
+      "default_action_ids": [
+        "R_CHECK_TRIP_OR_BOOKING_INFO",
+        "O_SHOW_TRAVEL_INFO"
+      ],
+      "scenario_id": "FLIGHT_BOARDING"
+    },
+    {
+      "default_action_ids": [
+        "R_POST_WORKOUT_RECOVERY",
+        "O_START_CONTEXT_TIMER"
+      ],
+      "scenario_id": "GYM_LONG_STAY"
+    },
+    {
+      "default_action_ids": [
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "scenario_id": "GYM_REST"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "scenario_id": "HOME_AFTERNOON"
+    },
+    {
+      "default_action_ids": [
+        "O_START_CONTEXT_TIMER",
+        "R_POST_WORKOUT_RECOVERY"
+      ],
+      "scenario_id": "HOME_AFTER_GYM"
+    },
+    {
+      "default_action_ids": [
+        "R_OPEN_CURTAINS_OR_LIGHT",
+        "O_SHOW_WEATHER",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "scenario_id": "HOME_DARK_LONG"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "scenario_id": "HOME_EVENING_DARK"
+    },
+    {
+      "default_action_ids": [
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "R_HOME_RELAX_AND_RESET",
+        "O_ENABLE_VIBRATION"
+      ],
+      "scenario_id": "HOME_EVENING_NOISY"
+    },
+    {
+      "default_action_ids": [
+        "R_SLEEP_SOON_AND_CHARGE",
+        "O_SHOW_SCHEDULE",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "scenario_id": "HOME_LATE_NIGHT"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_NEARBY_OPTIONS",
+        "R_MEAL_BREAK"
+      ],
+      "scenario_id": "HOME_LUNCH"
+    },
+    {
+      "default_action_ids": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "scenario_id": "HOME_TO_GYM"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_BOOKING_DETAILS",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "scenario_id": "HOSPITAL_APPOINTMENT"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_BOOKING_DETAILS",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "scenario_id": "HOTEL_CHECKIN"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_DND",
+        "R_CAPTURE_MEETING_FOLLOW_UPS",
+        "O_OPEN_NOTES_QUICK_ENTRY"
+      ],
+      "scenario_id": "IN_MEETING"
+    },
+    {
+      "default_action_ids": [
+        "O_ENABLE_VIBRATION",
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "R_NOISY_ENV_STAY_SAFE"
+      ],
+      "scenario_id": "LATE_NIGHT_NOISY"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "R_WRAP_UP_AND_REST_AFTER_WORK"
+      ],
+      "scenario_id": "LATE_NIGHT_OVERTIME"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "R_SLEEP_SOON_AND_CHARGE"
+      ],
+      "scenario_id": "LATE_NIGHT_PHONE"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_DND",
+        "R_SLEEP_SOON_AND_CHARGE"
+      ],
+      "scenario_id": "LATE_RETURN_HOME"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "O_SHOW_WEATHER",
+        "R_CLOCK_OUT_BEFORE_LEAVING"
+      ],
+      "scenario_id": "LEAVE_OFFICE"
+    },
+    {
+      "default_action_ids": [
+        "R_LONG_DRIVE_REST",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "scenario_id": "LONG_DRIVE"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_NEARBY_OPTIONS",
+        "R_OUTDOOR_HYDRATE_AND_REST"
+      ],
+      "scenario_id": "LONG_OUTDOOR_WALK"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_MEETING_DETAILS",
+        "O_TURN_ON_DND",
+        "R_PREPARE_FOR_MEETING"
+      ],
+      "scenario_id": "MEETING_UPCOMING"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "R_PLAN_DAY_OVER_COFFEE",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "scenario_id": "MORNING_COFFEE"
+    },
+    {
+      "default_action_ids": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "scenario_id": "MORNING_EXERCISE"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_BOOKING_DETAILS",
+        "R_CHECK_TRIP_OR_BOOKING_INFO",
+        "O_SHOW_PAYMENT_QR"
+      ],
+      "scenario_id": "MOVIE_TICKET"
+    },
+    {
+      "default_action_ids": [
+        "O_ENABLE_VIBRATION",
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "R_NOISY_ENV_STAY_SAFE"
+      ],
+      "scenario_id": "NOISY_GATHERING"
+    },
+    {
+      "default_action_ids": [
+        "R_DEEP_WORK_WINDOW",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "scenario_id": "NO_MEETINGS"
+    },
+    {
+      "default_action_ids": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "scenario_id": "OFFICE_FOCUS_LONG"
+    },
+    {
+      "default_action_ids": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "scenario_id": "OFFICE_LONG_SESSION"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_PAYMENT_QR",
+        "R_MEAL_BREAK"
+      ],
+      "scenario_id": "OFFICE_LUNCH_OUT"
+    },
+    {
+      "default_action_ids": [
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_PAYMENT_QR"
+      ],
+      "scenario_id": "OFFICE_TO_CAFE"
+    },
+    {
+      "default_action_ids": [
+        "O_START_ACTIVITY_TRACKING",
+        "R_OUTDOOR_HYDRATE_AND_REST",
+        "O_START_CONTEXT_TIMER"
+      ],
+      "scenario_id": "OUTDOOR_RUNNING"
+    },
+    {
+      "default_action_ids": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WALKING_ROUTE",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "scenario_id": "PARK_WALK"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "scenario_id": "QUIET_HOME"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_TRAVEL_INFO",
+        "O_SHOW_MEETING_DETAILS",
+        "R_DEPART_EARLY_FOR_OFFSITE"
+      ],
+      "scenario_id": "REMOTE_MEETING"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_START_SETTLE_IN"
+      ],
+      "scenario_id": "RETURN_OFFICE_AFTER_LUNCH"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "scenario_id": "RIDESHARE_PICKUP"
+    },
+    {
+      "default_action_ids": [
+        "O_TURN_ON_SILENT_MODE",
+        "R_DEEP_WORK_WINDOW"
+      ],
+      "scenario_id": "SCHOOL_QUIET"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "scenario_id": "SHOPPING"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "scenario_id": "TRAIN_DEPARTURE"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_NEARBY_OPTIONS",
+        "O_PROMPT_ADD_FREQUENT_PLACE"
+      ],
+      "scenario_id": "UNKNOWN_LONG_STAY"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_WEATHER",
+        "R_WEEKEND_OR_MORNING_GREETING"
+      ],
+      "scenario_id": "WAKE_UP"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WORK_BREAK_AND_STRETCH"
+      ],
+      "scenario_id": "WEEKDAY_HOME_DAY"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_WEATHER",
+        "O_SHOW_SCHEDULE",
+        "R_WEEKEND_OR_MORNING_GREETING"
+      ],
+      "scenario_id": "WEEKEND_MORNING"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_WALKING_ROUTE",
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_WEATHER"
+      ],
+      "scenario_id": "WEEKEND_OUTDOOR_WALK"
+    },
+    {
+      "default_action_ids": [
+        "O_SHOW_WEATHER",
+        "O_SHOW_NEARBY_OPTIONS",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "scenario_id": "WEEKEND_OUTING"
+    }
+  ],
+  "schema_version": "v0-ro-inferred-global"
+}

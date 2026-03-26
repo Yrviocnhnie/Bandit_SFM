@@ -264,9 +264,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     eval_both_parser = subparsers.add_parser(
         "eval-v0-both",
-        help="One-line workflow: evaluate both R/O and App models on prepared test samples using top-k metrics",
+        help="One-line workflow: evaluate both R/O and App models using the v6 relevance-style top-k metrics",
     )
     eval_both_parser.add_argument("--data-dir", required=True, help="Prepared data directory containing trained artifacts")
+    eval_both_parser.add_argument(
+        "--catalog-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the v6 scenario relevance catalog used for evaluation",
+    )
     eval_both_parser.add_argument("--top-k", type=int, default=3, help="Top-k used for evaluation")
     eval_both_parser.add_argument("--progress-every", type=int, default=1000, help="Evaluation log interval")
     eval_both_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
@@ -510,17 +515,19 @@ def main() -> None:
     if args.command == "eval-v0-both":
         summary = eval_v0_both(
             data_dir=args.data_dir,
+            catalog_markdown=args.catalog_markdown,
             top_k=args.top_k,
             device=args.device,
             progress_every=args.progress_every,
         )
         print(json.dumps({
             "data_dir": summary.data_dir,
+            "catalog_markdown": summary.catalog_markdown,
             "top_k": summary.top_k,
             "device": summary.device,
             "ro": summary.ro.__dict__,
             "app": summary.app.__dict__,
-        }, indent=2, sort_keys=True))
+        }, indent=2))
         return
 
     parser.error(f"Unknown command: {args.command}")

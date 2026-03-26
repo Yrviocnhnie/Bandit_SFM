@@ -9,7 +9,7 @@ Both agents use the same context feature encoder and the same trainer. The only 
 
 ## What This V0 Setup Assumes
 
-The current setup matches the v5 design:
+The current setup matches the shared-action V0 design:
 
 - there is no per-scenario action mask at normal serving time
 - `scenario_id` is not a model input
@@ -17,9 +17,10 @@ The current setup matches the v5 design:
 - training data is context/action pairs
 - `scenario_id` can still be stored in training rows for offline analysis and reporting
 
-The catalog source checked into this repo is:
+The catalog sources checked into this repo are:
 
 - `docs/scenario_recommendation_actions_v5.md`
+- `docs/scenario_recommendation_actions_v6.md`
 
 The metadata builder reads that catalog and produces:
 
@@ -129,6 +130,7 @@ Use `conda run --no-capture-output` if you want live evaluation progress, throug
 ```bash
 conda run --no-capture-output -n sfm python -m recommendation_agents.cli eval-v0-both \
   --data-dir artifacts/v5_1000eps_each_scenario_updated \
+  --catalog-markdown docs/scenario_recommendation_actions_v6.md \
   --top-k 3 \
   --progress-every 1000 \
   --device auto
@@ -136,15 +138,33 @@ conda run --no-capture-output -n sfm python -m recommendation_agents.cli eval-v0
 
 - `artifacts/v5_1000eps_each_scenario_updated/eval_both_top3.json`
 
-The eval report includes, for both `R/O` and `App`:
+The eval report now uses the `v6` scenario relevance definitions and puts the main metrics first.
 
-- `row_hit_at_k`: how often the row's ground-truth label appears in predicted top-3
-- `pred_topk_rate_by_action`: how often each action or app category appears in predicted top-3
-- `label_rate_by_action`: empirical frequency of the test labels
-- `scenario_topk_majority_set_match_rate`: for each scenario, whether the model's majority top-3 set matches the catalog ground-truth top-3 set
-- `scenario_topk_examples`: a few concrete scenario comparisons
+Core metrics for both `R/O` and `App`:
 
-This is the best command for checking whether the model has learned the intended `50% / 25% / 25%` default ranking pattern.
+- `avg_most_relevant_covered_in_topk`
+  - average number of `most relevant 3` items that appear in the predicted top-3
+  - example: `1.6` means the model recovers `1.6 / 3` of the scenario's most relevant items on average
+- `avg_acceptable_covered_in_topk`
+  - average number of predicted top-3 items that belong to `most relevant 3 + other plausible 3`
+  - higher is better
+- `avg_irrelevant_in_topk`
+  - average number of predicted top-3 items that belong to the scenario's `irrelevant 2`
+  - lower is better
+
+Useful detail fields after the core metrics:
+
+- `top6_predicted_action_distribution`
+  - the most frequently predicted actions or app categories across the whole test set
+- `per_scenario`
+  - per-scenario averages for the same three metrics
+  - the scenario-defined `most_relevant_3`, `other_plausible_3`, and `irrelevant_2`
+  - `predicted_top6_action_distribution` for that scenario
+
+This format is intentionally unified so you can compare:
+
+- the older model trained with one sampled label per context
+- the newer model trained with expanded multi-action samples per context
 
 ## Files Teammates Need To Provide
 

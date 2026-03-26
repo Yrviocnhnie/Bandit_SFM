@@ -1,0 +1,20 @@
+{
+  "action_ids": [
+    "social",
+    "productivity",
+    "entertainment",
+    "navigation",
+    "shopping",
+    "news",
+    "health",
+    "music",
+    "reading",
+    "game"
+  ],
+  "alpha": 0.05,
+  "default_bonus": 0.75,
+  "device": "cuda",
+  "feature_dim": 306,
+  "l2": 1.0,
+  "model_type": "masked_disjoint_linucb_v0"
+}

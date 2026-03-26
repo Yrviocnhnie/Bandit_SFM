@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import re
 import time
 from typing import Any
 
@@ -17,10 +18,12 @@ from recommendation_agents.catalog import (
     build_app_metadata_from_catalog_markdown,
     build_ro_metadata_from_catalog_markdown,
 )
+from recommendation_agents.feature_space import V0FeatureSpace
+from recommendation_agents.linucb import MaskedDisjointLinUCB
 from recommendation_agents.metadata import BanditMetadata
 from recommendation_agents.raw_synthetic import convert_raw_sequence_to_v0, convert_raw_sequence_to_v0_app
-from recommendation_agents.schemas import ScoreRequest, TrainingEvent
-from recommendation_agents.trainer import TrainingMetrics, _format_duration, score_v0, train_v0
+from recommendation_agents.schemas import TrainingEvent
+from recommendation_agents.trainer import TrainingMetrics, _format_duration, train_v0
 
 
 logger = logging.getLogger(__name__)
@@ -59,16 +62,22 @@ class TrainBothSummary:
 class EvalTopKSummary:
     sample_count: int
     top_k: int
-    row_hit_at_k: float
-    pred_topk_rate_by_action: dict[str, float]
-    label_rate_by_action: dict[str, float]
-    scenario_topk_majority_set_match_rate: float
-    scenario_topk_examples: dict[str, dict[str, Any]]
+    avg_most_relevant_covered_in_topk: float
+    avg_most_relevant_covered_in_topk_ratio: float
+    avg_acceptable_covered_in_topk: float
+    avg_acceptable_covered_in_topk_ratio: float
+    avg_irrelevant_in_topk: float
+    avg_irrelevant_in_topk_ratio: float
+    top6_predicted_action_distribution: list[dict[str, Any]]
+    scenarios_with_test_samples: int
+    scenarios_without_test_samples: list[str]
+    per_scenario: dict[str, dict[str, Any]]
 
 
 @dataclass(frozen=True)
 class EvalBothSummary:
     data_dir: str
+    catalog_markdown: str
     top_k: int
     device: str
     ro: EvalTopKSummary
@@ -79,6 +88,12 @@ def _write_json(path: str | Path, payload: Any) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _write_json_unsorted(path: str | Path, payload: Any) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2))
 
 
 def split_raw_by_episode(
@@ -256,10 +271,73 @@ def train_v0_both(
     return summary
 
 
+def _parse_v6_relevance_catalog(markdown_path: str | Path) -> dict[str, dict[str, dict[str, tuple[str, ...]]]]:
+    text = Path(markdown_path).read_text()
+    if "## Scenario Defaults" not in text:
+        raise ValueError(f"Could not find '## Scenario Defaults' in {markdown_path}")
+    section = text.split("## Scenario Defaults", 1)[1]
+    parsed: dict[str, dict[str, dict[str, tuple[str, ...]]]] = {"ro": {}, "app": {}}
+
+    for raw_line in section.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("| `"):
+            continue
+        parts = [part.strip() for part in line.strip("|").split("|")]
+        if len(parts) != 8:
+            continue
+        scenario_id = parts[0].strip("`")
+        ro_most = tuple(re.findall(r"`([^`]+)`", parts[2]))
+        ro_plausible = tuple(re.findall(r"`([^`]+)`", parts[3]))
+        ro_irrelevant = tuple(re.findall(r"`([^`]+)`", parts[4]))
+        app_most = tuple(re.findall(r"`([^`]+)`", parts[5]))
+        app_plausible = tuple(re.findall(r"`([^`]+)`", parts[6]))
+        app_irrelevant = tuple(re.findall(r"`([^`]+)`", parts[7]))
+        if len(ro_most) < 3 or len(ro_plausible) < 3 or len(ro_irrelevant) < 2:
+            raise ValueError(f"Scenario {scenario_id!r} does not satisfy the required R/O 3+3+2 structure")
+        if len(app_most) < 3 or len(app_plausible) < 3 or len(app_irrelevant) < 2:
+            raise ValueError(f"Scenario {scenario_id!r} does not satisfy the required App 3+3+2 structure")
+        parsed["ro"][scenario_id] = {
+            "most_relevant_3": ro_most[:3],
+            "other_plausible_3": ro_plausible[:3],
+            "irrelevant_2": ro_irrelevant[:2],
+        }
+        parsed["app"][scenario_id] = {
+            "most_relevant_3": app_most[:3],
+            "other_plausible_3": app_plausible[:3],
+            "irrelevant_2": app_irrelevant[:2],
+        }
+
+    if not parsed["ro"] or not parsed["app"]:
+        raise ValueError(f"No scenario relevance rows were parsed from {markdown_path}")
+    return parsed
+
+
+def _top_action_distribution(
+    action_counts: Counter[str],
+    sample_count: int,
+    top_k: int,
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    total_slots = sample_count * top_k
+    distribution: list[dict[str, Any]] = []
+    for action_id, count in action_counts.most_common(limit):
+        distribution.append(
+            {
+                "action_id": action_id,
+                "count": count,
+                "topk_appearance_rate": (count / sample_count) if sample_count > 0 else 0.0,
+                "slot_share": (count / total_slots) if total_slots > 0 else 0.0,
+            }
+        )
+    return distribution
+
+
 def evaluate_v0_topk(
     artifact_dir: str | Path,
     metadata_path: str | Path,
     test_samples_path: str | Path,
+    catalog_markdown: str | Path,
+    label_namespace: str,
     top_k: int = 3,
     device: str = "auto",
     progress_every: int = 1000,
@@ -271,12 +349,12 @@ def evaluate_v0_topk(
         raise ValueError("progress_every must be positive")
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     label_prefix = f"[{progress_label}] " if progress_label else ""
+    if label_namespace not in {"ro", "app"}:
+        raise ValueError("label_namespace must be 'ro' or 'app'")
     metadata = BanditMetadata.load(metadata_path)
-    metadata_payload = json.loads(Path(metadata_path).read_text())
-    scenario_gt = {
-        str(row["scenario_id"]): tuple(str(value) for value in row.get("default_action_ids", [])[:top_k])
-        for row in metadata_payload.get("scenario_default_rankings", [])
-    }
+    relevance_catalog = _parse_v6_relevance_catalog(catalog_markdown)[label_namespace]
+    feature_space = V0FeatureSpace()
+    model = MaskedDisjointLinUCB.load(artifact_dir, device=device)
     rows = [
         TrainingEvent.from_dict(json.loads(line))
         for line in Path(test_samples_path).read_text().splitlines()
@@ -295,105 +373,183 @@ def evaluate_v0_topk(
         device,
     )
 
-    row_hit = 0
     pred_topk_counts: Counter[str] = Counter()
-    label_counts: Counter[str] = Counter()
-    scenario_preds: dict[str, list[tuple[str, ...]]] = defaultdict(list)
-    interval_hit = 0
+    scenario_row_counts: Counter[str] = Counter()
+    scenario_pred_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    scenario_most_sum: Counter[str] = Counter()
+    scenario_acceptable_sum: Counter[str] = Counter()
+    scenario_irrelevant_sum: Counter[str] = Counter()
+    total_most_sum = 0.0
+    total_acceptable_sum = 0.0
+    total_irrelevant_sum = 0.0
+    interval_most_sum = 0.0
+    interval_acceptable_sum = 0.0
+    interval_irrelevant_sum = 0.0
+    skipped_rows_missing_scenario = 0
 
     for index, event in enumerate(rows, start=1):
-        ranked = score_v0(
-            artifact_dir=artifact_dir,
-            metadata_path=metadata_path,
-            request=ScoreRequest(context=event.context),
+        scenario_id = event.scenario_id
+        if scenario_id is None or scenario_id not in relevance_catalog:
+            skipped_rows_missing_scenario += 1
+            continue
+        x = feature_space.encode(event.context)
+        ranked = model.rank(
+            x,
+            metadata.candidate_action_ids(scenario_id),
+            metadata.default_action_id(scenario_id),
             top_k=top_k,
-            device=device,
         )
         pred = tuple(item.action_id for item in ranked)
-        label = metadata.resolve_action_token(event.selected_action, event.scenario_id)
-        if label in pred:
-            row_hit += 1
-            interval_hit += 1
+        pred_set = set(pred)
+        scenario_spec = relevance_catalog[scenario_id]
+        most_relevant = tuple(metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["most_relevant_3"])
+        plausible = tuple(metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["other_plausible_3"])
+        irrelevant = tuple(metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["irrelevant_2"])
+        acceptable = set(most_relevant) | set(plausible)
+
+        most_count = sum(1 for action_id in most_relevant if action_id in pred_set)
+        acceptable_count = sum(1 for action_id in pred if action_id in acceptable)
+        irrelevant_count = sum(1 for action_id in pred if action_id in irrelevant)
+
+        total_most_sum += most_count
+        total_acceptable_sum += acceptable_count
+        total_irrelevant_sum += irrelevant_count
+        interval_most_sum += most_count
+        interval_acceptable_sum += acceptable_count
+        interval_irrelevant_sum += irrelevant_count
+
+        scenario_row_counts[scenario_id] += 1
+        scenario_most_sum[scenario_id] += most_count
+        scenario_acceptable_sum[scenario_id] += acceptable_count
+        scenario_irrelevant_sum[scenario_id] += irrelevant_count
         for action_id in pred:
             pred_topk_counts[action_id] += 1
-        label_counts[label] += 1
-        if event.scenario_id is not None and event.scenario_id in scenario_gt:
-            scenario_preds[event.scenario_id].append(pred)
+            scenario_pred_counts[scenario_id][action_id] += 1
 
         if index % progress_every == 0:
             elapsed = time.time() - start_time
             rows_per_sec = index / elapsed if elapsed > 0 else 0.0
             remaining = max(total_rows - index, 0)
             eta_seconds = remaining / rows_per_sec if rows_per_sec > 0 else 0.0
+            interval_denominator = progress_every
             logger.info(
-                "%sProcessed %d/%d rows | interval hit@%d=%.4f | cumulative hit@%d=%.4f | elapsed=%s | eta=%s | %.1f rows/s",
+                "%sProcessed %d/%d rows | interval most=%.3f/3 | cumulative most=%.3f/3 | interval acceptable=%.3f/%d | cumulative acceptable=%.3f/%d | interval irrelevant=%.3f/%d | cumulative irrelevant=%.3f/%d | elapsed=%s | eta=%s | %.1f rows/s",
                 label_prefix,
                 index,
                 total_rows,
+                interval_most_sum / interval_denominator,
+                total_most_sum / max(index - skipped_rows_missing_scenario, 1),
+                interval_acceptable_sum / interval_denominator,
                 top_k,
-                interval_hit / progress_every,
+                total_acceptable_sum / max(index - skipped_rows_missing_scenario, 1),
                 top_k,
-                row_hit / index,
+                interval_irrelevant_sum / interval_denominator,
+                top_k,
+                total_irrelevant_sum / max(index - skipped_rows_missing_scenario, 1),
+                top_k,
                 _format_duration(elapsed),
                 _format_duration(eta_seconds),
                 rows_per_sec,
             )
-            interval_hit = 0
+            interval_most_sum = 0.0
+            interval_acceptable_sum = 0.0
+            interval_irrelevant_sum = 0.0
 
     remainder = total_rows % progress_every
     if remainder:
         elapsed = time.time() - start_time
         rows_per_sec = total_rows / elapsed if elapsed > 0 else 0.0
+        processed_rows = total_rows - skipped_rows_missing_scenario
         logger.info(
-            "%sProcessed %d/%d rows | interval hit@%d=%.4f | cumulative hit@%d=%.4f | elapsed=%s | eta=0s | %.1f rows/s",
+            "%sProcessed %d/%d rows | interval most=%.3f/3 | cumulative most=%.3f/3 | interval acceptable=%.3f/%d | cumulative acceptable=%.3f/%d | interval irrelevant=%.3f/%d | cumulative irrelevant=%.3f/%d | elapsed=%s | eta=0s | %.1f rows/s",
             label_prefix,
             total_rows,
             total_rows,
+            interval_most_sum / remainder,
+            total_most_sum / max(processed_rows, 1),
+            interval_acceptable_sum / remainder,
             top_k,
-            interval_hit / remainder,
+            total_acceptable_sum / max(processed_rows, 1),
             top_k,
-            row_hit / total_rows,
+            interval_irrelevant_sum / remainder,
+            top_k,
+            total_irrelevant_sum / max(processed_rows, 1),
+            top_k,
             _format_duration(elapsed),
             rows_per_sec,
         )
 
     scenario_eval: dict[str, dict[str, Any]] = {}
-    for scenario_id, pred_lists in sorted(scenario_preds.items()):
-        pred_majority = Counter(pred_lists).most_common(1)[0][0]
-        gt_topk = tuple(metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_gt[scenario_id])
+    for scenario_id in sorted(relevance_catalog):
+        scenario_spec = relevance_catalog[scenario_id]
+        row_count = scenario_row_counts[scenario_id]
+        if row_count == 0:
+            continue
+        most_relevant = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["most_relevant_3"]]
+        plausible = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["other_plausible_3"]]
+        irrelevant = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["irrelevant_2"]]
         scenario_eval[scenario_id] = {
-            "pred_topk": list(pred_majority),
-            "gt_topk": list(gt_topk),
-            "set_match": set(pred_majority) == set(gt_topk),
+            "sample_count": row_count,
+            "most_relevant_3": most_relevant,
+            "other_plausible_3": plausible,
+            "acceptable_6": most_relevant + plausible,
+            "irrelevant_2": irrelevant,
+            "avg_most_relevant_covered_in_topk": scenario_most_sum[scenario_id] / row_count,
+            "avg_most_relevant_covered_in_topk_ratio": scenario_most_sum[scenario_id] / (row_count * 3.0),
+            "avg_acceptable_covered_in_topk": scenario_acceptable_sum[scenario_id] / row_count,
+            "avg_acceptable_covered_in_topk_ratio": scenario_acceptable_sum[scenario_id] / (row_count * top_k),
+            "avg_irrelevant_in_topk": scenario_irrelevant_sum[scenario_id] / row_count,
+            "avg_irrelevant_in_topk_ratio": scenario_irrelevant_sum[scenario_id] / (row_count * top_k),
+            "predicted_top6_action_distribution": _top_action_distribution(
+                scenario_pred_counts[scenario_id],
+                sample_count=row_count,
+                top_k=top_k,
+                limit=6,
+            ),
         }
 
     elapsed_total = time.time() - start_time
+    evaluated_rows = total_rows - skipped_rows_missing_scenario
     logger.info(
-        "%sFinished evaluation | rows=%d | hit@%d=%.4f | elapsed=%s | avg %.1f rows/s",
+        "%sFinished evaluation | rows=%d | evaluated=%d | avg most=%.3f/3 | avg acceptable=%.3f/%d | avg irrelevant=%.3f/%d | elapsed=%s | avg %.1f rows/s",
         label_prefix,
         total_rows,
+        evaluated_rows,
+        total_most_sum / max(evaluated_rows, 1),
+        total_acceptable_sum / max(evaluated_rows, 1),
         top_k,
-        row_hit / total_rows,
+        total_irrelevant_sum / max(evaluated_rows, 1),
+        top_k,
         _format_duration(elapsed_total),
         total_rows / elapsed_total if elapsed_total > 0 else 0.0,
     )
 
     return EvalTopKSummary(
-        sample_count=total_rows,
+        sample_count=evaluated_rows,
         top_k=top_k,
-        row_hit_at_k=row_hit / total_rows,
-        pred_topk_rate_by_action={action_id: count / total_rows for action_id, count in pred_topk_counts.most_common()},
-        label_rate_by_action={action_id: count / total_rows for action_id, count in label_counts.most_common()},
-        scenario_topk_majority_set_match_rate=(
-            sum(1 for item in scenario_eval.values() if item["set_match"]) / len(scenario_eval)
-            if scenario_eval else 0.0
+        avg_most_relevant_covered_in_topk=total_most_sum / max(evaluated_rows, 1),
+        avg_most_relevant_covered_in_topk_ratio=total_most_sum / max(evaluated_rows * 3.0, 1.0),
+        avg_acceptable_covered_in_topk=total_acceptable_sum / max(evaluated_rows, 1),
+        avg_acceptable_covered_in_topk_ratio=total_acceptable_sum / max(evaluated_rows * top_k, 1),
+        avg_irrelevant_in_topk=total_irrelevant_sum / max(evaluated_rows, 1),
+        avg_irrelevant_in_topk_ratio=total_irrelevant_sum / max(evaluated_rows * top_k, 1),
+        top6_predicted_action_distribution=_top_action_distribution(
+            pred_topk_counts,
+            sample_count=max(evaluated_rows, 1),
+            top_k=top_k,
+            limit=6,
         ),
-        scenario_topk_examples=dict(list(scenario_eval.items())[:10]),
+        scenarios_with_test_samples=len(scenario_eval),
+        scenarios_without_test_samples=[
+            scenario_id for scenario_id in sorted(relevance_catalog) if scenario_row_counts[scenario_id] == 0
+        ],
+        per_scenario=scenario_eval,
     )
 
 
 def eval_v0_both(
     data_dir: str | Path,
+    catalog_markdown: str | Path = "docs/scenario_recommendation_actions_v6.md",
     top_k: int = 3,
     device: str = "auto",
     progress_every: int = 1000,
@@ -407,6 +563,8 @@ def eval_v0_both(
         artifact_dir=data_path / "ro_model",
         metadata_path=data_path / "ro_metadata.json",
         test_samples_path=data_path / "ro_test_samples.jsonl",
+        catalog_markdown=catalog_markdown,
+        label_namespace="ro",
         top_k=top_k,
         device=device,
         progress_every=progress_every,
@@ -416,6 +574,8 @@ def eval_v0_both(
         artifact_dir=data_path / "app_model",
         metadata_path=data_path / "app_metadata.json",
         test_samples_path=data_path / "app_test_samples.jsonl",
+        catalog_markdown=catalog_markdown,
+        label_namespace="app",
         top_k=top_k,
         device=device,
         progress_every=progress_every,
@@ -424,13 +584,15 @@ def eval_v0_both(
     logger.info("[WORKFLOW] Finished joint evaluation")
     summary = EvalBothSummary(
         data_dir=str(data_path),
+        catalog_markdown=str(Path(catalog_markdown)),
         top_k=top_k,
         device=device,
         ro=ro,
         app=app,
     )
-    _write_json(data_path / f"eval_both_top{top_k}.json", {
+    _write_json_unsorted(data_path / f"eval_both_top{top_k}.json", {
         "data_dir": summary.data_dir,
+        "catalog_markdown": summary.catalog_markdown,
         "top_k": summary.top_k,
         "device": summary.device,
         "ro": asdict(summary.ro),
