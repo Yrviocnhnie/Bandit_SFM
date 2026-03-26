@@ -1,4 +1,4 @@
-"""Scenario and action metadata contract for the V0 model."""
+"""Metadata contract for shared-action or scenario-masked V0 bandit models."""
 
 from __future__ import annotations
 
@@ -52,6 +52,8 @@ class BanditMetadata:
     schema_version: str
     scenarios: dict[str, ScenarioMetadata]
     actions: dict[str, ActionMetadata]
+    global_action_ids: tuple[str, ...]
+    global_raw_to_actions: dict[str, tuple[str, ...]]
 
     @classmethod
     def load(cls, path: str | Path) -> "BanditMetadata":
@@ -62,91 +64,122 @@ class BanditMetadata:
     def from_dict(cls, payload: dict[str, Any]) -> "BanditMetadata":
         schema_version = str(payload.get("schema_version", "v0"))
         scenario_rows = payload.get("scenarios")
-        if not isinstance(scenario_rows, list) or not scenario_rows:
-            raise ValueError("metadata.scenarios must be a non-empty list")
+        if scenario_rows is not None and (not isinstance(scenario_rows, list) or not scenario_rows):
+            raise ValueError("metadata.scenarios must be a non-empty list when provided")
 
         scenarios: dict[str, ScenarioMetadata] = {}
         seen_actions: dict[str, ActionMetadata] = {}
         canonical_ids = set(CANONICAL_SCENARIO_IDS)
 
-        for row in scenario_rows:
-            scenario_id = str(row["scenario_id"])
-            if scenario_id not in canonical_ids:
-                raise ValueError(f"Unknown scenario_id {scenario_id!r}; use canonical IDs from the feature spec")
-            action_rows = row.get("actions")
-            if action_rows is not None:
-                if not isinstance(action_rows, list) or not action_rows:
-                    raise ValueError(f"Scenario {scenario_id!r} actions must be a non-empty list")
-                arm_to_raw: dict[str, str] = {}
-                raw_to_arms_lists: dict[str, list[str]] = {}
-                action_ids_list: list[str] = []
-                raw_action_ids_list: list[str] = []
-                for action_row in action_rows:
-                    arm_id = str(action_row["arm_id"])
-                    raw_action_id = str(action_row.get("action_id", arm_id))
-                    action_ids_list.append(arm_id)
-                    raw_action_ids_list.append(raw_action_id)
-                    arm_to_raw[arm_id] = raw_action_id
-                    raw_to_arms_lists.setdefault(raw_action_id, []).append(arm_id)
-                    seen_actions.setdefault(
-                        arm_id,
-                        ActionMetadata(
-                            action_id=arm_id,
-                            raw_action_id=raw_action_id,
-                            display_name=action_row.get("display_name", raw_action_id),
-                        ),
-                    )
-                action_ids = tuple(dict.fromkeys(action_ids_list))
-                raw_action_ids = tuple(dict.fromkeys(raw_action_ids_list))
-                raw_to_arms = {key: tuple(value) for key, value in raw_to_arms_lists.items()}
-                default_action_id = str(row.get("default_action_id", row.get("default_arm_id")))
-                default_arm_id = str(row.get("default_arm_id", default_action_id))
-                if default_arm_id not in arm_to_raw:
-                    if default_action_id in raw_to_arms and len(raw_to_arms[default_action_id]) == 1:
-                        default_arm_id = raw_to_arms[default_action_id][0]
-                    else:
-                        raise ValueError(
-                            f"Scenario {scenario_id!r} default arm {default_arm_id!r} "
-                            "must be present in actions"
+        if isinstance(scenario_rows, list):
+            for row in scenario_rows:
+                scenario_id = str(row["scenario_id"])
+                if scenario_id not in canonical_ids:
+                    raise ValueError(f"Unknown scenario_id {scenario_id!r}; use canonical IDs from the feature spec")
+                action_rows = row.get("actions")
+                if action_rows is not None:
+                    if not isinstance(action_rows, list) or not action_rows:
+                        raise ValueError(f"Scenario {scenario_id!r} actions must be a non-empty list")
+                    arm_to_raw: dict[str, str] = {}
+                    raw_to_arms_lists: dict[str, list[str]] = {}
+                    action_ids_list: list[str] = []
+                    raw_action_ids_list: list[str] = []
+                    for action_row in action_rows:
+                        arm_id = str(action_row["arm_id"])
+                        raw_action_id = str(action_row.get("action_id", arm_id))
+                        action_ids_list.append(arm_id)
+                        raw_action_ids_list.append(raw_action_id)
+                        arm_to_raw[arm_id] = raw_action_id
+                        raw_to_arms_lists.setdefault(raw_action_id, []).append(arm_id)
+                        seen_actions.setdefault(
+                            arm_id,
+                            ActionMetadata(
+                                action_id=arm_id,
+                                raw_action_id=raw_action_id,
+                                display_name=action_row.get("display_name", raw_action_id),
+                            ),
                         )
-                default_action_id = arm_to_raw[default_arm_id]
-            else:
-                action_ids = tuple(dict.fromkeys(str(value) for value in row["action_ids"]))
-                if not action_ids:
-                    raise ValueError(f"Scenario {scenario_id!r} must declare at least one action")
-                default_action_id = str(row["default_action_id"])
-                if default_action_id not in action_ids:
-                    raise ValueError(
-                        f"Scenario {scenario_id!r} default_action_id {default_action_id!r} "
-                        "must be present in action_ids"
-                    )
-                default_arm_id = default_action_id
-                raw_action_ids = action_ids
-                arm_to_raw = {action_id: action_id for action_id in action_ids}
-                raw_to_arms = {action_id: (action_id,) for action_id in action_ids}
-                for action_id in action_ids:
-                    seen_actions.setdefault(action_id, ActionMetadata(action_id=action_id, raw_action_id=action_id))
-            if scenario_id in scenarios:
-                raise ValueError(f"Duplicate scenario_id {scenario_id!r}")
-            scenarios[scenario_id] = ScenarioMetadata(
-                scenario_id=scenario_id,
-                default_action_id=default_action_id,
-                default_arm_id=default_arm_id,
-                action_ids=action_ids,
-                raw_action_ids=raw_action_ids,
-                arm_to_raw=arm_to_raw,
-                raw_to_arms=raw_to_arms,
-            )
+                    action_ids = tuple(dict.fromkeys(action_ids_list))
+                    raw_action_ids = tuple(dict.fromkeys(raw_action_ids_list))
+                    raw_to_arms = {key: tuple(value) for key, value in raw_to_arms_lists.items()}
+                    default_action_id = str(row.get("default_action_id", row.get("default_arm_id")))
+                    default_arm_id = str(row.get("default_arm_id", default_action_id))
+                    if default_arm_id not in arm_to_raw:
+                        if default_action_id in raw_to_arms and len(raw_to_arms[default_action_id]) == 1:
+                            default_arm_id = raw_to_arms[default_action_id][0]
+                        else:
+                            raise ValueError(
+                                f"Scenario {scenario_id!r} default arm {default_arm_id!r} must be present in actions"
+                            )
+                    default_action_id = arm_to_raw[default_arm_id]
+                else:
+                    action_ids = tuple(dict.fromkeys(str(value) for value in row["action_ids"]))
+                    if not action_ids:
+                        raise ValueError(f"Scenario {scenario_id!r} must declare at least one action")
+                    default_action_id = str(row["default_action_id"])
+                    if default_action_id not in action_ids:
+                        raise ValueError(
+                            f"Scenario {scenario_id!r} default_action_id {default_action_id!r} must be present in action_ids"
+                        )
+                    default_arm_id = default_action_id
+                    raw_action_ids = action_ids
+                    arm_to_raw = {action_id: action_id for action_id in action_ids}
+                    raw_to_arms = {action_id: (action_id,) for action_id in action_ids}
+                    for action_id in action_ids:
+                        seen_actions.setdefault(action_id, ActionMetadata(action_id=action_id, raw_action_id=action_id))
+                if scenario_id in scenarios:
+                    raise ValueError(f"Duplicate scenario_id {scenario_id!r}")
+                scenarios[scenario_id] = ScenarioMetadata(
+                    scenario_id=scenario_id,
+                    default_action_id=default_action_id,
+                    default_arm_id=default_arm_id,
+                    action_ids=action_ids,
+                    raw_action_ids=raw_action_ids,
+                    arm_to_raw=arm_to_raw,
+                    raw_to_arms=raw_to_arms,
+                )
 
         for row in payload.get("actions", []):
             action_id = str(row["action_id"])
             seen_actions[action_id] = ActionMetadata(
                 action_id=action_id,
-                raw_action_id=row.get("raw_action_id"),
+                raw_action_id=row.get("raw_action_id", action_id),
                 display_name=row.get("display_name"),
             )
 
-        return cls(schema_version=schema_version, scenarios=scenarios, actions=seen_actions)
+        global_action_ids_raw = payload.get("global_action_ids")
+        if global_action_ids_raw is None:
+            if scenarios:
+                global_action_ids = tuple(dict.fromkeys(action_id for scenario in scenarios.values() for action_id in scenario.action_ids))
+            elif seen_actions:
+                global_action_ids = tuple(seen_actions)
+            else:
+                raise ValueError("metadata must declare either scenarios or global_action_ids/actions")
+        else:
+            global_action_ids = tuple(dict.fromkeys(str(value) for value in global_action_ids_raw))
+            if not global_action_ids:
+                raise ValueError("metadata.global_action_ids must not be empty when provided")
+
+        if not seen_actions:
+            raise ValueError("metadata.actions must not be empty")
+        for action_id in global_action_ids:
+            if action_id not in seen_actions:
+                raise ValueError(f"Global action {action_id!r} is not present in metadata.actions")
+
+        global_raw_to_actions_lists: dict[str, list[str]] = {}
+        for action_id in global_action_ids:
+            action = seen_actions[action_id]
+            raw_action_id = action.raw_action_id or action_id
+            global_raw_to_actions_lists.setdefault(raw_action_id, []).append(action_id)
+        global_raw_to_actions = {key: tuple(value) for key, value in global_raw_to_actions_lists.items()}
+
+        return cls(
+            schema_version=schema_version,
+            scenarios=scenarios,
+            actions=seen_actions,
+            global_action_ids=global_action_ids,
+            global_raw_to_actions=global_raw_to_actions,
+        )
 
     def scenario(self, scenario_id: str) -> ScenarioMetadata:
         try:
@@ -156,3 +189,25 @@ class BanditMetadata:
 
     def all_action_ids(self) -> list[str]:
         return list(self.actions)
+
+    def candidate_action_ids(self, scenario_id: str | None = None) -> tuple[str, ...]:
+        if scenario_id is not None and scenario_id in self.scenarios:
+            return self.scenarios[scenario_id].action_ids
+        return self.global_action_ids
+
+    def default_action_id(self, scenario_id: str | None = None) -> str | None:
+        if scenario_id is not None and scenario_id in self.scenarios:
+            return self.scenarios[scenario_id].default_arm_id
+        return None
+
+    def resolve_action_token(self, token: str, scenario_id: str | None = None) -> str:
+        if scenario_id is not None and scenario_id in self.scenarios:
+            return self.scenarios[scenario_id].resolve_action_token(token)
+        if token in self.actions:
+            return token
+        matching_actions = self.global_raw_to_actions.get(token)
+        if not matching_actions:
+            raise KeyError(f"Action {token!r} is not present in the global action space")
+        if len(matching_actions) > 1:
+            raise ValueError(f"Action token {token!r} is ambiguous in the global action space")
+        return matching_actions[0]

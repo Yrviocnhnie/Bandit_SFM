@@ -8,66 +8,112 @@ import unittest
 from recommendation_agents.raw_synthetic import convert_raw_sequence_to_v0
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+def _base_features(**overrides):
+    payload = {
+        'state_current': 'office_arriving',
+        'precondition': 'commuting_walk_out',
+        'state_duration_sec': 180,
+        'ps_time': 'morning',
+        'hour': 9,
+        'cal_hasUpcoming': 1,
+        'ps_dayType': 'workday',
+        'ps_motion': 'stationary',
+        'wifiLost': 0,
+        'wifiLostCategory': 'work',
+        'cal_eventCount': 2,
+        'cal_inMeeting': 0,
+        'cal_nextLocation': 'work',
+        'ps_sound': 'quiet',
+        'sms_delivery_pending': 0,
+        'sms_train_pending': 0,
+        'sms_flight_pending': 0,
+        'sms_hotel_pending': 0,
+        'sms_movie_pending': 0,
+        'sms_hospital_pending': 0,
+        'sms_ride_pending': 0,
+        'timestep': 32400,
+        'ps_location': 'work',
+        'ps_phone': 'on_desk',
+        'batteryLevel': 88,
+        'isCharging': 1,
+        'networkType': 'wifi',
+        'activityState': 'sitting',
+        'activityDuration': 900,
+        'user_id_hash_bucket': 'b07',
+        'age_bucket': '25_34',
+        'sex': 'female',
+        'has_kids': 0,
+    }
+    payload.update(overrides)
+    return payload
 
 
 class RawSyntheticConversionTest(unittest.TestCase):
-    def test_convert_colleague_sequence_file(self) -> None:
-        input_path = REPO_ROOT / "docs" / "synthetic_bandit_v0_two_scenarios.jsonl"
+    def test_convert_raw_sequence_to_global_ro_samples(self) -> None:
+        rows = [
+            {
+                'episode_id': 'arrive_office_ep01',
+                'scenario_id': 'ARRIVE_OFFICE',
+                'scenario_elapsed_sec': 0,
+                'emit_recommendation': 1,
+                'gt_ro': 'O_SHOW_SCHEDULE',
+                'features': _base_features(),
+            },
+            {
+                'episode_id': 'arrive_office_ep01',
+                'scenario_id': 'ARRIVE_OFFICE',
+                'scenario_elapsed_sec': 30,
+                'emit_recommendation': 1,
+                'gt_ro': 'R_PLAN_DAY_OVER_COFFEE',
+                'features': _base_features(hour=8),
+            },
+            {
+                'episode_id': 'home_evening_ep01',
+                'scenario_id': 'HOME_EVENING',
+                'scenario_elapsed_sec': 0,
+                'emit_recommendation': 1,
+                'gt_ro': 'O_PLAY_MUSIC',
+                'features': _base_features(state_current='home_evening', precondition='office_working', ps_time='evening', hour=19, ps_location='home', wifiLostCategory='home'),
+            },
+            {
+                'episode_id': 'noop_ep01',
+                'scenario_id': 'ARRIVE_OFFICE',
+                'scenario_elapsed_sec': 60,
+                'emit_recommendation': 0,
+                'gt_ro': 'NONE',
+                'features': _base_features(),
+            },
+        ]
         with tempfile.TemporaryDirectory() as tmp_dir:
-            output_samples = Path(tmp_dir) / "converted.jsonl"
-            output_metadata = Path(tmp_dir) / "metadata.json"
-            summary = convert_raw_sequence_to_v0(
-                input_path=input_path,
-                output_samples_path=output_samples,
-                output_metadata_path=output_metadata,
-            )
+            tmp_path = Path(tmp_dir)
+            input_path = tmp_path / 'raw.jsonl'
+            input_path.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+            output_samples = tmp_path / 'converted.jsonl'
+            output_metadata = tmp_path / 'metadata.json'
 
-            self.assertEqual(summary.input_rows, 2308)
-            self.assertEqual(summary.kept_rows, 4)
-            self.assertEqual(summary.unique_scenarios, 2)
-            self.assertEqual(summary.unique_actions, 2)
-
-            converted_rows = [json.loads(line) for line in output_samples.read_text().splitlines()]
-            self.assertEqual(len(converted_rows), 4)
-            self.assertEqual(converted_rows[0]["scenario_id"], "ARRIVE_OFFICE")
-            self.assertEqual(converted_rows[0]["selected_action"], "arrive_office_schedule")
-            self.assertEqual(converted_rows[0]["context"]["user_id_hash_bucket"], "b07")
-
-            metadata = json.loads(output_metadata.read_text())
-            self.assertEqual(len(metadata["scenarios"]), 2)
-            self.assertEqual(metadata["scenarios"][0]["action_ids"], ["arrive_office_schedule"])
-
-    def test_convert_finalized_first_step_file(self) -> None:
-        input_path = REPO_ROOT / "docs" / "synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl"
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            output_samples = Path(tmp_dir) / "converted.jsonl"
-            output_metadata = Path(tmp_dir) / "metadata.json"
-            summary = convert_raw_sequence_to_v0(
-                input_path=input_path,
-                output_samples_path=output_samples,
-                output_metadata_path=output_metadata,
-            )
+            summary = convert_raw_sequence_to_v0(input_path, output_samples, output_metadata)
 
             self.assertEqual(summary.input_rows, 4)
-            self.assertEqual(summary.kept_rows, 4)
+            self.assertEqual(summary.kept_rows, 3)
             self.assertEqual(summary.unique_scenarios, 2)
-            self.assertEqual(summary.unique_actions, 4)
+            self.assertEqual(summary.unique_actions, 3)
 
             converted_rows = [json.loads(line) for line in output_samples.read_text().splitlines()]
-            self.assertEqual(converted_rows[0]["scenario_id"], "ARRIVE_OFFICE")
-            self.assertEqual(converted_rows[0]["selected_action"], "arrive_office_schedule")
-            self.assertEqual(converted_rows[0]["event_id"], "arrive_office_ep01:0")
-            self.assertEqual(converted_rows[0]["context"]["user_id_hash_bucket"], "b07")
+            self.assertEqual(converted_rows[0]['event_id'], 'arrive_office_ep01:0')
+            self.assertEqual(converted_rows[0]['scenario_id'], 'ARRIVE_OFFICE')
+            self.assertEqual(converted_rows[0]['selected_action'], 'O_SHOW_SCHEDULE')
+            self.assertEqual(converted_rows[0]['context']['precondition'], 'commuting_walk_out')
+            self.assertNotIn('transportMode', converted_rows[0]['context'])
+            self.assertEqual(converted_rows[0]['context']['user_id_hash_bucket'], 'b07')
 
             metadata = json.loads(output_metadata.read_text())
-            self.assertEqual(len(metadata["scenarios"]), 2)
-            arrive_office = next(item for item in metadata["scenarios"] if item["scenario_id"] == "ARRIVE_OFFICE")
             self.assertEqual(
-                arrive_office["action_ids"],
-                ["arrive_office_coffee", "arrive_office_schedule"],
+                metadata['global_action_ids'],
+                ['O_PLAY_MUSIC', 'O_SHOW_SCHEDULE', 'R_PLAN_DAY_OVER_COFFEE'],
             )
+            arrive_office = next(item for item in metadata['scenario_default_rankings'] if item['scenario_id'] == 'ARRIVE_OFFICE')
+            self.assertEqual(arrive_office['default_action_ids'], ['O_SHOW_SCHEDULE', 'R_PLAN_DAY_OVER_COFFEE'])
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

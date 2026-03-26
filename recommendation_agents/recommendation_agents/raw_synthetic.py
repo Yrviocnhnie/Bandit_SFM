@@ -13,6 +13,7 @@ from recommendation_agents.feature_space import V0FeatureSpace
 
 RAW_TO_V0_CONTEXT_FIELDS = (
     "state_current",
+    "precondition",
     "state_duration_sec",
     "ps_time",
     "hour",
@@ -38,7 +39,6 @@ RAW_TO_V0_CONTEXT_FIELDS = (
     "batteryLevel",
     "isCharging",
     "networkType",
-    "transportMode",
     "activityState",
     "activityDuration",
     "user_id_hash_bucket",
@@ -74,10 +74,16 @@ def _load_jsonl(path: str | Path) -> list[dict[str, Any]]:
 def _build_context(row: dict[str, Any]) -> dict[str, Any]:
     feature_payload = row.get("features")
     source = feature_payload if isinstance(feature_payload, dict) else row
-    return {field: source.get(field) for field in RAW_TO_V0_CONTEXT_FIELDS}
+    context = {field: source.get(field) for field in RAW_TO_V0_CONTEXT_FIELDS}
+    if context.get("precondition") is None:
+        for key in ("state_prev", "previous_state_current", "prev_state_current", "state_previous"):
+            if key in source:
+                context["precondition"] = source.get(key)
+                break
+    return context
 
 
-def _scenario_id(row: dict[str, Any]) -> str:
+def _scenario_id(row: dict[str, Any]) -> str | None:
     feature_payload = row.get("features")
     if "scenarioId" in row:
         return str(row["scenarioId"])
@@ -85,11 +91,11 @@ def _scenario_id(row: dict[str, Any]) -> str:
         return str(row["scenario_id"])
     if isinstance(feature_payload, dict) and "scenarioId" in feature_payload:
         return str(feature_payload["scenarioId"])
-    raise KeyError("Raw row is missing scenario id; expected scenarioId, scenario_id, or features.scenarioId")
+    return None
 
 
-def _event_id(row: dict[str, Any], scenario_id: str) -> str:
-    episode_id = row.get("episode_id", scenario_id)
+def _event_id(row: dict[str, Any], scenario_id: str | None) -> str:
+    episode_id = row.get("episode_id", scenario_id or "event")
     offset = row.get("scenario_elapsed_sec", row.get("t_in_scenario_sec", 0))
     return f"{episode_id}:{offset}"
 
@@ -100,6 +106,29 @@ def _raw_label(row: dict[str, Any], *keys: str) -> str:
         if value is not None:
             return str(value)
     return "NONE"
+
+
+def _write_global_inferred_metadata(
+    output_metadata_path: str | Path,
+    schema_version: str,
+    actions: list[str],
+    scenario_action_counts: dict[str, Counter[str]],
+) -> None:
+    metadata = {
+        "schema_version": schema_version,
+        "global_action_ids": actions,
+        "actions": [{"action_id": action_id, "display_name": action_id} for action_id in actions],
+        "scenario_default_rankings": [
+            {
+                "scenario_id": scenario_id,
+                "default_action_ids": [action_id for action_id, _ in counts.most_common()],
+            }
+            for scenario_id, counts in sorted(scenario_action_counts.items())
+        ],
+    }
+    output_metadata = Path(output_metadata_path)
+    output_metadata.parent.mkdir(parents=True, exist_ok=True)
+    output_metadata.write_text(json.dumps(metadata, indent=2, sort_keys=True))
 
 
 def convert_raw_sequence_to_v0(
@@ -124,7 +153,7 @@ def convert_raw_sequence_to_v0(
             )
         scenario_id = _scenario_id(row)
         context = _build_context(row)
-        feature_space.encode(scenario_id, context)
+        feature_space.encode(context)
 
         kept_rows.append(
             {
@@ -138,7 +167,8 @@ def convert_raw_sequence_to_v0(
                 "source_reason": row.get("gt_reason"),
             }
         )
-        scenario_action_counts[scenario_id][action_id] += 1
+        if scenario_id is not None:
+            scenario_action_counts[scenario_id][action_id] += 1
 
     if not kept_rows:
         raise ValueError("No trainable rows found after filtering out gt_ro_action_id == NONE")
@@ -152,21 +182,12 @@ def convert_raw_sequence_to_v0(
 
     if output_metadata_path is not None:
         actions = sorted({event["selected_action"] for event in kept_rows})
-        metadata = {
-            "schema_version": "v0",
-            "scenarios": [
-                {
-                    "scenario_id": scenario_id,
-                    "default_action_id": counts.most_common(1)[0][0],
-                    "action_ids": sorted(counts),
-                }
-                for scenario_id, counts in sorted(scenario_action_counts.items())
-            ],
-            "actions": [{"action_id": action_id, "display_name": action_id} for action_id in actions],
-        }
-        output_metadata = Path(output_metadata_path)
-        output_metadata.parent.mkdir(parents=True, exist_ok=True)
-        output_metadata.write_text(json.dumps(metadata, indent=2, sort_keys=True))
+        _write_global_inferred_metadata(
+            output_metadata_path=output_metadata_path,
+            schema_version="v0-ro-inferred-global",
+            actions=actions,
+            scenario_action_counts=scenario_action_counts,
+        )
 
     return RawConversionSummary(
         input_rows=len(raw_rows),
@@ -199,7 +220,7 @@ def convert_raw_sequence_to_v0_app(
             )
         scenario_id = _scenario_id(row)
         context = _build_context(row)
-        feature_space.encode(scenario_id, context)
+        feature_space.encode(context)
 
         kept_rows.append(
             {
@@ -214,7 +235,8 @@ def convert_raw_sequence_to_v0_app(
                 "source_app_action_id": row.get("gt_app_action_id"),
             }
         )
-        scenario_action_counts[scenario_id][app_category] += 1
+        if scenario_id is not None:
+            scenario_action_counts[scenario_id][app_category] += 1
 
     if not kept_rows:
         raise ValueError("No trainable app rows found after filtering out gt_app_category == NONE")
@@ -228,21 +250,12 @@ def convert_raw_sequence_to_v0_app(
 
     if output_metadata_path is not None:
         actions = sorted({event["selected_action"] for event in kept_rows})
-        metadata = {
-            "schema_version": "v0-app",
-            "scenarios": [
-                {
-                    "scenario_id": scenario_id,
-                    "default_action_id": counts.most_common(1)[0][0],
-                    "action_ids": actions,
-                }
-                for scenario_id, counts in sorted(scenario_action_counts.items())
-            ],
-            "actions": [{"action_id": action_id, "display_name": action_id} for action_id in actions],
-        }
-        output_metadata = Path(output_metadata_path)
-        output_metadata.parent.mkdir(parents=True, exist_ok=True)
-        output_metadata.write_text(json.dumps(metadata, indent=2, sort_keys=True))
+        _write_global_inferred_metadata(
+            output_metadata_path=output_metadata_path,
+            schema_version="v0-app-inferred-global",
+            actions=actions,
+            scenario_action_counts=scenario_action_counts,
+        )
 
     return RawConversionSummary(
         input_rows=len(raw_rows),

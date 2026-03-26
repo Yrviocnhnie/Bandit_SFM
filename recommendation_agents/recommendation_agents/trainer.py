@@ -1,4 +1,4 @@
-"""Offline replay training for the V0 masked LinUCB model."""
+"""Offline replay training for the V0 shared-action LinUCB model."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 import random
+import time
 from typing import Any, Iterable
 
 from recommendation_agents.feature_space import V0FeatureSpace
@@ -26,6 +27,22 @@ from recommendation_agents.schemas import ScoreRequest, TrainingEvent
 
 
 logger = logging.getLogger(__name__)
+
+
+def _count_nonempty_lines(path: str | Path) -> int:
+    with Path(path).open() as handle:
+        return sum(1 for line in handle if line.strip())
+
+
+def _format_duration(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:d}h{minutes:02d}m{secs:02d}s"
+    if minutes:
+        return f"{minutes:d}m{secs:02d}s"
+    return f"{secs:d}s"
 
 
 @dataclass(frozen=True)
@@ -66,7 +83,7 @@ class DualRawTrainingSummary:
 @dataclass(frozen=True)
 class DualPreparedSample:
     event_id: str
-    scenario_id: str
+    scenario_id: str | None
     context: dict[str, Any]
     x: Any
     reward: float
@@ -105,15 +122,13 @@ def load_jsonl(path: str | Path) -> Iterable[dict]:
 
 
 def resolve_candidate_actions(event: TrainingEvent, metadata: BanditMetadata) -> tuple[str, ...]:
-    scenario = metadata.scenario(event.scenario_id)
     if event.shown_actions is None:
-        return scenario.action_ids
+        return metadata.candidate_action_ids(event.scenario_id)
     try:
-        return tuple(scenario.resolve_action_token(action_id) for action_id in event.shown_actions)
+        return tuple(metadata.resolve_action_token(action_id, event.scenario_id) for action_id in event.shown_actions)
     except (KeyError, ValueError) as exc:
         raise ValueError(
-            f"Event {event.event_id or '<unknown>'} includes invalid shown_actions "
-            f"for scenario {event.scenario_id!r}: {exc}"
+            f"Event {event.event_id or '<unknown>'} includes invalid shown_actions: {exc}"
         ) from exc
 
 
@@ -153,7 +168,7 @@ def _prepare_dual_samples(
                 event_id=_event_id(row, scenario_id),
                 scenario_id=scenario_id,
                 context=context,
-                x=feature_space.encode(scenario_id, context),
+                x=feature_space.encode(context),
                 reward=float(reward),
                 ro_action=ro_action,
                 app_action=app_action,
@@ -179,14 +194,15 @@ def _count_interleaved_splits(total_rows: int, train_window: int, eval_window: i
 def _resolve_rank_result(
     model: MaskedDisjointLinUCB,
     metadata: BanditMetadata,
-    scenario_id: str,
+    scenario_id: str | None,
     x: Any,
     selected_token: str,
 ) -> tuple[str, bool, bool]:
-    scenario = metadata.scenario(scenario_id)
-    selected_action = scenario.resolve_action_token(selected_token)
-    ranking = model.rank(x, scenario.action_ids, scenario.default_arm_id, top_k=1)
-    return selected_action, ranking[0].action_id == selected_action, selected_action == scenario.default_arm_id
+    selected_action = metadata.resolve_action_token(selected_token, scenario_id)
+    candidate_actions = metadata.candidate_action_ids(scenario_id)
+    default_action_id = metadata.default_action_id(scenario_id)
+    ranking = model.rank(x, candidate_actions, default_action_id, top_k=1)
+    return selected_action, ranking[0].action_id == selected_action, selected_action == default_action_id
 
 
 def _write_interleaved_artifact(
@@ -231,6 +247,16 @@ def train_v0(
     _configure_progress_logger()
     label_prefix = f"[{progress_label}] " if progress_label else ""
     metadata = BanditMetadata.load(metadata_path)
+    total_samples_expected = _count_nonempty_lines(samples_path)
+    start_time = time.time()
+    logger.info(
+        "%sStarting training | samples=%d | actions=%d | feature_dim=%d | device=%s",
+        label_prefix,
+        total_samples_expected,
+        len(metadata.all_action_ids()),
+        V0FeatureSpace().dimension,
+        device,
+    )
     feature_space = V0FeatureSpace()
     model = MaskedDisjointLinUCB(
         action_ids=metadata.all_action_ids(),
@@ -252,41 +278,51 @@ def train_v0(
 
     for sample_count, payload in enumerate(load_jsonl(samples_path), start=1):
         event = TrainingEvent.from_dict(payload)
-        scenario = metadata.scenario(event.scenario_id)
         candidate_actions = resolve_candidate_actions(event, metadata)
-        selected_action = scenario.resolve_action_token(event.selected_action)
+        selected_action = metadata.resolve_action_token(event.selected_action, event.scenario_id)
         if selected_action not in candidate_actions:
             raise ValueError(
                 f"selected_action {event.selected_action!r} is not in shown_actions "
                 f"for event {event.event_id or '<unknown>'}"
             )
 
-        x = feature_space.encode(event.scenario_id, event.context)
-        ranking = model.rank(x, candidate_actions, scenario.default_arm_id, top_k=1)
+        default_action_id = metadata.default_action_id(event.scenario_id)
+        x = feature_space.encode(event.context)
+        ranking = model.rank(x, candidate_actions, default_action_id, top_k=1)
         if ranking[0].action_id == selected_action:
             pre_update_hits += 1
             interval_hits += 1
 
-        if selected_action == scenario.default_arm_id:
+        if default_action_id is not None and selected_action == default_action_id:
             logged_defaults += 1
             interval_defaults += 1
 
         model.partial_fit(x, selected_action, event.reward)
         total_reward += event.reward
         interval_reward += event.reward
-        scenarios_seen[event.scenario_id] += 1
+        if event.scenario_id is not None:
+            scenarios_seen[event.scenario_id] += 1
 
         if sample_count % progress_every == 0:
+            elapsed = time.time() - start_time
+            samples_per_sec = sample_count / elapsed if elapsed > 0 else 0.0
+            remaining = max(total_samples_expected - sample_count, 0)
+            eta_seconds = remaining / samples_per_sec if samples_per_sec > 0 else 0.0
             logger.info(
-                "%sProcessed %d samples | interval avg reward=%.4f | interval precision=%.4f | "
-                "interval default_rate=%.4f | cumulative avg reward=%.4f | cumulative precision=%.4f",
+                "%sProcessed %d/%d samples | interval avg reward=%.4f | interval precision=%.4f | "
+                "interval default_rate=%.4f | cumulative avg reward=%.4f | cumulative precision=%.4f | "
+                "elapsed=%s | eta=%s | %.1f samples/s",
                 label_prefix,
                 sample_count,
+                total_samples_expected,
                 interval_reward / progress_every,
                 interval_hits / progress_every,
                 interval_defaults / progress_every,
                 total_reward / sample_count,
                 pre_update_hits / sample_count,
+                _format_duration(elapsed),
+                _format_duration(eta_seconds),
+                samples_per_sec,
             )
             interval_reward = 0.0
             interval_hits = 0
@@ -297,16 +333,22 @@ def train_v0(
 
     remainder = sample_count % progress_every
     if remainder:
+        elapsed = time.time() - start_time
+        samples_per_sec = sample_count / elapsed if elapsed > 0 else 0.0
         logger.info(
-            "%sProcessed %d samples | interval avg reward=%.4f | interval precision=%.4f | "
-            "interval default_rate=%.4f | cumulative avg reward=%.4f | cumulative precision=%.4f",
+            "%sProcessed %d/%d samples | interval avg reward=%.4f | interval precision=%.4f | "
+            "interval default_rate=%.4f | cumulative avg reward=%.4f | cumulative precision=%.4f | "
+            "elapsed=%s | eta=0s | %.1f samples/s",
             label_prefix,
             sample_count,
+            total_samples_expected,
             interval_reward / remainder,
             interval_hits / remainder,
             interval_defaults / remainder,
             total_reward / sample_count,
             pre_update_hits / sample_count,
+            _format_duration(elapsed),
+            samples_per_sec,
         )
 
     model.save(output_dir)
@@ -329,6 +371,14 @@ def train_v0(
             "device": model.device,
         },
     }
+    elapsed_total = time.time() - start_time
+    logger.info(
+        "%sFinished training | samples=%d | elapsed=%s | avg %.1f samples/s",
+        label_prefix,
+        sample_count,
+        _format_duration(elapsed_total),
+        sample_count / elapsed_total if elapsed_total > 0 else 0.0,
+    )
     Path(output_dir, "training_report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
     Path(output_dir, "metadata.snapshot.json").write_text(Path(metadata_path).read_text())
     return TrainingMetrics(**report["metrics"])
@@ -512,8 +562,9 @@ def train_v0_dual_from_raw(
                 app_model, app_metadata, sample.scenario_id, sample.x, sample.app_action
             )
 
-            ro_scenarios_seen[sample.scenario_id] += 1
-            app_scenarios_seen[sample.scenario_id] += 1
+            if sample.scenario_id is not None:
+                ro_scenarios_seen[sample.scenario_id] += 1
+                app_scenarios_seen[sample.scenario_id] += 1
 
             if in_train:
                 train_processed += 1
@@ -716,14 +767,13 @@ def score_v0(
     metadata = BanditMetadata.load(resolved_metadata_path)
     feature_space = V0FeatureSpace()
     model = MaskedDisjointLinUCB.load(artifact_dir, device=device)
-    scenario = metadata.scenario(request.scenario_id)
     candidate_actions = (
-        tuple(scenario.resolve_action_token(action_id) for action_id in request.shown_actions)
+        tuple(metadata.resolve_action_token(action_id, request.scenario_id) for action_id in request.shown_actions)
         if request.shown_actions
-        else scenario.action_ids
+        else metadata.candidate_action_ids(request.scenario_id)
     )
-    x = feature_space.encode(request.scenario_id, request.context)
-    return model.rank(x, candidate_actions, scenario.default_arm_id, top_k=top_k)
+    x = feature_space.encode(request.context)
+    return model.rank(x, candidate_actions, metadata.default_action_id(request.scenario_id), top_k=top_k)
 
 
 def choose_v0(
@@ -738,11 +788,10 @@ def choose_v0(
     metadata = BanditMetadata.load(resolved_metadata_path)
     feature_space = V0FeatureSpace()
     model = MaskedDisjointLinUCB.load(artifact_dir, device=device)
-    scenario = metadata.scenario(request.scenario_id)
     candidate_actions = (
-        tuple(scenario.resolve_action_token(action_id) for action_id in request.shown_actions)
+        tuple(metadata.resolve_action_token(action_id, request.scenario_id) for action_id in request.shown_actions)
         if request.shown_actions
-        else scenario.action_ids
+        else metadata.candidate_action_ids(request.scenario_id)
     )
-    x = feature_space.encode(request.scenario_id, request.context)
-    return model.choose(x, candidate_actions, scenario.default_arm_id, epsilon=epsilon, seed=seed)
+    x = feature_space.encode(request.context)
+    return model.choose(x, candidate_actions, metadata.default_action_id(request.scenario_id), epsilon=epsilon, seed=seed)

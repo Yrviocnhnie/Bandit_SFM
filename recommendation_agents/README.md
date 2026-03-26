@@ -1,36 +1,48 @@
 # Recommendation Agents
 
-This repo contains two V0 contextual bandit agents built on the same feature space and the same LinUCB trainer:
+This repo contains the V0 shared-action LinUCB setup for two agents:
 
-- R/O agent: recommends a scenario-specific R/O action
-- App agent: recommends 1 of 10 app categories
+- `R/O` agent: ranks the shared global recommendation-action space
+- `App` agent: ranks the 10 app categories
 
-Both agents use:
+Both agents use the same context feature encoder and the same trainer. The only difference is the action space.
 
-- the V0 feature encoder from [bandit_feature_space_report.md](/home/liyao/data00/projects/sfm/recommendation_agents/docs/bandit_feature_space_report.md)
-- a masked disjoint LinUCB model in [linucb.py](/home/liyao/data00/projects/sfm/recommendation_agents/recommendation_agents/linucb.py)
-- offline replay training in [trainer.py](/home/liyao/data00/projects/sfm/recommendation_agents/recommendation_agents/trainer.py)
+## What This V0 Setup Assumes
 
-The difference is only the action space:
+The current setup matches the v5 design:
 
-- R/O agent: uses the scenario-specific action sets from the current catalog document, [scenario_recommendation_actions_v4.md](/home/liyao/data00/projects/sfm/recommendation_agents/docs/scenario_recommendation_actions_v4.md)
-- App agent: uses the 10 app categories, with one default app category per scenario from the same catalog document
+- there is no per-scenario action mask at normal serving time
+- `scenario_id` is not a model input
+- the model input is only the context features, including `state_current` and `precondition`
+- training data is context/action pairs
+- `scenario_id` can still be stored in training rows for offline analysis and reporting
+
+The catalog source checked into this repo is:
+
+- `docs/scenario_recommendation_actions_v5.md`
+
+The metadata builder reads that catalog and produces:
+
+- `R/O` metadata with `46` global actions
+- `App` metadata with `10` app categories
+- per-scenario default rankings only as offline metadata
 
 ## Model Summary
 
 Current V0 model:
 
-- feature encoder: hand-built 314-dim vector
+- feature encoder: hand-built `306`-dim context vector
 - model: disjoint LinUCB, one linear scorer per action
-- masking: only rank legal actions for the current scenario
-- default prior: give the scenario default action an extra `default_bonus`
-- exploration: add the LinUCB uncertainty term
+- serving action space:
+  - `R/O`: all `46` global actions
+  - `App`: all `10` app categories
+- optional `shown_actions`: may still be passed for special tests, but is not needed in the normal v5 flow
 
-This is not an MLP model. It is a linear contextual bandit.
+This is a linear contextual bandit, not an MLP.
 
-## Setup
+## Environment Setup
 
-If you want to train or score, install PyTorch first. Example conda setup:
+Create a conda env and install PyTorch:
 
 ```bash
 conda create -n sfm python=3.11 -y
@@ -38,120 +50,225 @@ conda activate sfm
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
 
-The code uses:
+Device behavior:
 
-- GPU if you run with `--device auto` and CUDA is available
-- CPU otherwise
+- `--device auto`: use GPU if available, else CPU
+- `--device cuda`: require CUDA
+- `--device cpu`: force CPU
 
-## The Three Things You Plug In
+## Quickstart
 
-For either agent, the practical flow is:
+From `Bandit_SFM/recommendation_agents`, the normal flow is:
 
-1. build metadata
-2. convert raw JSONL into training samples
-3. train and test the model
+1. build metadata from the v5 catalog
+2. convert the raw JSONL into trainer-ready samples
+3. train the `R/O` and `App` models
+4. score or choose on a test request JSON
 
-If you want a one-step path from raw JSONL to a trained artifact, use `train-v0-raw`.
-If you want synchronized R/O and app training from the same shuffled raw file, use `train-v0-raw-dual`.
+## One-Line Workflow
 
-There are two kinds of files:
+If you want the shortest path for a full dataset, use these three commands.
 
-- `metadata.json`: the legal action space for each scenario
-- `samples.jsonl`: one training event per emitted recommendation
+### 1. Prepare data
 
-## Raw Input File
+This one command does all of the following:
 
-Your colleague’s raw file can be in either of these formats:
-
-- older sequential format with fields like `scenarioId`, `gt_ro_action_id`, `gt_app_category`
-- newer finalized format with fields like `scenario_id`, nested `features`, `gt_ro`, `gt_app`
-
-The converters in [raw_synthetic.py](/home/liyao/data00/projects/sfm/recommendation_agents/recommendation_agents/raw_synthetic.py) support both.
-
-Current finalized sample:
-
-- [synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl](/home/liyao/data00/projects/sfm/recommendation_agents/docs/synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl)
-- ready-made score requests:
-  [score_arrive_office.json](/home/liyao/data00/projects/sfm/recommendation_agents/artifacts/two_scenarios_firststep/score_arrive_office.json)
-  [score_office_lunch_out.json](/home/liyao/data00/projects/sfm/recommendation_agents/artifacts/two_scenarios_firststep/score_office_lunch_out.json)
-
-## R/O Agent: End-to-End
-
-### 1. Build R/O metadata from the catalog doc
+- builds `R/O` metadata
+- builds `App` metadata
+- splits the raw file into train/test by `episode_id`
+- converts train/test raw rows into trainer-ready sample JSONL files for both agents
 
 ```bash
-python3 -m recommendation_agents.cli build-ro-metadata \
-  --input-markdown docs/scenario_recommendation_actions_v4.md \
-  --output-metadata artifacts/ro_metadata.json
+python3 -m recommendation_agents.cli prepare-v0-data \
+  --input ../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl \
+  --catalog-markdown docs/scenario_recommendation_actions_v5.md \
+  --output-dir artifacts/v5_1000eps_each_scenario_updated \
+  --test-ratio 0.2
 ```
 
-This creates metadata for:
+Main outputs:
 
-- 65 scenarios
-- 167 scenario-scoped R/O arms
-- one default R/O action per scenario
+- `artifacts/v5_1000eps_each_scenario_updated/ro_metadata.json`
+- `artifacts/v5_1000eps_each_scenario_updated/app_metadata.json`
+- `artifacts/v5_1000eps_each_scenario_updated/ro_train_samples.jsonl`
+- `artifacts/v5_1000eps_each_scenario_updated/ro_test_samples.jsonl`
+- `artifacts/v5_1000eps_each_scenario_updated/app_train_samples.jsonl`
+- `artifacts/v5_1000eps_each_scenario_updated/app_test_samples.jsonl`
+- `artifacts/v5_1000eps_each_scenario_updated/prepare_summary.json`
 
-### 2. Convert raw data into R/O training samples
+### 2. Train both models
 
-```bash
-python3 -m recommendation_agents.cli convert-v0-raw \
-  --input docs/synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl \
-  --output-samples artifacts/two_scenarios_firststep/v0_samples.jsonl \
-  --output-metadata artifacts/two_scenarios_firststep/v0_metadata_inferred.json
-```
-
-What this does:
-
-- keeps rows with a real R/O label
-- maps raw fields into the V0 feature context
-- writes one training row per emitted recommendation
-
-Important:
-
-- for real R/O training, use `artifacts/ro_metadata.json`
-- the inferred metadata file is just a debugging/bootstrap artifact
-
-### 3. Train the R/O model
+This one command trains both `R/O` and `App` from the prepared data directory.
+Use `conda run --no-capture-output` if you want live progress logs, throughput, and ETA while training is running.
 
 ```bash
-python3 -m recommendation_agents.cli train-v0 \
-  --metadata artifacts/ro_metadata.json \
-  --samples artifacts/two_scenarios_firststep/v0_samples.jsonl \
-  --output artifacts/two_scenarios_firststep/ro_model \
+conda run --no-capture-output -n sfm python -m recommendation_agents.cli train-v0-both \
+  --data-dir artifacts/v5_1000eps_each_scenario_updated \
+  --alpha 0.05 \
+  --progress-every 1000 \
   --device auto
 ```
 
-Or do conversion plus training in one command:
+During training you will see lines like:
+
+```text
+[RO] Processed 1000/48691 samples | ... | elapsed=1m42s | eta=1h06m | 9.8 samples/s
+```
+
+Main outputs:
+
+- `artifacts/v5_1000eps_each_scenario_updated/ro_model/`
+- `artifacts/v5_1000eps_each_scenario_updated/app_model/`
+- `artifacts/v5_1000eps_each_scenario_updated/train_both_summary.json`
+
+### 3. Evaluate both models
+
+This one command evaluates both models on the prepared test split using `top_k=3`.
+Use `conda run --no-capture-output` if you want live evaluation progress, throughput, and ETA while scoring the test set.
 
 ```bash
-python3 -m recommendation_agents.cli train-v0-raw \
-  --input docs/synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl \
-  --output artifacts/two_scenarios_firststep/ro_model \
-  --metadata artifacts/ro_metadata.json \
-  --label-type ro \
+conda run --no-capture-output -n sfm python -m recommendation_agents.cli eval-v0-both \
+  --data-dir artifacts/v5_1000eps_each_scenario_updated \
+  --top-k 3 \
+  --progress-every 1000 \
   --device auto
 ```
 
-This writes:
+- `artifacts/v5_1000eps_each_scenario_updated/eval_both_top3.json`
 
-- `manifest.json`
-- `weights.npz`
-- `training_report.json`
-- `metadata.snapshot.json`
+The eval report includes, for both `R/O` and `App`:
 
-Recommended output directory name:
+- `row_hit_at_k`: how often the row's ground-truth label appears in predicted top-3
+- `pred_topk_rate_by_action`: how often each action or app category appears in predicted top-3
+- `label_rate_by_action`: empirical frequency of the test labels
+- `scenario_topk_majority_set_match_rate`: for each scenario, whether the model's majority top-3 set matches the catalog ground-truth top-3 set
+- `scenario_topk_examples`: a few concrete scenario comparisons
 
-- `artifacts/two_scenarios_firststep/ro_model`
+This is the best command for checking whether the model has learned the intended `50% / 25% / 25%` default ranking pattern.
 
-### 4. Test the R/O model
+## Files Teammates Need To Provide
 
-Prepare a score request JSON like:
+### 1. Raw synthetic JSONL
+
+This is the only input your teammate must generate.
+
+Each line should represent one emitted recommendation event with:
+
+- `scenario_id` or `scenarioId`
+- `episode_id`
+- `scenario_elapsed_sec` or similar offset field
+- `emit_recommendation`
+- `gt_ro` or `gt_ro_action_id`
+- `gt_app` or `gt_app_category`
+- context fields either at top level or nested under `features`
+
+The converter currently supports both:
+
+- the older format
+- the newer finalized format with nested `features`
+
+### 2. Test request JSON
+
+This is a single JSON file used for scoring or choosing.
+
+It contains:
+
+- `context`
+- optional `shown_actions`
+- no `scenario_id` is required for serving
+
+## Raw Data Contract
+
+A typical raw row looks like this:
 
 ```json
 {
+  "episode_id": "arrive_office_ep01",
+  "scenario_id": "ARRIVE_OFFICE",
+  "scenario_elapsed_sec": 0,
+  "emit_recommendation": 1,
+  "gt_ro": "O_SHOW_SCHEDULE",
+  "gt_app": "productivity",
+  "features": {
+    "state_current": "office_arriving",
+    "precondition": "commuting_walk_out",
+    "state_duration_sec": 180,
+    "ps_time": "morning",
+    "hour": 9,
+    "cal_hasUpcoming": 1,
+    "ps_dayType": "workday",
+    "ps_motion": "stationary",
+    "wifiLost": 0,
+    "wifiLostCategory": "work",
+    "cal_eventCount": 3,
+    "cal_inMeeting": 0,
+    "cal_nextLocation": "work",
+    "ps_sound": "quiet",
+    "sms_delivery_pending": 0,
+    "sms_train_pending": 0,
+    "sms_flight_pending": 0,
+    "sms_hotel_pending": 0,
+    "sms_movie_pending": 0,
+    "sms_hospital_pending": 0,
+    "sms_ride_pending": 0,
+    "timestep": 32400,
+    "ps_location": "work",
+    "ps_phone": "on_desk",
+    "batteryLevel": 88,
+    "isCharging": 1,
+    "networkType": "wifi",
+    "activityState": "sitting",
+    "activityDuration": 900,
+    "user_id_hash_bucket": "b07",
+    "age_bucket": "25_34",
+    "sex": "female",
+    "has_kids": 0
+  }
+}
+```
+
+Important rules:
+
+- keep only rows with real labels when training
+- use valid v5 global R/O action IDs for `gt_ro`
+- use valid app categories for `gt_app`
+- `scenario_id` can be included for reporting, but it is not a model feature
+- `precondition` should be provided if possible
+
+## Trainer-Ready Sample Contract
+
+After conversion, each training row looks like this:
+
+```json
+{
+  "event_id": "arrive_office_ep01:0",
   "scenario_id": "ARRIVE_OFFICE",
   "context": {
     "state_current": "office_arriving",
+    "precondition": "commuting_walk_out"
+  },
+  "selected_action": "O_SHOW_SCHEDULE",
+  "reward": 1.0,
+  "propensity": 1.0
+}
+```
+
+Notes:
+
+- `context` is the only model input
+- `selected_action` is the supervised label
+- for `R/O`, `selected_action` is one of the `46` global actions
+- for `App`, `selected_action` is one of the `10` app categories
+
+## Score Request Contract
+
+The same request format works for both agents:
+
+```json
+{
+  "context": {
+    "state_current": "office_arriving",
+    "precondition": "commuting_walk_out",
     "state_duration_sec": 220,
     "ps_time": "morning",
     "hour": 9,
@@ -177,7 +294,6 @@ Prepare a score request JSON like:
     "batteryLevel": 79,
     "isCharging": 1,
     "networkType": "wifi",
-    "transportMode": "stationary",
     "activityState": "sitting",
     "activityDuration": 1500,
     "user_id_hash_bucket": "b7",
@@ -188,30 +304,170 @@ Prepare a score request JSON like:
 }
 ```
 
-Best practice:
+Optional test-only restriction:
 
-- use the full context field set from a converted training row
-- keep the field names exactly the same as the V0 feature spec
-- do not rely on partial context unless you know the missing fields are safe defaults
+```json
+{
+  "context": {
+    "state_current": "office_arriving",
+    "precondition": "commuting_walk_out"
+  },
+  "shown_actions": ["O_SHOW_SCHEDULE", "O_SHOW_TODAY_TODO"]
+}
+```
 
-Then rank candidates:
+In the real v5 flow, you usually should not pass `shown_actions`.
+
+## Step 1: Build Metadata
+
+Run these once per catalog version.
+
+### Build `R/O` metadata
 
 ```bash
-python3 -m recommendation_agents.cli score-v0 \
-  --artifact artifacts/two_scenarios_firststep/ro_model \
+python3 -m recommendation_agents.cli build-ro-metadata \
+  --input-markdown docs/scenario_recommendation_actions_v5.md \
+  --output-metadata artifacts/ro_metadata.json
+```
+
+### Build `App` metadata
+
+```bash
+python3 -m recommendation_agents.cli build-app-metadata \
+  --input-markdown docs/scenario_recommendation_actions_v5.md \
+  --output-metadata artifacts/app_metadata.json
+```
+
+## Step 2: Convert Raw Data
+
+Replace `<raw.jsonl>` with the path to the teammate-provided synthetic file. For the current shared dataset in this repo, use `../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl`.
+
+### Convert `R/O` labels
+
+```bash
+python3 -m recommendation_agents.cli convert-v0-raw \
+  --input <raw.jsonl> \
+  --output-samples artifacts/ro_samples.jsonl \
+  --output-metadata artifacts/ro_metadata_inferred.json
+```
+
+### Convert `App` labels
+
+```bash
+python3 -m recommendation_agents.cli convert-v0-raw-app \
+  --input <raw.jsonl> \
+  --output-samples artifacts/app_samples.jsonl \
+  --output-metadata artifacts/app_metadata_inferred.json
+```
+
+What the converters do:
+
+- keep rows with real labels
+- map raw fields into the V0 context schema
+- validate that the context can be encoded
+- write one trainer-ready event per recommendation call
+
+Use the catalog-based metadata for real training. The inferred metadata files are only useful for debugging.
+
+## Step 3: Train The Models
+
+### Train `R/O`
+
+```bash
+python3 -m recommendation_agents.cli train-v0 \
   --metadata artifacts/ro_metadata.json \
-  --sample artifacts/two_scenarios_firststep/score_arrive_office.json \
-  --top-k 3 \
+  --samples artifacts/ro_samples.jsonl \
+  --output artifacts/ro_model \
   --device auto
 ```
 
-Or choose one final action:
+### Train `App`
+
+```bash
+python3 -m recommendation_agents.cli train-v0 \
+  --metadata artifacts/app_metadata.json \
+  --samples artifacts/app_samples.jsonl \
+  --output artifacts/app_model \
+  --device auto
+```
+
+Useful knobs:
+
+- `--alpha`: LinUCB exploration strength
+- `--l2`: linear-model regularization
+- `--progress-every`: training log interval
+- `--device`: `auto`, `cpu`, `cuda`, `cuda:0`
+
+One-step raw-to-model commands:
+
+```bash
+python3 -m recommendation_agents.cli train-v0-raw \
+  --input <raw.jsonl> \
+  --output artifacts/ro_model \
+  --metadata artifacts/ro_metadata.json \
+  --label-type ro \
+  --device auto
+```
+
+```bash
+python3 -m recommendation_agents.cli train-v0-raw \
+  --input <raw.jsonl> \
+  --output artifacts/app_model \
+  --metadata artifacts/app_metadata.json \
+  --label-type app \
+  --device auto
+```
+
+Training outputs:
+
+- `manifest.json`
+- `weights.npz`
+- `training_report.json`
+- `metadata.snapshot.json`
+
+## Step 4: Test The Models
+
+Create one request file, for example `artifacts/score_request.json`, then run either ranking or single-choice commands.
+
+### Rank `R/O` actions
+
+```bash
+python3 -m recommendation_agents.cli score-v0 \
+  --artifact artifacts/ro_model \
+  --metadata artifacts/ro_metadata.json \
+  --sample artifacts/score_request.json \
+  --top-k 5 \
+  --device auto
+```
+
+### Choose one `R/O` action
 
 ```bash
 python3 -m recommendation_agents.cli choose-v0 \
-  --artifact artifacts/two_scenarios_firststep/ro_model \
+  --artifact artifacts/ro_model \
   --metadata artifacts/ro_metadata.json \
-  --sample artifacts/two_scenarios_firststep/score_arrive_office.json \
+  --sample artifacts/score_request.json \
+  --device auto
+```
+
+### Rank `App` categories
+
+```bash
+python3 -m recommendation_agents.cli score-v0 \
+  --artifact artifacts/app_model \
+  --metadata artifacts/app_metadata.json \
+  --sample artifacts/score_request.json \
+  --top-k 5 \
+  --device auto
+```
+
+### Choose one `App` category
+
+```bash
+python3 -m recommendation_agents.cli choose-v0 \
+  --artifact artifacts/app_model \
+  --metadata artifacts/app_metadata.json \
+  --sample artifacts/score_request.json \
   --device auto
 ```
 
@@ -219,190 +475,83 @@ Optional smoke-test randomness:
 
 ```bash
 python3 -m recommendation_agents.cli choose-v0 \
-  --artifact artifacts/two_scenarios_firststep/ro_model \
+  --artifact artifacts/ro_model \
   --metadata artifacts/ro_metadata.json \
-  --sample artifacts/two_scenarios_firststep/score_arrive_office.json \
-  --epsilon 0.8 \
+  --sample artifacts/score_request.json \
+  --epsilon 0.2 \
   --seed 7 \
   --device auto
 ```
 
-## App Agent: End-to-End
+## Example End-To-End Run
 
-### 1. Build app metadata from the catalog doc
+```bash
+python3 -m recommendation_agents.cli build-ro-metadata \
+  --input-markdown docs/scenario_recommendation_actions_v5.md \
+  --output-metadata artifacts/ro_metadata.json
+```
 
 ```bash
 python3 -m recommendation_agents.cli build-app-metadata \
-  --input-markdown docs/scenario_recommendation_actions_v4.md \
+  --input-markdown docs/scenario_recommendation_actions_v5.md \
   --output-metadata artifacts/app_metadata.json
 ```
 
-This creates metadata for:
-
-- 65 scenarios
-- 10 app categories
-- one default app category per scenario
-
-### 2. Convert raw data into app training samples
+```bash
+python3 -m recommendation_agents.cli convert-v0-raw \
+  --input ../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl \
+  --output-samples artifacts/v5_1000eps_each_scenario_updated/ro_samples.jsonl \
+  --output-metadata artifacts/v5_1000eps_each_scenario_updated/ro_metadata_inferred.json
+```
 
 ```bash
 python3 -m recommendation_agents.cli convert-v0-raw-app \
-  --input docs/synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl \
-  --output-samples artifacts/two_scenarios_firststep/v0_app_samples.jsonl \
-  --output-metadata artifacts/two_scenarios_firststep/v0_app_metadata_inferred.json
+  --input ../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl \
+  --output-samples artifacts/v5_1000eps_each_scenario_updated/app_samples.jsonl \
+  --output-metadata artifacts/v5_1000eps_each_scenario_updated/app_metadata_inferred.json
 ```
 
-What this does:
-
-- keeps rows with a real app label
-- converts raw fields into the same V0 context
-- writes one training row per emitted app recommendation
-
-Important:
-
-- for real app training, use `artifacts/app_metadata.json`
-- the inferred app metadata file is just a debugging/bootstrap artifact
-
-### 3. Train the app model
+```bash
+python3 -m recommendation_agents.cli train-v0 \
+  --metadata artifacts/ro_metadata.json \
+  --samples artifacts/v5_1000eps_each_scenario_updated/ro_samples.jsonl \
+  --output artifacts/v5_1000eps_each_scenario_updated/ro_model \
+  --alpha 0.05 \
+  --device auto
+```
 
 ```bash
 python3 -m recommendation_agents.cli train-v0 \
   --metadata artifacts/app_metadata.json \
-  --samples artifacts/two_scenarios_firststep/v0_app_samples.jsonl \
-  --output artifacts/two_scenarios_firststep/app_model \
+  --samples artifacts/v5_1000eps_each_scenario_updated/app_samples.jsonl \
+  --output artifacts/v5_1000eps_each_scenario_updated/app_model \
+  --alpha 0.05 \
   --device auto
 ```
 
-Or do conversion plus training in one command:
-
 ```bash
-python3 -m recommendation_agents.cli train-v0-raw \
-  --input docs/synthetic_bandit_v0_two_scenarios_firststep_no_triggers.jsonl \
-  --output artifacts/two_scenarios_firststep/app_model \
-  --metadata artifacts/app_metadata.json \
-  --label-type app \
+conda run --no-capture-output -n sfm python -m recommendation_agents.cli eval-v0-both \
+  --data-dir artifacts/v5_1000eps_each_scenario_updated \
+  --top-k 3 \
+  --progress-every 1000 \
   --device auto
 ```
-
-Recommended output directory name:
-
-- `artifacts/two_scenarios_firststep/app_model`
-
-### 4. Test the app model
-
-The score request format is the same as the R/O agent:
-
-- same `scenario_id`
-- same `context`
-
-Best practice:
-
-- start from a real converted row and edit only the values you want to test
-
-The only difference is the returned actions are app categories like `productivity`, `music`, or `navigation`.
-
-Rank app categories:
-
-```bash
-python3 -m recommendation_agents.cli score-v0 \
-  --artifact artifacts/two_scenarios_firststep/app_model \
-  --metadata artifacts/app_metadata.json \
-  --sample artifacts/two_scenarios_firststep/score_arrive_office.json \
-  --top-k 5 \
-  --device auto
-```
-
-Choose one final app category:
-
-```bash
-python3 -m recommendation_agents.cli choose-v0 \
-  --artifact artifacts/two_scenarios_firststep/app_model \
-  --metadata artifacts/app_metadata.json \
-  --sample artifacts/two_scenarios_firststep/score_arrive_office.json \
-  --device auto
-```
-
-## Dual Training
-
-If you want both models from the same raw JSONL in one run, train them with one shared shuffled stream and interleaved train/eval windows:
-
-```bash
-python3 -m recommendation_agents.cli train-v0-raw-dual \
-  --input "docs/bandit_v0_firststep_no_triggers_1000eps(1).jsonl" \
-  --output artifacts/bandit_v0_firststep_dual \
-  --ro-metadata artifacts/ro_metadata.json \
-  --app-metadata artifacts/app_metadata.json \
-  --alpha 0.15 \
-  --alpha-end 0.01 \
-  --device cpu \
-  --train-window 100 \
-  --eval-window 10 \
-  --progress-every 100 \
-  --shuffle-seed 0 \
-  --tensorboard-logdir artifacts/bandit_v0_firststep_dual/tensorboard
-```
-
 This writes:
 
-- `artifacts/bandit_v0_firststep_dual/ro_model`
-- `artifacts/bandit_v0_firststep_dual/app_model`
-- `artifacts/bandit_v0_firststep_dual/dual_training_summary.json`
-- `artifacts/bandit_v0_firststep_dual/tensorboard`
+- `artifacts/v5_1000eps_each_scenario_updated/eval_both_top3.json`
 
-What this dual command does:
+## Notes For Teammates
 
-- shuffles the raw rows once
-- uses the same sample order for `RO` and `APP`
-- trains for `100` rows, then evaluates top-1 for `10` rows
-- decays LinUCB exploration from `alpha` to `alpha-end`
-- logs separate `[RO]` and `[APP]` metrics after each eval block
-- writes TensorBoard scalars for `RO` and `APP` train/eval reward and accuracy
+- `scenario_id` is optional bookkeeping. Do not rely on it at inference time.
+- The most important part of the data is the quality of the context features.
+- If two contexts are similar, the model can rank similar actions highly even if the scenario label was never passed in.
+- `default_bonus` is mostly inactive in the shared-action v5 setup, because serving does not usually provide one concrete default action.
+- If the data grows much larger or becomes strongly nonlinear, we can revisit whether V1 should move beyond disjoint LinUCB.
 
-Launch TensorBoard with:
+## Validation
+
+Run unit tests:
 
 ```bash
-tensorboard --logdir artifacts/bandit_v0_firststep_dual/tensorboard
+python3 -m unittest discover -s tests -v
 ```
-
-## What the Sample Files Look Like After Conversion
-
-Converted R/O samples look like:
-
-```json
-{
-  "event_id": "arrive_office_ep01:0",
-  "scenario_id": "ARRIVE_OFFICE",
-  "context": { "...": "..." },
-  "selected_action": "arrive_office_schedule",
-  "reward": 1.0,
-  "propensity": 1.0
-}
-```
-
-Converted app samples look like:
-
-```json
-{
-  "event_id": "arrive_office_ep01:0",
-  "scenario_id": "ARRIVE_OFFICE",
-  "context": { "...": "..." },
-  "selected_action": "productivity",
-  "reward": 1.0,
-  "propensity": 1.0
-}
-```
-
-## Notes and Caveats
-
-- `shown_actions` is optional in training samples. If missing, the trainer uses the full legal action set from metadata.
-- For the current finalized sample file, there are only 4 rows, so training is only a smoke test.
-- The model is a linear contextual bandit, not an MLP.
-- The default prior means the scenario default action gets an extra score bonus during ranking.
-- If another action gets enough evidence, it can still beat the default.
-
-## Useful Files
-
-- R/O design: [bandit_design_note_zh.md](/home/liyao/data00/projects/sfm/recommendation_agents/docs/bandit_design_note_zh.md)
-- App design: [app_category_agent_design_zh.md](/home/liyao/data00/projects/sfm/recommendation_agents/docs/app_category_agent_design_zh.md)
-- Feature spec: [bandit_feature_space_report.md](/home/liyao/data00/projects/sfm/recommendation_agents/docs/bandit_feature_space_report.md)
-- Action catalog: [scenario_recommendation_actions_v4.md](/home/liyao/data00/projects/sfm/recommendation_agents/docs/scenario_recommendation_actions_v4.md)

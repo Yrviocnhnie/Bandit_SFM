@@ -1,4 +1,4 @@
-"""Masked disjoint LinUCB with a default-action prior."""
+"""Shared-action disjoint LinUCB with an optional default-action prior."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def _resolve_device(device: str) -> str:
 
 
 class MaskedDisjointLinUCB:
-    """One LinUCB state per action, ranked only over the masked candidate set."""
+    """One LinUCB state per action, ranked over a provided candidate set."""
 
     def __init__(
         self,
@@ -78,15 +78,15 @@ class MaskedDisjointLinUCB:
         self.action_to_index = {action_id: index for index, action_id in enumerate(self.action_ids)}
 
         torch = _require_torch()
-        identity = torch.eye(feature_dim, dtype=torch.float64, device=self.device) / self.l2
+        identity = torch.eye(feature_dim, dtype=torch.float32, device=self.device) / self.l2
         self.a_inv = identity.unsqueeze(0).repeat(len(self.action_ids), 1, 1)
-        self.b = torch.zeros((len(self.action_ids), feature_dim), dtype=torch.float64, device=self.device)
+        self.b = torch.zeros((len(self.action_ids), feature_dim), dtype=torch.float32, device=self.device)
 
     def rank(
         self,
         x: np.ndarray,
         candidate_action_ids: Iterable[str],
-        default_action_id: str,
+        default_action_id: str | None = None,
         top_k: int | None = None,
     ) -> list[RankedAction]:
         if x.shape != (self.feature_dim,):
@@ -101,7 +101,7 @@ class MaskedDisjointLinUCB:
                 raise KeyError(f"Unknown action_id {action_id!r}")
             candidate_indices.append(self.action_to_index[action_id])
 
-        x_tensor = torch.as_tensor(x, dtype=torch.float64, device=self.device)
+        x_tensor = torch.as_tensor(x, dtype=torch.float32, device=self.device)
         index_tensor = torch.as_tensor(candidate_indices, dtype=torch.long, device=self.device)
         a_inv = self.a_inv.index_select(0, index_tensor)
         b = self.b.index_select(0, index_tensor)
@@ -110,8 +110,8 @@ class MaskedDisjointLinUCB:
         a_inv_x = torch.matmul(a_inv, x_tensor)
         uncertainties = torch.sqrt(torch.clamp(torch.sum(a_inv_x * x_tensor.unsqueeze(0), dim=1), min=0.0))
         default_bonus_tensor = torch.tensor(
-            [self.default_bonus if action_id == default_action_id else 0.0 for action_id in candidates],
-            dtype=torch.float64,
+            [self.default_bonus if default_action_id is not None and action_id == default_action_id else 0.0 for action_id in candidates],
+            dtype=torch.float32,
             device=self.device,
         )
         scores = mean_rewards + self.alpha * uncertainties + default_bonus_tensor
@@ -134,7 +134,7 @@ class MaskedDisjointLinUCB:
     def partial_fit(self, x: np.ndarray, action_id: str, reward: float) -> None:
         torch = _require_torch()
         index = self.action_to_index[action_id]
-        x_tensor = torch.as_tensor(x, dtype=torch.float64, device=self.device)
+        x_tensor = torch.as_tensor(x, dtype=torch.float32, device=self.device)
         a_inv = self.a_inv[index]
         a_inv_x = torch.matmul(a_inv, x_tensor)
         denominator = 1.0 + torch.dot(x_tensor, a_inv_x)
@@ -178,15 +178,15 @@ class MaskedDisjointLinUCB:
             device=device,
         )
         torch = _require_torch()
-        model.a_inv = torch.as_tensor(weights["a_inv"], dtype=torch.float64, device=model.device)
-        model.b = torch.as_tensor(weights["b"], dtype=torch.float64, device=model.device)
+        model.a_inv = torch.as_tensor(weights["a_inv"], dtype=torch.float32, device=model.device)
+        model.b = torch.as_tensor(weights["b"], dtype=torch.float32, device=model.device)
         return model
 
     def choose(
         self,
         x: np.ndarray,
         candidate_action_ids: Iterable[str],
-        default_action_id: str,
+        default_action_id: str | None = None,
         epsilon: float = 0.0,
         seed: int | None = None,
     ) -> RankedAction:

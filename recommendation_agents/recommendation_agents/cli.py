@@ -10,6 +10,7 @@ from recommendation_agents.catalog import build_app_metadata_from_catalog_markdo
 from recommendation_agents.raw_synthetic import convert_raw_sequence_to_v0, convert_raw_sequence_to_v0_app
 from recommendation_agents.schemas import ScoreRequest
 from recommendation_agents.trainer import choose_v0, score_v0, train_v0, train_v0_dual_from_raw, train_v0_from_raw
+from recommendation_agents.workflows import eval_v0_both, prepare_v0_data, train_v0_both
 
 
 def _display_action_id(model_action_id: str) -> str:
@@ -22,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="recommendation-agents")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    train_parser = subparsers.add_parser("train-v0", help="Replay-train the V0 masked LinUCB model")
+    train_parser = subparsers.add_parser("train-v0", help="Replay-train the V0 shared-action LinUCB model")
     train_parser.add_argument("--metadata", required=True, help="Path to metadata JSON")
     train_parser.add_argument("--samples", required=True, help="Path to JSONL training samples")
     train_parser.add_argument("--output", required=True, help="Directory to write model artifacts")
@@ -48,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     train_raw_parser = subparsers.add_parser(
         "train-v0-raw",
-        help="Convert raw JSONL and train the V0 masked LinUCB model in one step",
+        help="Convert raw JSONL and train the V0 shared-action LinUCB model in one step",
     )
     train_raw_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
     train_raw_parser.add_argument("--output", required=True, help="Directory to write model artifacts")
@@ -98,12 +99,12 @@ def build_parser() -> argparse.ArgumentParser:
     train_dual_raw_parser.add_argument(
         "--ro-metadata",
         required=True,
-        help="Metadata JSON for the R/O model action mask",
+        help="Metadata JSON for the R/O model action space",
     )
     train_dual_raw_parser.add_argument(
         "--app-metadata",
         required=True,
-        help="Metadata JSON for the app model action mask",
+        help="Metadata JSON for the app model action space",
     )
     train_dual_raw_parser.add_argument(
         "--reward",
@@ -168,7 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--epsilon",
         type=float,
         default=0.0,
-        help="With probability epsilon, choose uniformly from the masked candidate set instead of the top score",
+        help="With probability epsilon, choose uniformly from the candidate set instead of the top score",
     )
     choose_parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed for reproducible smoke tests")
     choose_parser.add_argument("--device", default="auto", help="Execution device for choose, e.g. cpu or cuda")
@@ -230,6 +231,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the current scenario/action catalog markdown",
     )
     app_metadata_parser.add_argument("--output-metadata", required=True, help="Path to write the parsed app metadata JSON")
+
+    prepare_parser = subparsers.add_parser(
+        "prepare-v0-data",
+        help="One-line workflow: build metadata, split raw JSONL, and convert train/test samples for both agents",
+    )
+    prepare_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
+    prepare_parser.add_argument(
+        "--catalog-markdown",
+        required=True,
+        help="Path to the v5 scenario/action catalog markdown",
+    )
+    prepare_parser.add_argument("--output-dir", required=True, help="Directory to write prepared data artifacts")
+    prepare_parser.add_argument("--reward", type=float, default=1.0, help="Reward assigned during conversion")
+    prepare_parser.add_argument("--test-ratio", type=float, default=0.2, help="Episode-level test split ratio")
+
+    train_both_parser = subparsers.add_parser(
+        "train-v0-both",
+        help="One-line workflow: train both R/O and App V0 models from a prepared data directory",
+    )
+    train_both_parser.add_argument("--data-dir", required=True, help="Prepared data directory from prepare-v0-data")
+    train_both_parser.add_argument("--alpha", type=float, default=0.05, help="LinUCB exploration coefficient")
+    train_both_parser.add_argument(
+        "--default-bonus",
+        type=float,
+        default=0.75,
+        help="Additive prior bonus for the scenario default action",
+    )
+    train_both_parser.add_argument("--l2", type=float, default=1.0, help="L2 regularization for LinUCB")
+    train_both_parser.add_argument("--progress-every", type=int, default=1000, help="Training log interval")
+    train_both_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
+
+    eval_both_parser = subparsers.add_parser(
+        "eval-v0-both",
+        help="One-line workflow: evaluate both R/O and App models on prepared test samples using top-k metrics",
+    )
+    eval_both_parser.add_argument("--data-dir", required=True, help="Prepared data directory containing trained artifacts")
+    eval_both_parser.add_argument("--top-k", type=int, default=3, help="Top-k used for evaluation")
+    eval_both_parser.add_argument("--progress-every", type=int, default=1000, help="Evaluation log interval")
+    eval_both_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
 
     return parser
 
@@ -419,6 +459,68 @@ def main() -> None:
             output_metadata_path=args.output_metadata,
         )
         print(json.dumps(summary.__dict__, indent=2, sort_keys=True))
+        return
+
+    if args.command == "prepare-v0-data":
+        summary = prepare_v0_data(
+            input_path=args.input,
+            catalog_markdown=args.catalog_markdown,
+            output_dir=args.output_dir,
+            reward=args.reward,
+            test_ratio=args.test_ratio,
+        )
+        print(json.dumps({
+            "input_path": summary.input_path,
+            "output_dir": summary.output_dir,
+            "train_raw_path": summary.train_raw_path,
+            "test_raw_path": summary.test_raw_path,
+            "reward": summary.reward,
+            "test_ratio": summary.test_ratio,
+            "ro_metadata": summary.ro_metadata,
+            "app_metadata": summary.app_metadata,
+            "ro_train_conversion": summary.ro_train_conversion,
+            "ro_test_conversion": summary.ro_test_conversion,
+            "app_train_conversion": summary.app_train_conversion,
+            "app_test_conversion": summary.app_test_conversion,
+        }, indent=2, sort_keys=True))
+        return
+
+    if args.command == "train-v0-both":
+        summary = train_v0_both(
+            data_dir=args.data_dir,
+            alpha=args.alpha,
+            default_bonus=args.default_bonus,
+            l2=args.l2,
+            device=args.device,
+            progress_every=args.progress_every,
+        )
+        print(json.dumps({
+            "data_dir": summary.data_dir,
+            "ro_model_dir": summary.ro_model_dir,
+            "app_model_dir": summary.app_model_dir,
+            "alpha": summary.alpha,
+            "default_bonus": summary.default_bonus,
+            "l2": summary.l2,
+            "device": summary.device,
+            "ro": summary.ro.__dict__,
+            "app": summary.app.__dict__,
+        }, indent=2, sort_keys=True))
+        return
+
+    if args.command == "eval-v0-both":
+        summary = eval_v0_both(
+            data_dir=args.data_dir,
+            top_k=args.top_k,
+            device=args.device,
+            progress_every=args.progress_every,
+        )
+        print(json.dumps({
+            "data_dir": summary.data_dir,
+            "top_k": summary.top_k,
+            "device": summary.device,
+            "ro": summary.ro.__dict__,
+            "app": summary.app.__dict__,
+        }, indent=2, sort_keys=True))
         return
 
     parser.error(f"Unknown command: {args.command}")

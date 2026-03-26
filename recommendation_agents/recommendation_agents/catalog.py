@@ -1,10 +1,11 @@
-"""Parse the current scenario/action catalog document into training metadata."""
+"""Parse the current shared action catalog into training metadata."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from typing import Any
 
 from recommendation_agents.taxonomies import APP_CATEGORIES
 
@@ -30,94 +31,78 @@ def _strip_code_ticks(value: str) -> str:
     return text
 
 
+def _load_global_catalog_payload(markdown_path: str | Path) -> dict[str, Any]:
+    markdown_file = Path(markdown_path)
+    sibling_json = markdown_file.with_name('global_action_space.json')
+    if sibling_json.exists():
+        return json.loads(sibling_json.read_text())
+    raise ValueError(
+        f'Expected sibling global_action_space.json next to {markdown_file}, but none was found'
+    )
+
+
 def build_ro_metadata_from_catalog_markdown(
     markdown_path: str | Path,
     output_metadata_path: str | Path,
 ) -> CatalogSummary:
-    lines = Path(markdown_path).read_text().splitlines()
+    payload = _load_global_catalog_payload(markdown_path)
+    global_actions = payload.get('globalActions', [])
+    scenario_defaults = payload.get('scenarioDefaults', [])
+    if not global_actions or not scenario_defaults:
+        raise ValueError('global_action_space.json must contain globalActions and scenarioDefaults')
 
-    in_summary = False
-    scenarios = []
-    action_type_by_id: dict[str, str] = {}
-    per_scenario_counts: list[int] = []
-
-    for line in lines:
-        if line.startswith("## Scenario Summary"):
-            in_summary = True
-            continue
-        if in_summary and line.startswith("## R&O Actions For Each Scenario"):
-            break
-        if not in_summary:
-            continue
-        if not line.startswith("|"):
-            continue
-        if "scenarioId" in line or "---" in line:
-            continue
-
-        columns = [part.strip() for part in line.split("|")[1:-1]]
-        if len(columns) != 8:
-            raise ValueError(f"Unexpected Scenario Summary row shape: {line}")
-
-        scenario_id = _strip_code_ticks(columns[0])
-        action_rows = json.loads(_strip_code_ticks(columns[2]))
-        default_row = json.loads(_strip_code_ticks(columns[3]))
-        action_ids = [str(item["id"]) for item in action_rows]
-        default_action_id = str(default_row["id"])
-        if default_action_id not in action_ids:
-            raise ValueError(f"Default action {default_action_id!r} is not in actionIDs for {scenario_id!r}")
-
-        scenario_actions = []
-        for item in action_rows:
-            raw_action_id = str(item["id"])
-            arm_id = f"{scenario_id}::{raw_action_id}"
-            scenario_actions.append(
-                {
-                    "arm_id": arm_id,
-                    "action_id": raw_action_id,
-                    "action_type": str(item["type"]),
-                    "display_name": raw_action_id,
-                }
-            )
-
-        scenarios.append(
+    actions = []
+    global_action_ids: list[str] = []
+    for row in global_actions:
+        action_id = str(row['actionId'])
+        global_action_ids.append(action_id)
+        actions.append(
             {
-                "scenario_id": scenario_id,
-                "default_action_id": default_action_id,
-                "default_arm_id": f"{scenario_id}::{default_action_id}",
-                "actions": scenario_actions,
+                'action_id': action_id,
+                'raw_action_id': action_id,
+                'display_name': row.get('nameEn', action_id),
+                'action_type': row.get('actionType'),
             }
         )
-        per_scenario_counts.append(len(action_ids))
-        for item in action_rows:
-            arm_id = f"{scenario_id}::{item['id']}"
-            action_type_by_id[arm_id] = str(item["type"])
 
-    if not scenarios:
-        raise ValueError("Failed to parse any scenarios from the Scenario Summary table")
-
-    actions = [
-        {
-            "action_id": action_id,
-            "raw_action_id": action_id.split("::", 1)[1],
-            "display_name": action_id.split("::", 1)[1],
-            "action_type": action_type_by_id[action_id],
-        }
-        for action_id in sorted(action_type_by_id)
-    ]
-    payload = {
-        "schema_version": "ro-catalog-doc",
-        "source": str(markdown_path),
-        "scenarios": scenarios,
-        "actions": actions,
-    }
+    scenario_rankings = []
+    per_scenario_counts: list[int] = []
+    for row in scenario_defaults:
+        default_action_ids = [str(value) for value in row.get('defaultActionIds', [])]
+        if not default_action_ids:
+            raise ValueError(f"Scenario {row.get('scenarioId')!r} is missing defaultActionIds")
+        unknown_actions = [action_id for action_id in default_action_ids if action_id not in global_action_ids]
+        if unknown_actions:
+            raise ValueError(
+                f"Scenario {row.get('scenarioId')!r} references unknown actions: {unknown_actions}"
+            )
+        scenario_rankings.append(
+            {
+                'scenario_id': str(row['scenarioId']),
+                'default_action_ids': default_action_ids,
+            }
+        )
+        per_scenario_counts.append(len(default_action_ids))
 
     output_path = Path(output_metadata_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    output_path.write_text(
+        json.dumps(
+            {
+                'schema_version': 'ro-global-catalog',
+                'source': str(markdown_path),
+                'global_action_ids': global_action_ids,
+                'actions': actions,
+                'scenario_default_rankings': scenario_rankings,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
     return CatalogSummary(
-        total_scenarios=len(scenarios),
-        total_actions=len(actions),
+        total_scenarios=len(scenario_rankings),
+        total_actions=len(global_action_ids),
         min_actions_per_scenario=min(per_scenario_counts),
         max_actions_per_scenario=max(per_scenario_counts),
     )
@@ -127,54 +112,48 @@ def build_app_metadata_from_catalog_markdown(
     markdown_path: str | Path,
     output_metadata_path: str | Path,
 ) -> AppCatalogSummary:
-    lines = Path(markdown_path).read_text().splitlines()
+    payload = _load_global_catalog_payload(markdown_path)
+    scenario_defaults = payload.get('scenarioDefaults', [])
+    if not scenario_defaults:
+        raise ValueError('global_action_space.json must contain scenarioDefaults')
 
-    in_default_a = False
-    scenarios = []
-    for line in lines:
-        if line.startswith("## Default A For Each Scenario"):
-            in_default_a = True
-            continue
-        if not in_default_a:
-            continue
-        if not line.startswith("|"):
-            continue
-        if "scenarioId" in line or "---" in line:
-            continue
-
-        columns = [part.strip() for part in line.split("|")[1:-1]]
-        if len(columns) != 9:
-            raise ValueError(f"Unexpected Default A row shape: {line}")
-
-        scenario_id = _strip_code_ticks(columns[0])
-        payload_zh = json.loads(columns[7])
-        app_category = str(payload_zh["app_category"])
-        if app_category not in APP_CATEGORIES:
-            raise ValueError(f"Unknown app_category {app_category!r} for scenario {scenario_id!r}")
-
-        scenarios.append(
+    scenario_rankings = []
+    for row in scenario_defaults:
+        default_app_categories = [str(value) for value in row.get('defaultAppCategories', [])]
+        if not default_app_categories:
+            raise ValueError(f"Scenario {row.get('scenarioId')!r} is missing defaultAppCategories")
+        unknown_categories = [value for value in default_app_categories if value not in APP_CATEGORIES]
+        if unknown_categories:
+            raise ValueError(
+                f"Scenario {row.get('scenarioId')!r} references unknown app categories: {unknown_categories}"
+            )
+        scenario_rankings.append(
             {
-                "scenario_id": scenario_id,
-                "default_action_id": app_category,
-                "action_ids": list(APP_CATEGORIES),
+                'scenario_id': str(row['scenarioId']),
+                'default_action_ids': default_app_categories,
             }
         )
 
-    if not scenarios:
-        raise ValueError("Failed to parse any scenarios from the Default A table")
-
-    payload = {
-        "schema_version": "app-catalog-doc",
-        "source": str(markdown_path),
-        "scenarios": scenarios,
-        "actions": [{"action_id": category, "display_name": category} for category in APP_CATEGORIES],
-    }
-
     output_path = Path(output_metadata_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    output_path.write_text(
+        json.dumps(
+            {
+                'schema_version': 'app-global-catalog',
+                'source': str(markdown_path),
+                'global_action_ids': list(APP_CATEGORIES),
+                'actions': [
+                    {'action_id': category, 'raw_action_id': category, 'display_name': category}
+                    for category in APP_CATEGORIES
+                ],
+                'scenario_default_rankings': scenario_rankings,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
     return AppCatalogSummary(
-        total_scenarios=len(scenarios),
+        total_scenarios=len(scenario_rankings),
         total_actions=len(APP_CATEGORIES),
     )
