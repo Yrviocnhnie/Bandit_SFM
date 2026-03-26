@@ -222,3 +222,5 @@ data/bandit_v0_firststep_no_triggers_1000eps_default_data.jsonl
 data/*.jsonl
 data/*.json
 recommendation_agents/artifacts
+
+data/bandit_train_data_updated_preconditions_and_state_current/*.jsonl

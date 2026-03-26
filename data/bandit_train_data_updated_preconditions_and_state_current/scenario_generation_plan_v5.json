@@ -1,0 +1,1019 @@
+{
+  "AFTER_LUNCH_WALK": {
+    "scenario_id": "AFTER_LUNCH_WALK",
+    "scenario_name": "After lunch walk",
+    "category": "health",
+    "time_window": "lunch",
+    "state_options": [
+      "home_daytime_rest",
+      "home_daytime_rest_dark",
+      "home_daytime_rest_lying"
+    ],
+    "precondition_options": [
+      "home_daytime_rest",
+      "home_daytime_rest_dark",
+      "home_daytime_rest_lying",
+      "home_daytime_workday"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "ARRIVE_DINING": {
+    "scenario_id": "ARRIVE_DINING",
+    "scenario_name": "Arrive restaurant/cafe",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_restaurant_lunch",
+      "at_restaurant_dinner",
+      "at_restaurant_other",
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "outdoor_walking",
+      "at_shopping",
+      "commuting_walk_out",
+      "commuting_drive_out"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "ARRIVE_OFFICE": {
+    "scenario_id": "ARRIVE_OFFICE",
+    "scenario_name": "Arrive office",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_arriving",
+      "office_working",
+      "office_lunch_break",
+      "office_overtime",
+      "office_late_overtime",
+      "office_rest_day"
+    ],
+    "precondition_options": [
+      "commuting_walk_out",
+      "commuting_cycle_out",
+      "commuting_drive_out",
+      "commuting_transit_out"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "ARRIVE_TRANSIT_HUB": {
+    "scenario_id": "ARRIVE_TRANSIT_HUB",
+    "scenario_name": "Arrive transit hub",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "at_metro",
+      "at_rail_station",
+      "at_airport",
+      "at_transit_hub"
+    ],
+    "precondition_options": [
+      "commuting_walk_out",
+      "commuting_cycle_out",
+      "commuting_drive_out",
+      "commuting_transit_out"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "CAFE_QUIET": {
+    "scenario_id": "CAFE_QUIET",
+    "scenario_name": "Quiet cafe",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "at_cafe"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "CAFE_STAY": {
+    "scenario_id": "CAFE_STAY",
+    "scenario_name": "Cafe stay",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "CAL_HAS_EVENTS": {
+    "scenario_id": "CAL_HAS_EVENTS",
+    "scenario_name": "Today's schedule reminder",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "office_working_focused",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "office_working",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "COMMUTE_EVENING": {
+    "scenario_id": "COMMUTE_EVENING",
+    "scenario_name": "Evening commute arrive home",
+    "category": "commute",
+    "time_window": "evening",
+    "state_options": [
+      "home_evening",
+      "home_evening_dark",
+      "home_evening_lying",
+      "home_evening_noisy"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_overtime",
+      "office_working_focused",
+      "office_working_noisy",
+      "commuting_drive_home",
+      "commuting_transit_home",
+      "commuting_walk_home",
+      "commuting_cycle_home"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "COMMUTE_FROM_HOME": {
+    "scenario_id": "COMMUTE_FROM_HOME",
+    "scenario_name": "Commuting from home",
+    "category": "commute",
+    "time_window": "travel_day",
+    "state_options": [
+      "commuting_walk_out",
+      "commuting_cycle_out",
+      "commuting_drive_out",
+      "commuting_transit_out"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_workday_lying"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "COMMUTE_MORNING": {
+    "scenario_id": "COMMUTE_MORNING",
+    "scenario_name": "Morning commute arrive at work",
+    "category": "commute",
+    "time_window": "morning",
+    "state_options": [
+      "office_arriving"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_workday_lying",
+      "commuting_walk_out",
+      "commuting_cycle_out",
+      "commuting_drive_out",
+      "commuting_transit_out"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "CYCLING": {
+    "scenario_id": "CYCLING",
+    "scenario_name": "Cycling",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_cycling",
+      "commuting_cycle_out",
+      "commuting_cycle_home"
+    ],
+    "precondition_options": [
+      "commuting_cycle_out",
+      "commuting_cycle_home",
+      "outdoor_cycling"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "DELIVERY_AT_OFFICE": {
+    "scenario_id": "DELIVERY_AT_OFFICE",
+    "scenario_name": "Package arrived at office",
+    "category": "delivery",
+    "time_window": "office_day",
+    "state_options": [
+      "office_arriving",
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_arriving"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "EDUCATION_LONG_SIT": {
+    "scenario_id": "EDUCATION_LONG_SIT",
+    "scenario_name": "Long sitting at tutoring",
+    "category": "education",
+    "time_window": "workday_day",
+    "state_options": [
+      "at_education",
+      "at_education_class"
+    ],
+    "precondition_options": [
+      "at_education",
+      "at_education_class"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "EDUCATION_WAITING": {
+    "scenario_id": "EDUCATION_WAITING",
+    "scenario_name": "Waiting at tutoring",
+    "category": "education",
+    "time_window": "workday_day",
+    "state_options": [
+      "at_education",
+      "at_education_class",
+      "at_education_break"
+    ],
+    "precondition_options": [
+      "commuting_walk_out",
+      "commuting_transit_out",
+      "at_education"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "EVENING_AT_OFFICE": {
+    "scenario_id": "EVENING_AT_OFFICE",
+    "scenario_name": "Evening at office",
+    "category": "work",
+    "time_window": "evening",
+    "state_options": [
+      "office_overtime"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy",
+      "office_overtime"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "FLIGHT_BOARDING": {
+    "scenario_id": "FLIGHT_BOARDING",
+    "scenario_name": "Flight boarding reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "commuting_drive_out",
+      "commuting_transit_out",
+      "at_airport"
+    ],
+    "precondition_options": [
+      "commuting_drive_out",
+      "commuting_transit_out",
+      "at_airport"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "GYM_LONG_STAY": {
+    "scenario_id": "GYM_LONG_STAY",
+    "scenario_name": "Gym long stay",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "precondition_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "GYM_REST": {
+    "scenario_id": "GYM_REST",
+    "scenario_name": "Gym rest",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "at_gym"
+    ],
+    "precondition_options": [
+      "at_gym_exercising"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_AFTERNOON": {
+    "scenario_id": "HOME_AFTERNOON",
+    "scenario_name": "Home afternoon",
+    "category": "home",
+    "time_window": "afternoon",
+    "state_options": [
+      "home_daytime_rest",
+      "home_daytime_rest_dark",
+      "home_daytime_rest_lying"
+    ],
+    "precondition_options": [
+      "home_morning_rest",
+      "home_morning_workday",
+      "home_daytime_workday"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_AFTER_GYM": {
+    "scenario_id": "HOME_AFTER_GYM",
+    "scenario_name": "Home after gym",
+    "category": "exercise",
+    "time_window": "office_day",
+    "state_options": [
+      "home_evening",
+      "home_daytime_workday",
+      "home_daytime_rest",
+      "home_morning_workday",
+      "home_morning_rest"
+    ],
+    "precondition_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_DARK_LONG": {
+    "scenario_id": "HOME_DARK_LONG",
+    "scenario_name": "Home daytime dark too long",
+    "category": "health",
+    "time_window": "office_day",
+    "state_options": [
+      "home_daytime_workday_dark",
+      "home_daytime_rest_dark"
+    ],
+    "precondition_options": [
+      "home_daytime_workday_dark",
+      "home_daytime_rest_dark",
+      "home_evening_dark"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_EVENING_DARK": {
+    "scenario_id": "HOME_EVENING_DARK",
+    "scenario_name": "Home evening dark",
+    "category": "home",
+    "time_window": "evening",
+    "state_options": [
+      "home_evening_dark"
+    ],
+    "precondition_options": [
+      "commuting_drive_home",
+      "commuting_transit_home",
+      "commuting_walk_home",
+      "home_evening"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_EVENING_NOISY": {
+    "scenario_id": "HOME_EVENING_NOISY",
+    "scenario_name": "Home evening noisy",
+    "category": "home",
+    "time_window": "evening",
+    "state_options": [
+      "home_evening_noisy"
+    ],
+    "precondition_options": [
+      "home_evening",
+      "at_social",
+      "at_restaurant_dinner"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_LATE_NIGHT": {
+    "scenario_id": "HOME_LATE_NIGHT",
+    "scenario_name": "Home late night",
+    "category": "sleep",
+    "time_window": "late_night",
+    "state_options": [
+      "home_sleeping",
+      "home_sleeping_lying"
+    ],
+    "precondition_options": [
+      "home_evening",
+      "home_evening_dark",
+      "home_evening_lying",
+      "home_evening_noisy"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_LUNCH": {
+    "scenario_id": "HOME_LUNCH",
+    "scenario_name": "Home lunch",
+    "category": "dining",
+    "time_window": "lunch",
+    "state_options": [
+      "home_daytime_workday",
+      "home_daytime_rest"
+    ],
+    "precondition_options": [
+      "home_daytime_workday",
+      "home_daytime_rest"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOME_TO_GYM": {
+    "scenario_id": "HOME_TO_GYM",
+    "scenario_name": "Arrive gym from home",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_rest",
+      "home_daytime_workday",
+      "home_daytime_rest",
+      "home_evening"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOSPITAL_APPOINTMENT": {
+    "scenario_id": "HOSPITAL_APPOINTMENT",
+    "scenario_name": "Hospital appointment reminder",
+    "category": "health",
+    "time_window": "any",
+    "state_options": [
+      "commuting_drive_out",
+      "commuting_transit_out",
+      "at_health"
+    ],
+    "precondition_options": [
+      "commuting_drive_out",
+      "commuting_transit_out",
+      "at_health"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "HOTEL_CHECKIN": {
+    "scenario_id": "HOTEL_CHECKIN",
+    "scenario_name": "Hotel check-in reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "commuting_drive_out",
+      "commuting_transit_out",
+      "at_airport",
+      "at_transit_hub"
+    ],
+    "precondition_options": [
+      "commuting_drive_out",
+      "commuting_transit_out",
+      "at_airport",
+      "at_transit_hub"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "IN_MEETING": {
+    "scenario_id": "IN_MEETING",
+    "scenario_name": "In meeting",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working_focused",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "LATE_NIGHT_NOISY": {
+    "scenario_id": "LATE_NIGHT_NOISY",
+    "scenario_name": "Late night noisy venue",
+    "category": "social",
+    "time_window": "late_night",
+    "state_options": [
+      "unknown_noisy",
+      "at_social"
+    ],
+    "precondition_options": [
+      "home_evening",
+      "at_social",
+      "at_restaurant_dinner"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "LATE_NIGHT_OVERTIME": {
+    "scenario_id": "LATE_NIGHT_OVERTIME",
+    "scenario_name": "Late night overtime",
+    "category": "work",
+    "time_window": "late_night",
+    "state_options": [
+      "office_overtime",
+      "office_late_overtime"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy",
+      "office_overtime"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "LATE_NIGHT_PHONE": {
+    "scenario_id": "LATE_NIGHT_PHONE",
+    "scenario_name": "Late night phone too long",
+    "category": "sleep",
+    "time_window": "late_night",
+    "state_options": [
+      "home_sleeping_lying"
+    ],
+    "precondition_options": [
+      "home_evening",
+      "home_evening_lying",
+      "home_sleeping"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "LATE_RETURN_HOME": {
+    "scenario_id": "LATE_RETURN_HOME",
+    "scenario_name": "Late return home",
+    "category": "home",
+    "time_window": "late_night",
+    "state_options": [
+      "home_sleeping",
+      "home_sleeping_lying"
+    ],
+    "precondition_options": [
+      "office_overtime",
+      "office_late_overtime",
+      "driving",
+      "commuting_drive_home",
+      "commuting_transit_home",
+      "commuting_walk_home"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "LEAVE_OFFICE": {
+    "scenario_id": "LEAVE_OFFICE",
+    "scenario_name": "Leave office",
+    "category": "commute",
+    "time_window": "evening",
+    "state_options": [
+      "commuting_walk_home",
+      "commuting_cycle_home",
+      "commuting_drive_home",
+      "commuting_transit_home",
+      "outdoor_walking"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_overtime",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "LONG_DRIVE": {
+    "scenario_id": "LONG_DRIVE",
+    "scenario_name": "Long drive",
+    "category": "commute",
+    "time_window": "travel_day",
+    "state_options": [
+      "driving",
+      "commuting_drive_out",
+      "commuting_drive_home"
+    ],
+    "precondition_options": [
+      "commuting_drive_out",
+      "driving"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "LONG_OUTDOOR_WALK": {
+    "scenario_id": "LONG_OUTDOOR_WALK",
+    "scenario_name": "Long outdoor walk",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking"
+    ],
+    "precondition_options": [
+      "outdoor_walking"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "MEETING_UPCOMING": {
+    "scenario_id": "MEETING_UPCOMING",
+    "scenario_name": "Meeting starting soon",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "office_working_focused",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused",
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "MORNING_COFFEE": {
+    "scenario_id": "MORNING_COFFEE",
+    "scenario_name": "Morning coffee",
+    "category": "dining",
+    "time_window": "morning",
+    "state_options": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_rest",
+      "commuting_walk_out"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "MORNING_EXERCISE": {
+    "scenario_id": "MORNING_EXERCISE",
+    "scenario_name": "Morning exercise",
+    "category": "exercise",
+    "time_window": "morning",
+    "state_options": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_rest",
+      "home_morning_rest_lying"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "MOVIE_TICKET": {
+    "scenario_id": "MOVIE_TICKET",
+    "scenario_name": "Movie ticket reminder",
+    "category": "entertainment",
+    "time_window": "any",
+    "state_options": [
+      "home_evening",
+      "at_social",
+      "at_restaurant_other"
+    ],
+    "precondition_options": [
+      "home_evening",
+      "at_social",
+      "at_restaurant_other"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "NOISY_GATHERING": {
+    "scenario_id": "NOISY_GATHERING",
+    "scenario_name": "Noisy gathering",
+    "category": "social",
+    "time_window": "any",
+    "state_options": [
+      "unknown_noisy",
+      "at_social"
+    ],
+    "precondition_options": [
+      "home_evening",
+      "at_restaurant_dinner",
+      "at_social"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "NO_MEETINGS": {
+    "scenario_id": "NO_MEETINGS",
+    "scenario_name": "No meetings today",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_arriving",
+      "office_working"
+    ],
+    "precondition_options": [
+      "office_arriving",
+      "office_working",
+      "home_daytime_workday"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "OFFICE_FOCUS_LONG": {
+    "scenario_id": "OFFICE_FOCUS_LONG",
+    "scenario_name": "Long focused office session",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working_focused"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "OFFICE_LONG_SESSION": {
+    "scenario_id": "OFFICE_LONG_SESSION",
+    "scenario_name": "Extra long office session",
+    "category": "work",
+    "time_window": "office_day",
+    "state_options": [
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "OFFICE_LUNCH_OUT": {
+    "scenario_id": "OFFICE_LUNCH_OUT",
+    "scenario_name": "Office lunch out",
+    "category": "work",
+    "time_window": "lunch",
+    "state_options": [
+      "outdoor_walking",
+      "at_restaurant_lunch",
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "office_arriving",
+      "office_working",
+      "office_lunch_break"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "OFFICE_TO_CAFE": {
+    "scenario_id": "OFFICE_TO_CAFE",
+    "scenario_name": "Office to cafe",
+    "category": "dining",
+    "time_window": "office_day",
+    "state_options": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "office_working",
+      "office_working_focused",
+      "office_working_noisy",
+      "office_lunch_break"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "OUTDOOR_RUNNING": {
+    "scenario_id": "OUTDOOR_RUNNING",
+    "scenario_name": "Outdoor running",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_running"
+    ],
+    "precondition_options": [
+      "home_morning_rest",
+      "home_morning_workday",
+      "outdoor_walking"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "PARK_WALK": {
+    "scenario_id": "PARK_WALK",
+    "scenario_name": "Park walk",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking"
+    ],
+    "precondition_options": [
+      "home_daytime_rest",
+      "home_daytime_workday",
+      "outdoor_walking"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "QUIET_HOME": {
+    "scenario_id": "QUIET_HOME",
+    "scenario_name": "Quiet home",
+    "category": "home",
+    "time_window": "office_day",
+    "state_options": [
+      "home_evening",
+      "home_daytime_workday",
+      "home_daytime_rest",
+      "home_morning_workday",
+      "home_morning_rest"
+    ],
+    "precondition_options": [
+      "home_daytime_workday",
+      "home_daytime_rest",
+      "home_morning_workday",
+      "home_morning_rest",
+      "home_evening"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "REMOTE_MEETING": {
+    "scenario_id": "REMOTE_MEETING",
+    "scenario_name": "Remote meeting departure",
+    "category": "commute",
+    "time_window": "office_day",
+    "state_options": [
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "precondition_options": [
+      "home_daytime_workday",
+      "at_cafe_quiet"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "RETURN_OFFICE_AFTER_LUNCH": {
+    "scenario_id": "RETURN_OFFICE_AFTER_LUNCH",
+    "scenario_name": "Return office after lunch",
+    "category": "work",
+    "time_window": "lunch",
+    "state_options": [
+      "office_working",
+      "office_working_focused"
+    ],
+    "precondition_options": [
+      "at_restaurant_lunch",
+      "at_restaurant_other",
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "RIDESHARE_PICKUP": {
+    "scenario_id": "RIDESHARE_PICKUP",
+    "scenario_name": "Rideshare pickup reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "outdoor_walking",
+      "at_social",
+      "at_transit_hub"
+    ],
+    "precondition_options": [
+      "outdoor_walking",
+      "at_social",
+      "at_transit_hub"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "SCHOOL_QUIET": {
+    "scenario_id": "SCHOOL_QUIET",
+    "scenario_name": "School quiet time",
+    "category": "education",
+    "time_window": "workday_day",
+    "state_options": [
+      "at_education_class"
+    ],
+    "precondition_options": [
+      "at_education",
+      "at_education_class"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "SHOPPING": {
+    "scenario_id": "SHOPPING",
+    "scenario_name": "Shopping",
+    "category": "shopping",
+    "time_window": "any",
+    "state_options": [
+      "at_shopping"
+    ],
+    "precondition_options": [
+      "commuting_drive_out",
+      "commuting_walk_out",
+      "outdoor_walking"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "TRAIN_DEPARTURE": {
+    "scenario_id": "TRAIN_DEPARTURE",
+    "scenario_name": "Train departure reminder",
+    "category": "travel",
+    "time_window": "travel_day",
+    "state_options": [
+      "commuting_transit_out",
+      "at_transit_hub",
+      "at_rail_station"
+    ],
+    "precondition_options": [
+      "commuting_transit_out",
+      "at_transit_hub",
+      "at_rail_station"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "UNKNOWN_LONG_STAY": {
+    "scenario_id": "UNKNOWN_LONG_STAY",
+    "scenario_name": "Long stay at unknown place",
+    "category": "other",
+    "time_window": "any",
+    "state_options": [
+      "stationary_unknown",
+      "unknown_noisy",
+      "unknown_dark",
+      "unknown_settled",
+      "unknown_lying"
+    ],
+    "precondition_options": [
+      "stationary_unknown",
+      "unknown_settled"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "WAKE_UP": {
+    "scenario_id": "WAKE_UP",
+    "scenario_name": "Wake up",
+    "category": "morning",
+    "time_window": "morning",
+    "state_options": [
+      "home_morning_workday",
+      "home_morning_rest"
+    ],
+    "precondition_options": [
+      "home_sleeping",
+      "home_sleeping_lying"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "WEEKDAY_HOME_DAY": {
+    "scenario_id": "WEEKDAY_HOME_DAY",
+    "scenario_name": "Weekday home daytime",
+    "category": "home",
+    "time_window": "office_day",
+    "state_options": [
+      "home_daytime_workday",
+      "home_daytime_workday_dark",
+      "home_daytime_workday_lying"
+    ],
+    "precondition_options": [
+      "home_morning_workday",
+      "home_morning_workday_lying"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "WEEKEND_MORNING": {
+    "scenario_id": "WEEKEND_MORNING",
+    "scenario_name": "Weekend morning",
+    "category": "morning",
+    "time_window": "morning",
+    "state_options": [
+      "home_morning_rest",
+      "home_morning_rest_lying"
+    ],
+    "precondition_options": [
+      "home_sleeping",
+      "home_sleeping_lying"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "WEEKEND_OUTDOOR_WALK": {
+    "scenario_id": "WEEKEND_OUTDOOR_WALK",
+    "scenario_name": "Weekend outdoor walk",
+    "category": "exercise",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking"
+    ],
+    "precondition_options": [
+      "home_morning_rest",
+      "home_daytime_rest"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  },
+  "WEEKEND_OUTING": {
+    "scenario_id": "WEEKEND_OUTING",
+    "scenario_name": "Weekend outing",
+    "category": "shopping",
+    "time_window": "any",
+    "state_options": [
+      "outdoor_walking",
+      "at_shopping"
+    ],
+    "precondition_options": [
+      "home_morning_rest",
+      "home_morning_rest_lying",
+      "home_daytime_rest"
+    ],
+    "notes": "first-timestep-only generator using updated rules + v5 global action space"
+  }
+}
