@@ -1,0 +1,48 @@
+{
+  "app_metadata": {
+    "total_actions": 10,
+    "total_scenarios": 65
+  },
+  "app_test_conversion": {
+    "input_rows": 66,
+    "kept_rows": 66,
+    "skipped_none_rows": 0,
+    "unique_actions": 9,
+    "unique_scenarios": 46
+  },
+  "app_train_conversion": {
+    "input_rows": 194,
+    "kept_rows": 194,
+    "skipped_none_rows": 0,
+    "unique_actions": 10,
+    "unique_scenarios": 65
+  },
+  "input_path": "artifacts/v5_synthetic_all_scenarios/synthetic_v5_all_scenarios_balanced.jsonl",
+  "output_dir": "artifacts/v5_synthetic_all_scenarios_prepared",
+  "reward": 1.0,
+  "ro_metadata": {
+    "max_actions_per_scenario": 3,
+    "min_actions_per_scenario": 2,
+    "total_actions": 46,
+    "total_scenarios": 65
+  },
+  "ro_test_conversion": {
+    "input_rows": 66,
+    "kept_rows": 66,
+    "skipped_none_rows": 0,
+    "unique_actions": 30,
+    "unique_scenarios": 46
+  },
+  "ro_train_conversion": {
+    "input_rows": 194,
+    "kept_rows": 194,
+    "skipped_none_rows": 0,
+    "test_rows": 66,
+    "train_rows": 194,
+    "unique_actions": 45,
+    "unique_scenarios": 65
+  },
+  "test_ratio": 0.2,
+  "test_raw_path": "artifacts/v5_synthetic_all_scenarios_prepared/test.raw.jsonl",
+  "train_raw_path": "artifacts/v5_synthetic_all_scenarios_prepared/train.raw.jsonl"
+}

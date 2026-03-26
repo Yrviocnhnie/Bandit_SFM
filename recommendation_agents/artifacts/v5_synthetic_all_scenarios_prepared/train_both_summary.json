@@ -1,0 +1,23 @@
+{
+  "alpha": 0.05,
+  "app": {
+    "default_logged_action_rate": 0.0,
+    "mean_reward": 1.0,
+    "pre_update_policy_hit_rate": 0.21649484536082475,
+    "sample_count": 194,
+    "unique_scenarios_seen": 65
+  },
+  "app_model_dir": "artifacts/v5_synthetic_all_scenarios_prepared/app_model",
+  "data_dir": "artifacts/v5_synthetic_all_scenarios_prepared",
+  "default_bonus": 0.75,
+  "device": "auto",
+  "l2": 1.0,
+  "ro": {
+    "default_logged_action_rate": 0.0,
+    "mean_reward": 1.0,
+    "pre_update_policy_hit_rate": 0.13917525773195877,
+    "sample_count": 194,
+    "unique_scenarios_seen": 65
+  },
+  "ro_model_dir": "artifacts/v5_synthetic_all_scenarios_prepared/ro_model"
+}
