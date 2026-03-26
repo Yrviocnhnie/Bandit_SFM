@@ -7,10 +7,11 @@ import tempfile
 import unittest
 
 from recommendation_agents.trainer import train_v0
-from recommendation_agents.workflows import evaluate_v0_topk
+from recommendation_agents.workflows import evaluate_v0_topk, run_v6_plan_a, run_v6_plan_b, split_raw_by_scenario_episode
 
 
 TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _context(**overrides):
@@ -201,6 +202,205 @@ class WorkflowEvaluationTest(unittest.TestCase):
                 6,
             )
             self.assertLessEqual(len(summary.top6_predicted_action_distribution), 6)
+
+    def test_run_v6_plan_a_reuses_existing_test_split(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            input_dir = tmp_path / "existing_prepared"
+            output_dir = tmp_path / "plan_a"
+            relevance_path = tmp_path / "plan_a_v6.md"
+            input_dir.mkdir()
+            metadata = {
+                "schema_version": "ro-global-catalog",
+                "global_action_ids": [
+                    "O_SHOW_SCHEDULE",
+                    "O_SHOW_TODO",
+                    "R_PLAN_DAY_OVER_COFFEE",
+                    "O_SHOW_NEARBY_OPTIONS",
+                    "O_SHOW_BOOKING_DETAILS",
+                    "R_HOME_RELAX_AND_RESET",
+                    "O_SHOW_WEATHER",
+                ],
+                "actions": [
+                    {"action_id": "O_SHOW_SCHEDULE", "display_name": "Show schedule"},
+                    {"action_id": "O_SHOW_TODO", "display_name": "Show todo"},
+                    {"action_id": "R_PLAN_DAY_OVER_COFFEE", "display_name": "Plan day over coffee"},
+                    {"action_id": "O_SHOW_NEARBY_OPTIONS", "display_name": "Show nearby"},
+                    {"action_id": "O_SHOW_BOOKING_DETAILS", "display_name": "Show booking"},
+                    {"action_id": "R_HOME_RELAX_AND_RESET", "display_name": "Relax at home"},
+                    {"action_id": "O_SHOW_WEATHER", "display_name": "Show weather"},
+                ],
+            }
+            app_metadata = {
+                "schema_version": "app-global-catalog",
+                "global_action_ids": ["productivity", "news", "music", "reading", "social", "health", "shopping", "game"],
+                "actions": [{"action_id": action_id, "display_name": action_id} for action_id in ["productivity", "news", "music", "reading", "social", "health", "shopping", "game"]],
+            }
+            train_rows = [
+                {
+                    "episode_id": "arrive_office_ep01",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "scenario_elapsed_sec": 0,
+                    "emit_recommendation": 1,
+                    "gt_ro": "O_SHOW_SCHEDULE",
+                    "gt_app": "productivity",
+                    "features": _context(),
+                },
+                {
+                    "episode_id": "home_evening_ep01",
+                    "scenario_id": "HOME_EVENING",
+                    "scenario_elapsed_sec": 0,
+                    "emit_recommendation": 1,
+                    "gt_ro": "R_PLAN_DAY_OVER_COFFEE",
+                    "gt_app": "music",
+                    "features": _context(
+                        state_current="home_evening",
+                        precondition="office_working",
+                        ps_time="evening",
+                        hour=19,
+                        ps_location="home",
+                        wifiLostCategory="home",
+                    ),
+                },
+            ]
+            test_rows = [
+                {
+                    "event_id": "test-arrive",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "context": _context(hour=8),
+                    "selected_action": "O_SHOW_SCHEDULE",
+                    "reward": 1.0,
+                    "propensity": 1.0,
+                }
+            ]
+            app_test_rows = [
+                {
+                    "event_id": "test-arrive-app",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "context": _context(hour=8),
+                    "selected_action": "productivity",
+                    "reward": 1.0,
+                    "propensity": 1.0,
+                }
+            ]
+            (input_dir / "train.raw.jsonl").write_text("".join(json.dumps(row) + "\n" for row in train_rows))
+            (input_dir / "test.raw.jsonl").write_text("".join(json.dumps(train_rows[0]) + "\n"))
+            (input_dir / "ro_metadata.json").write_text(json.dumps(metadata, indent=2))
+            (input_dir / "app_metadata.json").write_text(json.dumps(app_metadata, indent=2))
+            (input_dir / "ro_test_samples.jsonl").write_text("".join(json.dumps(row) + "\n" for row in test_rows))
+            (input_dir / "app_test_samples.jsonl").write_text("".join(json.dumps(row) + "\n" for row in app_test_rows))
+            relevance_path.write_text(
+                "\n".join(
+                    [
+                        "# v6",
+                        "",
+                        "## Scenario Defaults",
+                        "",
+                        "| scenarioId | scenarioNameZh | most relevant 3 R/O actionIds | other plausible 3 R/O actionIds | irrelevant 2 R/O actionIds | most relevant 3 app categories | other plausible 3 app categories | irrelevant 2 app categories |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| `ARRIVE_OFFICE` | 到达办公室 | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `O_SHOW_NEARBY_OPTIONS`<br>`O_SHOW_BOOKING_DETAILS`<br>`O_SHOW_WEATHER` | `R_HOME_RELAX_AND_RESET`<br>`O_SHOW_WEATHER` | `productivity`<br>`news`<br>`music` | `reading`<br>`social`<br>`health` | `shopping`<br>`game` |",
+                        "| `HOME_EVENING` | 居家傍晚 | `R_PLAN_DAY_OVER_COFFEE`<br>`R_HOME_RELAX_AND_RESET`<br>`O_SHOW_WEATHER` | `O_SHOW_TODO`<br>`O_SHOW_SCHEDULE`<br>`O_SHOW_NEARBY_OPTIONS` | `O_SHOW_BOOKING_DETAILS`<br>`O_SHOW_SCHEDULE` | `music`<br>`reading`<br>`health` | `social`<br>`news`<br>`productivity` | `shopping`<br>`game` |",
+                    ]
+                )
+            )
+
+            summary = run_v6_plan_a(
+                input_data_dir=input_dir,
+                output_dir=output_dir,
+                relevance_markdown=relevance_path,
+                alpha=0.05,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+            )
+
+            self.assertEqual(summary.ro_expansion["emitted_samples"], 16)
+            self.assertEqual(summary.app_expansion["emitted_samples"], 16)
+            self.assertEqual(
+                (output_dir / "ro_test_samples.jsonl").read_text(),
+                (input_dir / "ro_test_samples.jsonl").read_text(),
+            )
+            self.assertTrue((output_dir / "eval_both_top3.json").exists())
+
+    def test_run_v6_plan_b_creates_stratified_split_and_trains(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            raw_path = tmp_path / "raw.jsonl"
+            rows = []
+            for index in range(6):
+                rows.append(
+                    {
+                        "episode_id": f"arrive_office_ep{index:02d}",
+                        "scenario_id": "ARRIVE_OFFICE",
+                        "scenario_elapsed_sec": 0,
+                        "emit_recommendation": 1,
+                        "gt_ro": "O_SHOW_SCHEDULE",
+                        "gt_app": "productivity",
+                        "features": _context(hour=8 + index),
+                    }
+                )
+                rows.append(
+                    {
+                        "episode_id": f"home_evening_ep{index:02d}",
+                        "scenario_id": "HOME_EVENING",
+                        "scenario_elapsed_sec": 0,
+                        "emit_recommendation": 1,
+                        "gt_ro": "R_PLAN_DAY_OVER_COFFEE",
+                        "gt_app": "music",
+                        "features": _context(
+                            state_current="home_evening",
+                            precondition="office_working",
+                            ps_time="evening",
+                            hour=19,
+                            ps_location="home",
+                            wifiLostCategory="home",
+                            batteryLevel=70 + index,
+                        ),
+                    }
+                )
+            raw_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+            summary = run_v6_plan_b(
+                input_path=raw_path,
+                catalog_markdown=ROOT / "docs/scenario_recommendation_actions_v5.md",
+                output_dir=tmp_path / "plan_b",
+                relevance_markdown=ROOT / "docs/scenario_recommendation_actions_v6.md",
+                test_ratio=0.2,
+                alpha=0.05,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+            )
+
+            self.assertTrue((tmp_path / "plan_b" / "train.raw.jsonl").exists())
+            self.assertTrue((tmp_path / "plan_b" / "test.raw.jsonl").exists())
+            self.assertTrue((tmp_path / "plan_b" / "ro_train_samples_expanded.jsonl").exists())
+            self.assertTrue((tmp_path / "plan_b" / "app_train_samples_expanded.jsonl").exists())
+            self.assertTrue((tmp_path / "plan_b" / "eval_both_top3.json").exists())
+            self.assertIn("split_summary", summary.extra_summary)
+
+
+class StratifiedSplitTest(unittest.TestCase):
+    def test_split_raw_by_scenario_episode_keeps_train_and_test_per_scenario_when_possible(self) -> None:
+        rows = []
+        for index in range(5):
+            rows.append({"episode_id": f"a-{index}", "scenario_id": "ARRIVE_OFFICE", "scenario_elapsed_sec": 0})
+            rows.append({"episode_id": f"h-{index}", "scenario_id": "HOME_EVENING", "scenario_elapsed_sec": 0})
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            input_path = tmp_path / "raw.jsonl"
+            train_path = tmp_path / "train.jsonl"
+            test_path = tmp_path / "test.jsonl"
+            input_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+            summary = split_raw_by_scenario_episode(input_path, train_path, test_path, test_ratio=0.2)
+
+            self.assertEqual(summary.train_scenarios, 2)
+            self.assertEqual(summary.test_scenarios, 2)
+            self.assertGreater(summary.per_scenario["ARRIVE_OFFICE"]["train_rows"], 0)
+            self.assertGreater(summary.per_scenario["ARRIVE_OFFICE"]["test_rows"], 0)
+            self.assertGreater(summary.per_scenario["HOME_EVENING"]["train_rows"], 0)
+            self.assertGreater(summary.per_scenario["HOME_EVENING"]["test_rows"], 0)
 
 
 if __name__ == "__main__":

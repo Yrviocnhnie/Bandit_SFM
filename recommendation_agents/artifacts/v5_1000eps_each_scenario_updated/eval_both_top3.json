@@ -2,7 +2,7 @@
   "data_dir": "artifacts/v5_1000eps_each_scenario_updated",
   "catalog_markdown": "docs/scenario_recommendation_actions_v6.md",
   "top_k": 3,
-  "device": "auto",
+  "device": "cuda",
   "ro": {
     "sample_count": 12309,
     "top_k": 3,

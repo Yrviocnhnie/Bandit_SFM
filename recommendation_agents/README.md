@@ -41,6 +41,35 @@ Current V0 model:
 
 This is a linear contextual bandit, not an MLP.
 
+## Model I/O
+
+Input:
+
+- one context vector of dimension `306`
+- this is the same for both heads
+
+Output:
+
+- `R/O` head:
+  - one score per global R/O action
+  - current output space size: `46`
+  - at inference time, the model ranks all `46` actions and usually returns `top-3`
+- `App` head:
+  - one score per app category
+  - current output space size: `10`
+  - at inference time, the model ranks all `10` categories and usually returns `top-3`
+
+So the model shape is:
+
+- `R/O`: `306 -> 46`
+- `App`: `306 -> 10`
+
+These are not MLP layers. This is still a linear contextual bandit:
+
+- input: `306`-dim feature vector
+- output: per-action linear score
+- ranking: sort by score and return top-k
+
 ## Environment Setup
 
 Create a conda env and install PyTorch:
@@ -59,16 +88,127 @@ Device behavior:
 
 ## Quickstart
 
-From `Bandit_SFM/recommendation_agents`, the normal flow is:
+From `Bandit_SFM/recommendation_agents`, the recommended flow today is:
 
-1. build metadata from the v5 catalog
-2. convert the raw JSONL into trainer-ready samples
-3. train the `R/O` and `App` models
-4. score or choose on a test request JSON
+1. use `Plan A` if you want a fair comparison against yesterday's model
+2. use `Plan B` if you want the new scenario-stratified split
+3. both commands do data prep, training, and evaluation in one run
 
-## One-Line Workflow
+Training defaults for the V6 runs:
 
-If you want the shortest path for a full dataset, use these three commands.
+- `default_bonus = 0.0`
+- `alpha = 0.05`
+- `most_relevant / plausible / irrelevant rewards = 1.0 / 0.6 / 0.0`
+- `track_train_hit_rate = False` by default, because it is expensive and not very useful for the main V6 runs
+
+Current strongest candidate config from the recent experiments:
+
+- `alpha = 0.0`
+- `default_bonus = 0.0`
+- `most_relevant / plausible / irrelevant rewards = 1.0 / 0.1 / 0.0`
+- `most_relevant / plausible / irrelevant repeat = 1 / 1 / 1`
+- `epochs = 1`
+
+This is the current `v6_candidate` setup.
+
+Current candidate artifacts:
+
+- `Plan A`: `artifacts/v6_candidate_same_split_expanded`
+- `Plan B`: `artifacts/v6_candidate_stratified_split`
+
+Short status report:
+
+- [report_2026_03_26.md](/home/liyao/data00/projects/sfm/recommendation_agents/docs/report_2026_03_26.md)
+
+## Recommended V6 Workflow
+
+### Plan A: Reuse Yesterday's Split
+
+Use this when you want the cleanest comparison against yesterday's model.
+
+- reuse the old `train.raw.jsonl` and `test.raw.jsonl`
+- expand only the training side
+- keep the test side unchanged
+
+```bash
+CUDA_VISIBLE_DEVICES=3 conda run --no-capture-output -n sfm python -m recommendation_agents.cli run-v6-plan-a \
+  --input-data-dir artifacts/v5_1000eps_each_scenario_updated \
+  --output-dir artifacts/v6_candidate_same_split_expanded \
+  --relevance-markdown docs/scenario_recommendation_actions_v6.md \
+  --most-relevant-reward 1.0 \
+  --plausible-reward 0.1 \
+  --irrelevant-reward 0.0 \
+  --most-relevant-repeat 1 \
+  --plausible-repeat 1 \
+  --irrelevant-repeat 1 \
+  --alpha 0.0 \
+  --default-bonus 0.0 \
+  --epochs 1 \
+  --top-k 3 \
+  --progress-every 10000 \
+  --device cuda \
+  --no-track-train-hit-rate
+```
+
+This writes the current candidate artifacts to:
+
+- `artifacts/v6_candidate_same_split_expanded`
+
+### Plan B: New Scenario-Stratified Split
+
+Use this when you want the cleaner long-term split:
+
+- split raw contexts by `scenario_id` at the raw row / episode level
+- target `80/20` train/test inside each scenario
+- expand only the train side
+- keep test contexts unexpanded
+
+```bash
+CUDA_VISIBLE_DEVICES=3 conda run --no-capture-output -n sfm python -m recommendation_agents.cli run-v6-plan-b \
+  --input ../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl \
+  --catalog-markdown docs/scenario_recommendation_actions_v5.md \
+  --output-dir artifacts/v6_candidate_stratified_split \
+  --relevance-markdown docs/scenario_recommendation_actions_v6.md \
+  --test-ratio 0.2 \
+  --most-relevant-reward 1.0 \
+  --plausible-reward 0.1 \
+  --irrelevant-reward 0.0 \
+  --most-relevant-repeat 1 \
+  --plausible-repeat 1 \
+  --irrelevant-repeat 1 \
+  --alpha 0.0 \
+  --default-bonus 0.0 \
+  --epochs 1 \
+  --top-k 3 \
+  --progress-every 10000 \
+  --device cuda \
+  --no-track-train-hit-rate
+```
+
+This writes the current candidate artifacts to:
+
+- `artifacts/v6_candidate_stratified_split`
+
+Main outputs for both plans:
+
+- `.../ro_train_samples_expanded.jsonl`
+- `.../app_train_samples_expanded.jsonl`
+- `.../ro_model/`
+- `.../app_model/`
+- `.../eval_both_top3.json`
+- `.../run_v6_plan_a_summary.json` or `.../run_v6_plan_b_summary.json`
+
+Training logs now focus on:
+
+- `interval avg reward`
+- `cumulative avg reward`
+- throughput and ETA
+
+If you explicitly enable `--track-train-hit-rate`, the logs will also print `top1`, but training will be slower.
+
+## Legacy V5 Workflow
+
+If you still need the older one-label-per-context workflow, use the commands below.
 
 ### 1. Prepare data
 

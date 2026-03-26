@@ -15,6 +15,7 @@ class TrainingEvent:
     shown_actions: tuple[str, ...] | None = None
     propensity: float | None = None
     event_id: str | None = None
+    context_vector: tuple[float, ...] | None = None
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "TrainingEvent":
@@ -33,6 +34,12 @@ class TrainingEvent:
             if not 0.0 < propensity <= 1.0:
                 raise ValueError("event.propensity must be in (0, 1]")
         scenario_id = payload.get("scenario_id")
+        context_vector_raw = payload.get("context_vector")
+        context_vector = None
+        if context_vector_raw is not None:
+            if not isinstance(context_vector_raw, list) or not context_vector_raw:
+                raise ValueError("event.context_vector must be a non-empty list when provided")
+            context_vector = tuple(float(value) for value in context_vector_raw)
         return cls(
             context=context,
             selected_action=str(payload["selected_action"]),
@@ -41,6 +48,7 @@ class TrainingEvent:
             shown_actions=shown_actions,
             propensity=propensity,
             event_id=payload.get("event_id"),
+            context_vector=context_vector,
         )
 
 

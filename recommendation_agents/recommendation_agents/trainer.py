@@ -11,6 +11,8 @@ import random
 import time
 from typing import Any, Iterable
 
+import numpy as np
+
 from recommendation_agents.feature_space import V0FeatureSpace
 from recommendation_agents.linucb import MaskedDisjointLinUCB, RankedAction
 from recommendation_agents.metadata import BanditMetadata
@@ -150,6 +152,53 @@ def _resolve_alpha(alpha_start: float, alpha_end: float, train_step: int, total_
     return float(alpha_start + (alpha_end - alpha_start) * progress)
 
 
+def _log_train_progress(
+    *,
+    label_prefix: str,
+    processed_samples: int,
+    total_samples_expected: int,
+    interval_reward: float,
+    interval_hits: int,
+    interval_size: int,
+    total_reward: float,
+    pre_update_hits: int,
+    start_time: float,
+    track_train_hit_rate: bool,
+) -> None:
+    elapsed = time.time() - start_time
+    samples_per_sec = processed_samples / elapsed if elapsed > 0 else 0.0
+    remaining = max(total_samples_expected - processed_samples, 0)
+    eta_seconds = remaining / samples_per_sec if samples_per_sec > 0 else 0.0
+    if track_train_hit_rate:
+        logger.info(
+            "%sProcessed %d/%d samples | interval avg reward=%.4f | interval top1=%.4f | "
+            "cumulative avg reward=%.4f | cumulative top1=%.4f | elapsed=%s | eta=%s | %.1f samples/s",
+            label_prefix,
+            processed_samples,
+            total_samples_expected,
+            interval_reward / interval_size,
+            interval_hits / interval_size,
+            total_reward / processed_samples,
+            pre_update_hits / processed_samples,
+            _format_duration(elapsed),
+            _format_duration(eta_seconds),
+            samples_per_sec,
+        )
+        return
+    logger.info(
+        "%sProcessed %d/%d samples | interval avg reward=%.4f | cumulative avg reward=%.4f | "
+        "elapsed=%s | eta=%s | %.1f samples/s",
+        label_prefix,
+        processed_samples,
+        total_samples_expected,
+        interval_reward / interval_size,
+        total_reward / processed_samples,
+        _format_duration(elapsed),
+        _format_duration(eta_seconds),
+        samples_per_sec,
+    )
+
+
 def _prepare_dual_samples(
     input_path: str | Path,
     reward: float,
@@ -241,17 +290,24 @@ def train_v0(
     device: str = "auto",
     progress_every: int = 1000,
     progress_label: str | None = None,
+    track_train_hit_rate: bool = False,
+    epochs: int = 1,
 ) -> TrainingMetrics:
     if progress_every <= 0:
         raise ValueError("progress_every must be positive")
+    if epochs <= 0:
+        raise ValueError("epochs must be positive")
     _configure_progress_logger()
     label_prefix = f"[{progress_label}] " if progress_label else ""
     metadata = BanditMetadata.load(metadata_path)
-    total_samples_expected = _count_nonempty_lines(samples_path)
+    samples_per_epoch = _count_nonempty_lines(samples_path)
+    total_samples_expected = samples_per_epoch * epochs
     start_time = time.time()
     logger.info(
-        "%sStarting training | samples=%d | actions=%d | feature_dim=%d | device=%s",
+        "%sStarting training | samples_per_epoch=%d | epochs=%d | total_samples=%d | actions=%d | feature_dim=%d | device=%s",
         label_prefix,
+        samples_per_epoch,
+        epochs,
         total_samples_expected,
         len(metadata.all_action_ids()),
         V0FeatureSpace().dimension,
@@ -276,79 +332,78 @@ def train_v0(
     interval_hits = 0
     interval_defaults = 0
 
-    for sample_count, payload in enumerate(load_jsonl(samples_path), start=1):
-        event = TrainingEvent.from_dict(payload)
-        candidate_actions = resolve_candidate_actions(event, metadata)
-        selected_action = metadata.resolve_action_token(event.selected_action, event.scenario_id)
-        if selected_action not in candidate_actions:
-            raise ValueError(
-                f"selected_action {event.selected_action!r} is not in shown_actions "
-                f"for event {event.event_id or '<unknown>'}"
-            )
+    for epoch_index in range(epochs):
+        logger.info("%sStarting epoch %d/%d", label_prefix, epoch_index + 1, epochs)
+        for payload in load_jsonl(samples_path):
+            sample_count += 1
+            event = TrainingEvent.from_dict(payload)
+            candidate_actions = resolve_candidate_actions(event, metadata)
+            selected_action = metadata.resolve_action_token(event.selected_action, event.scenario_id)
+            if selected_action not in candidate_actions:
+                raise ValueError(
+                    f"selected_action {event.selected_action!r} is not in shown_actions "
+                    f"for event {event.event_id or '<unknown>'}"
+                )
 
-        default_action_id = metadata.default_action_id(event.scenario_id)
-        x = feature_space.encode(event.context)
-        ranking = model.rank(x, candidate_actions, default_action_id, top_k=1)
-        if ranking[0].action_id == selected_action:
-            pre_update_hits += 1
-            interval_hits += 1
+            default_action_id = metadata.default_action_id(event.scenario_id)
+            if event.context_vector is not None:
+                x = np.asarray(event.context_vector, dtype=np.float32)
+                if x.shape != (feature_space.dimension,):
+                    raise ValueError(
+                        f"context_vector for event {event.event_id or '<unknown>'} has shape {x.shape}; "
+                        f"expected ({feature_space.dimension},)"
+                    )
+            else:
+                x = feature_space.encode(event.context)
+            if track_train_hit_rate:
+                ranking = model.rank(x, candidate_actions, default_action_id, top_k=1)
+                if ranking[0].action_id == selected_action:
+                    pre_update_hits += 1
+                    interval_hits += 1
 
-        if default_action_id is not None and selected_action == default_action_id:
-            logged_defaults += 1
-            interval_defaults += 1
+            if default_action_id is not None and selected_action == default_action_id:
+                logged_defaults += 1
+                interval_defaults += 1
 
-        model.partial_fit(x, selected_action, event.reward)
-        total_reward += event.reward
-        interval_reward += event.reward
-        if event.scenario_id is not None:
-            scenarios_seen[event.scenario_id] += 1
+            model.partial_fit(x, selected_action, event.reward)
+            total_reward += event.reward
+            interval_reward += event.reward
+            if event.scenario_id is not None:
+                scenarios_seen[event.scenario_id] += 1
 
-        if sample_count % progress_every == 0:
-            elapsed = time.time() - start_time
-            samples_per_sec = sample_count / elapsed if elapsed > 0 else 0.0
-            remaining = max(total_samples_expected - sample_count, 0)
-            eta_seconds = remaining / samples_per_sec if samples_per_sec > 0 else 0.0
-            logger.info(
-                "%sProcessed %d/%d samples | interval avg reward=%.4f | interval precision=%.4f | "
-                "interval default_rate=%.4f | cumulative avg reward=%.4f | cumulative precision=%.4f | "
-                "elapsed=%s | eta=%s | %.1f samples/s",
-                label_prefix,
-                sample_count,
-                total_samples_expected,
-                interval_reward / progress_every,
-                interval_hits / progress_every,
-                interval_defaults / progress_every,
-                total_reward / sample_count,
-                pre_update_hits / sample_count,
-                _format_duration(elapsed),
-                _format_duration(eta_seconds),
-                samples_per_sec,
-            )
-            interval_reward = 0.0
-            interval_hits = 0
-            interval_defaults = 0
+            if sample_count % progress_every == 0:
+                _log_train_progress(
+                    label_prefix=label_prefix,
+                    processed_samples=sample_count,
+                    total_samples_expected=total_samples_expected,
+                    interval_reward=interval_reward,
+                    interval_hits=interval_hits,
+                    interval_size=progress_every,
+                    total_reward=total_reward,
+                    pre_update_hits=pre_update_hits,
+                    start_time=start_time,
+                    track_train_hit_rate=track_train_hit_rate,
+                )
+                interval_reward = 0.0
+                interval_hits = 0
+                interval_defaults = 0
 
     if sample_count == 0:
         raise ValueError("No training samples were loaded")
 
     remainder = sample_count % progress_every
     if remainder:
-        elapsed = time.time() - start_time
-        samples_per_sec = sample_count / elapsed if elapsed > 0 else 0.0
-        logger.info(
-            "%sProcessed %d/%d samples | interval avg reward=%.4f | interval precision=%.4f | "
-            "interval default_rate=%.4f | cumulative avg reward=%.4f | cumulative precision=%.4f | "
-            "elapsed=%s | eta=0s | %.1f samples/s",
-            label_prefix,
-            sample_count,
-            total_samples_expected,
-            interval_reward / remainder,
-            interval_hits / remainder,
-            interval_defaults / remainder,
-            total_reward / sample_count,
-            pre_update_hits / sample_count,
-            _format_duration(elapsed),
-            samples_per_sec,
+        _log_train_progress(
+            label_prefix=label_prefix,
+            processed_samples=sample_count,
+            total_samples_expected=total_samples_expected,
+            interval_reward=interval_reward,
+            interval_hits=interval_hits,
+            interval_size=remainder,
+            total_reward=total_reward,
+            pre_update_hits=pre_update_hits,
+            start_time=start_time,
+            track_train_hit_rate=track_train_hit_rate,
         )
 
     model.save(output_dir)
@@ -357,7 +412,7 @@ def train_v0(
             TrainingMetrics(
                 sample_count=sample_count,
                 mean_reward=total_reward / sample_count,
-                pre_update_policy_hit_rate=pre_update_hits / sample_count,
+                pre_update_policy_hit_rate=(pre_update_hits / sample_count) if track_train_hit_rate else 0.0,
                 default_logged_action_rate=logged_defaults / sample_count,
                 unique_scenarios_seen=len(scenarios_seen),
             )
@@ -369,6 +424,8 @@ def train_v0(
             "default_bonus": default_bonus,
             "l2": l2,
             "device": model.device,
+            "track_train_hit_rate": track_train_hit_rate,
+            "epochs": epochs,
         },
     }
     elapsed_total = time.time() - start_time
@@ -396,6 +453,8 @@ def train_v0_from_raw(
     device: str = "auto",
     progress_every: int = 1000,
     progress_label: str | None = None,
+    track_train_hit_rate: bool = False,
+    epochs: int = 1,
 ) -> RawTrainingSummary:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -430,6 +489,8 @@ def train_v0_from_raw(
         device=device,
         progress_every=progress_every,
         progress_label=progress_label or label_type.upper(),
+        track_train_hit_rate=track_train_hit_rate,
+        epochs=epochs,
     )
     summary = RawTrainingSummary(
         input_path=str(Path(input_path)),

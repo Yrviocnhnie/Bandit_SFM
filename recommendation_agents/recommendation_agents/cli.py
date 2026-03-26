@@ -7,10 +7,21 @@ import json
 from pathlib import Path
 
 from recommendation_agents.catalog import build_app_metadata_from_catalog_markdown, build_ro_metadata_from_catalog_markdown
-from recommendation_agents.raw_synthetic import convert_raw_sequence_to_v0, convert_raw_sequence_to_v0_app
+from recommendation_agents.raw_synthetic import (
+    convert_raw_sequence_to_v0,
+    convert_raw_sequence_to_v0_app,
+    convert_raw_sequence_to_v6_expanded_app,
+    convert_raw_sequence_to_v6_expanded_ro,
+)
 from recommendation_agents.schemas import ScoreRequest
 from recommendation_agents.trainer import choose_v0, score_v0, train_v0, train_v0_dual_from_raw, train_v0_from_raw
-from recommendation_agents.workflows import eval_v0_both, prepare_v0_data, train_v0_both
+from recommendation_agents.workflows import (
+    eval_v0_both,
+    prepare_v0_data,
+    run_v6_plan_a,
+    run_v6_plan_b,
+    train_v0_both,
+)
 
 
 def _display_action_id(model_action_id: str) -> str:
@@ -35,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Additive prior bonus for the scenario default action",
     )
     train_parser.add_argument("--l2", type=float, default=1.0, help="L2 regularization for LinUCB")
+    train_parser.add_argument("--epochs", type=int, default=1, help="How many times to replay the sample file")
     train_parser.add_argument(
         "--progress-every",
         type=int,
@@ -45,6 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--device",
         default="auto",
         help="Execution device. Examples: auto, cpu, cuda, cuda:0. Uses CPU when GPU is unavailable.",
+    )
+    train_parser.add_argument(
+        "--track-train-hit-rate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
     )
 
     train_raw_parser = subparsers.add_parser(
@@ -84,10 +102,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Additive prior bonus for the scenario default action",
     )
     train_raw_parser.add_argument("--l2", type=float, default=1.0, help="L2 regularization for LinUCB")
+    train_raw_parser.add_argument("--epochs", type=int, default=1, help="How many times to replay the sample file")
     train_raw_parser.add_argument(
         "--device",
         default="auto",
         help="Execution device. Examples: auto, cpu, cuda, cuda:0. Uses CPU when GPU is unavailable.",
+    )
+    train_raw_parser.add_argument(
+        "--track-train-hit-rate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
     )
 
     train_dual_raw_parser = subparsers.add_parser(
@@ -210,6 +235,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reward assigned to each kept synthetic app recommendation row",
     )
 
+    convert_v6_ro_parser = subparsers.add_parser(
+        "convert-v6-raw-ro",
+        help="Expand raw JSONL into V6 multi-action R/O training samples using most-relevant/plausible/irrelevant tiers",
+    )
+    convert_v6_ro_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
+    convert_v6_ro_parser.add_argument("--output-samples", required=True, help="Path to write expanded R/O samples")
+    convert_v6_ro_parser.add_argument(
+        "--relevance-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the V6 scenario relevance markdown",
+    )
+    convert_v6_ro_parser.add_argument("--most-relevant-reward", type=float, default=1.0)
+    convert_v6_ro_parser.add_argument("--plausible-reward", type=float, default=0.6)
+    convert_v6_ro_parser.add_argument("--irrelevant-reward", type=float, default=0.0)
+    convert_v6_ro_parser.add_argument("--most-relevant-repeat", type=int, default=1)
+    convert_v6_ro_parser.add_argument("--plausible-repeat", type=int, default=1)
+    convert_v6_ro_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+
+    convert_v6_app_parser = subparsers.add_parser(
+        "convert-v6-raw-app",
+        help="Expand raw JSONL into V6 multi-action app training samples using most-relevant/plausible/irrelevant tiers",
+    )
+    convert_v6_app_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
+    convert_v6_app_parser.add_argument("--output-samples", required=True, help="Path to write expanded app samples")
+    convert_v6_app_parser.add_argument(
+        "--relevance-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the V6 scenario relevance markdown",
+    )
+    convert_v6_app_parser.add_argument("--most-relevant-reward", type=float, default=1.0)
+    convert_v6_app_parser.add_argument("--plausible-reward", type=float, default=0.6)
+    convert_v6_app_parser.add_argument("--irrelevant-reward", type=float, default=0.0)
+    convert_v6_app_parser.add_argument("--most-relevant-repeat", type=int, default=1)
+    convert_v6_app_parser.add_argument("--plausible-repeat", type=int, default=1)
+    convert_v6_app_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+
     ro_metadata_parser = subparsers.add_parser(
         "build-ro-metadata",
         help="Parse the current scenario/action catalog markdown into R/O training metadata",
@@ -259,8 +320,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Additive prior bonus for the scenario default action",
     )
     train_both_parser.add_argument("--l2", type=float, default=1.0, help="L2 regularization for LinUCB")
+    train_both_parser.add_argument("--epochs", type=int, default=1, help="How many times to replay the train samples")
     train_both_parser.add_argument("--progress-every", type=int, default=1000, help="Training log interval")
     train_both_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
+    train_both_parser.add_argument(
+        "--track-train-hit-rate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
+    )
 
     eval_both_parser = subparsers.add_parser(
         "eval-v0-both",
@@ -275,6 +343,74 @@ def build_parser() -> argparse.ArgumentParser:
     eval_both_parser.add_argument("--top-k", type=int, default=3, help="Top-k used for evaluation")
     eval_both_parser.add_argument("--progress-every", type=int, default=1000, help="Evaluation log interval")
     eval_both_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
+
+    plan_a_parser = subparsers.add_parser(
+        "run-v6-plan-a",
+        help="Reuse an existing prepared split, expand train only with V6 relevance labels, then train and evaluate both models",
+    )
+    plan_a_parser.add_argument("--input-data-dir", required=True, help="Existing prepared data directory to reuse")
+    plan_a_parser.add_argument("--output-dir", required=True, help="Directory to write the new Plan A artifacts")
+    plan_a_parser.add_argument(
+        "--relevance-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the V6 scenario relevance markdown",
+    )
+    plan_a_parser.add_argument("--most-relevant-reward", type=float, default=1.0)
+    plan_a_parser.add_argument("--plausible-reward", type=float, default=0.6)
+    plan_a_parser.add_argument("--irrelevant-reward", type=float, default=0.0)
+    plan_a_parser.add_argument("--most-relevant-repeat", type=int, default=1)
+    plan_a_parser.add_argument("--plausible-repeat", type=int, default=1)
+    plan_a_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+    plan_a_parser.add_argument("--alpha", type=float, default=0.05)
+    plan_a_parser.add_argument("--default-bonus", type=float, default=0.0)
+    plan_a_parser.add_argument("--l2", type=float, default=1.0)
+    plan_a_parser.add_argument("--epochs", type=int, default=1)
+    plan_a_parser.add_argument("--top-k", type=int, default=3)
+    plan_a_parser.add_argument("--progress-every", type=int, default=1000)
+    plan_a_parser.add_argument("--device", default="auto")
+    plan_a_parser.add_argument(
+        "--track-train-hit-rate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
+    )
+
+    plan_b_parser = subparsers.add_parser(
+        "run-v6-plan-b",
+        help="Create a scenario-stratified raw split, expand train only with V6 relevance labels, then train and evaluate both models",
+    )
+    plan_b_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
+    plan_b_parser.add_argument(
+        "--catalog-markdown",
+        required=True,
+        help="Path to the catalog markdown used to build metadata",
+    )
+    plan_b_parser.add_argument("--output-dir", required=True, help="Directory to write the new Plan B artifacts")
+    plan_b_parser.add_argument(
+        "--relevance-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the V6 scenario relevance markdown",
+    )
+    plan_b_parser.add_argument("--test-ratio", type=float, default=0.2)
+    plan_b_parser.add_argument("--most-relevant-reward", type=float, default=1.0)
+    plan_b_parser.add_argument("--plausible-reward", type=float, default=0.6)
+    plan_b_parser.add_argument("--irrelevant-reward", type=float, default=0.0)
+    plan_b_parser.add_argument("--most-relevant-repeat", type=int, default=1)
+    plan_b_parser.add_argument("--plausible-repeat", type=int, default=1)
+    plan_b_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+    plan_b_parser.add_argument("--alpha", type=float, default=0.05)
+    plan_b_parser.add_argument("--default-bonus", type=float, default=0.0)
+    plan_b_parser.add_argument("--l2", type=float, default=1.0)
+    plan_b_parser.add_argument("--epochs", type=int, default=1)
+    plan_b_parser.add_argument("--top-k", type=int, default=3)
+    plan_b_parser.add_argument("--progress-every", type=int, default=1000)
+    plan_b_parser.add_argument("--device", default="auto")
+    plan_b_parser.add_argument(
+        "--track-train-hit-rate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
+    )
 
     return parser
 
@@ -291,8 +427,10 @@ def main() -> None:
             alpha=args.alpha,
             default_bonus=args.default_bonus,
             l2=args.l2,
+            epochs=args.epochs,
             device=args.device,
             progress_every=args.progress_every,
+            track_train_hit_rate=args.track_train_hit_rate,
         )
         print(json.dumps(metrics.__dict__, indent=2, sort_keys=True))
         return
@@ -307,8 +445,10 @@ def main() -> None:
             alpha=args.alpha,
             default_bonus=args.default_bonus,
             l2=args.l2,
+            epochs=args.epochs,
             device=args.device,
             progress_every=args.progress_every,
+            track_train_hit_rate=args.track_train_hit_rate,
         )
         print(
             json.dumps(
@@ -338,6 +478,7 @@ def main() -> None:
             alpha_end=args.alpha_end,
             default_bonus=args.default_bonus,
             l2=args.l2,
+            epochs=args.epochs,
             device=args.device,
             progress_every=args.progress_every,
             train_window=args.train_window,
@@ -450,6 +591,36 @@ def main() -> None:
         print(json.dumps(summary.__dict__, indent=2, sort_keys=True))
         return
 
+    if args.command == "convert-v6-raw-ro":
+        summary = convert_raw_sequence_to_v6_expanded_ro(
+            input_path=args.input,
+            output_samples_path=args.output_samples,
+            relevance_markdown=args.relevance_markdown,
+            most_relevant_reward=args.most_relevant_reward,
+            plausible_reward=args.plausible_reward,
+            irrelevant_reward=args.irrelevant_reward,
+            most_relevant_repeat=args.most_relevant_repeat,
+            plausible_repeat=args.plausible_repeat,
+            irrelevant_repeat=args.irrelevant_repeat,
+        )
+        print(json.dumps(summary.__dict__, indent=2, sort_keys=True))
+        return
+
+    if args.command == "convert-v6-raw-app":
+        summary = convert_raw_sequence_to_v6_expanded_app(
+            input_path=args.input,
+            output_samples_path=args.output_samples,
+            relevance_markdown=args.relevance_markdown,
+            most_relevant_reward=args.most_relevant_reward,
+            plausible_reward=args.plausible_reward,
+            irrelevant_reward=args.irrelevant_reward,
+            most_relevant_repeat=args.most_relevant_repeat,
+            plausible_repeat=args.plausible_repeat,
+            irrelevant_repeat=args.irrelevant_repeat,
+        )
+        print(json.dumps(summary.__dict__, indent=2, sort_keys=True))
+        return
+
     if args.command == "build-ro-metadata":
         summary = build_ro_metadata_from_catalog_markdown(
             markdown_path=args.input_markdown,
@@ -498,6 +669,7 @@ def main() -> None:
             l2=args.l2,
             device=args.device,
             progress_every=args.progress_every,
+            track_train_hit_rate=args.track_train_hit_rate,
         )
         print(json.dumps({
             "data_dir": summary.data_dir,
@@ -506,6 +678,7 @@ def main() -> None:
             "alpha": summary.alpha,
             "default_bonus": summary.default_bonus,
             "l2": summary.l2,
+            "epochs": summary.epochs,
             "device": summary.device,
             "ro": summary.ro.__dict__,
             "app": summary.app.__dict__,
@@ -527,6 +700,84 @@ def main() -> None:
             "device": summary.device,
             "ro": summary.ro.__dict__,
             "app": summary.app.__dict__,
+        }, indent=2))
+        return
+
+    if args.command == "run-v6-plan-a":
+        summary = run_v6_plan_a(
+            input_data_dir=args.input_data_dir,
+            output_dir=args.output_dir,
+            relevance_markdown=args.relevance_markdown,
+            most_relevant_reward=args.most_relevant_reward,
+            plausible_reward=args.plausible_reward,
+            irrelevant_reward=args.irrelevant_reward,
+            most_relevant_repeat=args.most_relevant_repeat,
+            plausible_repeat=args.plausible_repeat,
+            irrelevant_repeat=args.irrelevant_repeat,
+            alpha=args.alpha,
+            default_bonus=args.default_bonus,
+            l2=args.l2,
+            epochs=args.epochs,
+            top_k=args.top_k,
+            device=args.device,
+            progress_every=args.progress_every,
+            track_train_hit_rate=args.track_train_hit_rate,
+        )
+        print(json.dumps({
+            "workflow_name": summary.workflow_name,
+            "output_dir": summary.output_dir,
+            "top_k": summary.top_k,
+            "relevance_markdown": summary.relevance_markdown,
+            "train_raw_path": summary.train_raw_path,
+            "test_raw_path": summary.test_raw_path,
+            "ro_train_samples_path": summary.ro_train_samples_path,
+            "app_train_samples_path": summary.app_train_samples_path,
+            "ro_expansion": summary.ro_expansion,
+            "app_expansion": summary.app_expansion,
+            "ro_training": summary.ro_training.__dict__,
+            "app_training": summary.app_training.__dict__,
+            "evaluation_report_path": summary.evaluation_report_path,
+            "extra_summary": summary.extra_summary,
+        }, indent=2))
+        return
+
+    if args.command == "run-v6-plan-b":
+        summary = run_v6_plan_b(
+            input_path=args.input,
+            catalog_markdown=args.catalog_markdown,
+            output_dir=args.output_dir,
+            relevance_markdown=args.relevance_markdown,
+            test_ratio=args.test_ratio,
+            most_relevant_reward=args.most_relevant_reward,
+            plausible_reward=args.plausible_reward,
+            irrelevant_reward=args.irrelevant_reward,
+            most_relevant_repeat=args.most_relevant_repeat,
+            plausible_repeat=args.plausible_repeat,
+            irrelevant_repeat=args.irrelevant_repeat,
+            alpha=args.alpha,
+            default_bonus=args.default_bonus,
+            l2=args.l2,
+            epochs=args.epochs,
+            top_k=args.top_k,
+            device=args.device,
+            progress_every=args.progress_every,
+            track_train_hit_rate=args.track_train_hit_rate,
+        )
+        print(json.dumps({
+            "workflow_name": summary.workflow_name,
+            "output_dir": summary.output_dir,
+            "top_k": summary.top_k,
+            "relevance_markdown": summary.relevance_markdown,
+            "train_raw_path": summary.train_raw_path,
+            "test_raw_path": summary.test_raw_path,
+            "ro_train_samples_path": summary.ro_train_samples_path,
+            "app_train_samples_path": summary.app_train_samples_path,
+            "ro_expansion": summary.ro_expansion,
+            "app_expansion": summary.app_expansion,
+            "ro_training": summary.ro_training.__dict__,
+            "app_training": summary.app_training.__dict__,
+            "evaluation_report_path": summary.evaluation_report_path,
+            "extra_summary": summary.extra_summary,
         }, indent=2))
         return
 
