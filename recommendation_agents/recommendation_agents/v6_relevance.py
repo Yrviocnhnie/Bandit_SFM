@@ -19,16 +19,23 @@ def parse_v6_relevance_markdown(markdown_path: str | Path) -> dict[str, dict[str
         if not line.startswith("| `"):
             continue
         parts = [part.strip() for part in line.strip("|").split("|")]
-        if len(parts) != 8:
+        if len(parts) not in {8, 9}:
             continue
 
         scenario_id = parts[0].strip("`")
         ro_most = tuple(re.findall(r"`([^`]+)`", parts[2]))
         ro_plausible = tuple(re.findall(r"`([^`]+)`", parts[3]))
         ro_irrelevant = tuple(re.findall(r"`([^`]+)`", parts[4]))
-        app_most = tuple(re.findall(r"`([^`]+)`", parts[5]))
-        app_plausible = tuple(re.findall(r"`([^`]+)`", parts[6]))
-        app_irrelevant = tuple(re.findall(r"`([^`]+)`", parts[7]))
+        if len(parts) == 9:
+            ro_extra_hard_negative = tuple(re.findall(r"`([^`]+)`", parts[5]))
+            app_most = tuple(re.findall(r"`([^`]+)`", parts[6]))
+            app_plausible = tuple(re.findall(r"`([^`]+)`", parts[7]))
+            app_irrelevant = tuple(re.findall(r"`([^`]+)`", parts[8]))
+        else:
+            ro_extra_hard_negative = ()
+            app_most = tuple(re.findall(r"`([^`]+)`", parts[5]))
+            app_plausible = tuple(re.findall(r"`([^`]+)`", parts[6]))
+            app_irrelevant = tuple(re.findall(r"`([^`]+)`", parts[7]))
 
         if len(ro_most) < 3 or len(ro_plausible) < 3 or len(ro_irrelevant) < 2:
             raise ValueError(f"Scenario {scenario_id!r} does not satisfy the required R/O 3+3+2 structure")
@@ -39,6 +46,7 @@ def parse_v6_relevance_markdown(markdown_path: str | Path) -> dict[str, dict[str
             "most_relevant_3": ro_most[:3],
             "other_plausible_3": ro_plausible[:3],
             "irrelevant_2": ro_irrelevant[:2],
+            "extra_hard_negative_ro": ro_extra_hard_negative,
         }
         parsed["app"][scenario_id] = {
             "most_relevant_3": app_most[:3],

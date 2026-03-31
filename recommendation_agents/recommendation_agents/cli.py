@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from recommendation_agents.catalog import build_app_metadata_from_catalog_markdown, build_ro_metadata_from_catalog_markdown
+from recommendation_agents.metadata import BanditMetadata
 from recommendation_agents.raw_synthetic import (
     convert_raw_sequence_to_v0,
     convert_raw_sequence_to_v0_app,
@@ -17,8 +18,11 @@ from recommendation_agents.schemas import ScoreRequest
 from recommendation_agents.trainer import choose_v0, score_v0, train_v0, train_v0_dual_from_raw, train_v0_from_raw
 from recommendation_agents.workflows import (
     eval_v0_both,
+    mine_v6_hard_negative_candidates,
     prepare_v0_data,
+    render_hard_negative_candidates_markdown,
     run_v6_plan_a,
+    run_v6_plan_all_data,
     run_v6_plan_b,
     train_v0_both,
 )
@@ -63,6 +67,12 @@ def build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
+    )
+    train_parser.add_argument(
+        "--model-type",
+        choices=("disjoint", "shared-linear", "neural-linear"),
+        default="disjoint",
+        help="Bandit model type to train",
     )
 
     train_raw_parser = subparsers.add_parser(
@@ -113,6 +123,12 @@ def build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
+    )
+    train_raw_parser.add_argument(
+        "--model-type",
+        choices=("disjoint", "shared-linear", "neural-linear"),
+        default="disjoint",
+        help="Bandit model type to train",
     )
 
     train_dual_raw_parser = subparsers.add_parser(
@@ -252,6 +268,13 @@ def build_parser() -> argparse.ArgumentParser:
     convert_v6_ro_parser.add_argument("--most-relevant-repeat", type=int, default=1)
     convert_v6_ro_parser.add_argument("--plausible-repeat", type=int, default=1)
     convert_v6_ro_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+    convert_v6_ro_parser.add_argument("--all-actions-metadata", required=False, help="Optional metadata JSON used to enumerate the full global action space")
+    convert_v6_ro_parser.add_argument(
+        "--other-zero-mode",
+        choices=("none", "exclude-most-plausible", "exclude-most-only", "exclude-all-labeled"),
+        default="none",
+        help="Optionally add all remaining global actions as 0-reward samples after excluding most-relevant+plausible or excluding only most-relevant",
+    )
 
     convert_v6_app_parser = subparsers.add_parser(
         "convert-v6-raw-app",
@@ -270,6 +293,13 @@ def build_parser() -> argparse.ArgumentParser:
     convert_v6_app_parser.add_argument("--most-relevant-repeat", type=int, default=1)
     convert_v6_app_parser.add_argument("--plausible-repeat", type=int, default=1)
     convert_v6_app_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+    convert_v6_app_parser.add_argument("--all-actions-metadata", required=False, help="Optional metadata JSON used to enumerate the full global app action space")
+    convert_v6_app_parser.add_argument(
+        "--other-zero-mode",
+        choices=("none", "exclude-most-plausible", "exclude-most-only", "exclude-all-labeled"),
+        default="none",
+        help="Optionally add all remaining global actions as 0-reward samples after excluding most-relevant+plausible or excluding only most-relevant",
+    )
 
     ro_metadata_parser = subparsers.add_parser(
         "build-ro-metadata",
@@ -329,6 +359,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
     )
+    train_both_parser.add_argument(
+        "--model-type",
+        choices=("disjoint", "shared-linear", "neural-linear"),
+        default="disjoint",
+        help="Bandit model type to train",
+    )
 
     eval_both_parser = subparsers.add_parser(
         "eval-v0-both",
@@ -361,6 +397,12 @@ def build_parser() -> argparse.ArgumentParser:
     plan_a_parser.add_argument("--most-relevant-repeat", type=int, default=1)
     plan_a_parser.add_argument("--plausible-repeat", type=int, default=1)
     plan_a_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+    plan_a_parser.add_argument(
+        "--other-zero-mode",
+        choices=("none", "exclude-most-plausible", "exclude-most-only", "exclude-all-labeled"),
+        default="none",
+        help="Optionally expand all remaining global actions as 0-reward samples",
+    )
     plan_a_parser.add_argument("--alpha", type=float, default=0.05)
     plan_a_parser.add_argument("--default-bonus", type=float, default=0.0)
     plan_a_parser.add_argument("--l2", type=float, default=1.0)
@@ -368,6 +410,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan_a_parser.add_argument("--top-k", type=int, default=3)
     plan_a_parser.add_argument("--progress-every", type=int, default=1000)
     plan_a_parser.add_argument("--device", default="auto")
+    plan_a_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear"), default="disjoint")
     plan_a_parser.add_argument(
         "--track-train-hit-rate",
         action=argparse.BooleanOptionalAction,
@@ -398,6 +441,12 @@ def build_parser() -> argparse.ArgumentParser:
     plan_b_parser.add_argument("--most-relevant-repeat", type=int, default=1)
     plan_b_parser.add_argument("--plausible-repeat", type=int, default=1)
     plan_b_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+    plan_b_parser.add_argument(
+        "--other-zero-mode",
+        choices=("none", "exclude-most-plausible", "exclude-most-only", "exclude-all-labeled"),
+        default="none",
+        help="Optionally expand all remaining global actions as 0-reward samples",
+    )
     plan_b_parser.add_argument("--alpha", type=float, default=0.05)
     plan_b_parser.add_argument("--default-bonus", type=float, default=0.0)
     plan_b_parser.add_argument("--l2", type=float, default=1.0)
@@ -405,12 +454,78 @@ def build_parser() -> argparse.ArgumentParser:
     plan_b_parser.add_argument("--top-k", type=int, default=3)
     plan_b_parser.add_argument("--progress-every", type=int, default=1000)
     plan_b_parser.add_argument("--device", default="auto")
+    plan_b_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear"), default="disjoint")
     plan_b_parser.add_argument(
         "--track-train-hit-rate",
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
     )
+
+    plan_all_data_parser = subparsers.add_parser(
+        "run-v6-plan-all-data",
+        help="Use the full raw dataset for both train and test, expand train only with V6 relevance labels, then train and evaluate both models",
+    )
+    plan_all_data_parser.add_argument("--input", required=True, help="Path to the raw synthetic JSONL")
+    plan_all_data_parser.add_argument(
+        "--catalog-markdown",
+        required=True,
+        help="Path to the catalog markdown used to build metadata",
+    )
+    plan_all_data_parser.add_argument("--output-dir", required=True, help="Directory to write the all-data artifacts")
+    plan_all_data_parser.add_argument(
+        "--relevance-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the V6 scenario relevance markdown",
+    )
+    plan_all_data_parser.add_argument("--most-relevant-reward", type=float, default=1.0)
+    plan_all_data_parser.add_argument("--plausible-reward", type=float, default=0.6)
+    plan_all_data_parser.add_argument("--irrelevant-reward", type=float, default=0.0)
+    plan_all_data_parser.add_argument("--most-relevant-repeat", type=int, default=1)
+    plan_all_data_parser.add_argument("--plausible-repeat", type=int, default=1)
+    plan_all_data_parser.add_argument("--irrelevant-repeat", type=int, default=1)
+    plan_all_data_parser.add_argument(
+        "--other-zero-mode",
+        choices=("none", "exclude-most-plausible", "exclude-most-only", "exclude-all-labeled"),
+        default="none",
+        help="Optionally expand all remaining global actions as 0-reward samples",
+    )
+    plan_all_data_parser.add_argument("--alpha", type=float, default=0.05)
+    plan_all_data_parser.add_argument("--default-bonus", type=float, default=0.0)
+    plan_all_data_parser.add_argument("--l2", type=float, default=1.0)
+    plan_all_data_parser.add_argument("--epochs", type=int, default=1)
+    plan_all_data_parser.add_argument("--top-k", type=int, default=3)
+    plan_all_data_parser.add_argument("--progress-every", type=int, default=1000)
+    plan_all_data_parser.add_argument("--device", default="auto")
+    plan_all_data_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear"), default="disjoint")
+    plan_all_data_parser.add_argument(
+        "--track-train-hit-rate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to rank before each update to compute pre-update train top-1 metrics. Slower when enabled.",
+    )
+
+    mine_hardneg_parser = subparsers.add_parser(
+        "mine-v6-hard-negatives",
+        help="Run a trained model over raw train/dev rows, then propose per-scenario hard-negative candidates from high-frequency non-acceptable top-k predictions",
+    )
+    mine_hardneg_parser.add_argument("--artifact-dir", required=True, help="Trained model artifact directory")
+    mine_hardneg_parser.add_argument("--metadata", required=True, help="Metadata JSON matching the artifact")
+    mine_hardneg_parser.add_argument("--input-raw", required=True, help="Raw JSONL to mine on, usually train.raw.jsonl or a held-out dev.raw.jsonl")
+    mine_hardneg_parser.add_argument(
+        "--catalog-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the V6 relevance catalog",
+    )
+    mine_hardneg_parser.add_argument("--label-namespace", choices=("ro", "app"), required=True)
+    mine_hardneg_parser.add_argument("--output-json", required=True, help="Path to write the mining summary JSON")
+    mine_hardneg_parser.add_argument("--output-markdown", required=True, help="Path to write the candidate markdown table")
+    mine_hardneg_parser.add_argument("--top-k", type=int, default=6, help="Mine mistakes from the model's top-k predictions")
+    mine_hardneg_parser.add_argument("--max-candidates-per-scenario", type=int, default=5)
+    mine_hardneg_parser.add_argument("--min-count", type=int, default=1)
+    mine_hardneg_parser.add_argument("--min-rate", type=float, default=0.0)
+    mine_hardneg_parser.add_argument("--progress-every", type=int, default=1000)
+    mine_hardneg_parser.add_argument("--device", default="auto")
 
     return parser
 
@@ -431,6 +546,7 @@ def main() -> None:
             device=args.device,
             progress_every=args.progress_every,
             track_train_hit_rate=args.track_train_hit_rate,
+            model_type=args.model_type,
         )
         print(json.dumps(metrics.__dict__, indent=2, sort_keys=True))
         return
@@ -449,6 +565,7 @@ def main() -> None:
             device=args.device,
             progress_every=args.progress_every,
             track_train_hit_rate=args.track_train_hit_rate,
+            model_type=args.model_type,
         )
         print(
             json.dumps(
@@ -592,6 +709,9 @@ def main() -> None:
         return
 
     if args.command == "convert-v6-raw-ro":
+        all_action_ids = None
+        if args.all_actions_metadata:
+            all_action_ids = list(BanditMetadata.load(args.all_actions_metadata).global_action_ids)
         summary = convert_raw_sequence_to_v6_expanded_ro(
             input_path=args.input,
             output_samples_path=args.output_samples,
@@ -602,11 +722,16 @@ def main() -> None:
             most_relevant_repeat=args.most_relevant_repeat,
             plausible_repeat=args.plausible_repeat,
             irrelevant_repeat=args.irrelevant_repeat,
+            all_action_ids=all_action_ids,
+            other_zero_mode=args.other_zero_mode,
         )
         print(json.dumps(summary.__dict__, indent=2, sort_keys=True))
         return
 
     if args.command == "convert-v6-raw-app":
+        all_action_ids = None
+        if args.all_actions_metadata:
+            all_action_ids = list(BanditMetadata.load(args.all_actions_metadata).global_action_ids)
         summary = convert_raw_sequence_to_v6_expanded_app(
             input_path=args.input,
             output_samples_path=args.output_samples,
@@ -617,6 +742,8 @@ def main() -> None:
             most_relevant_repeat=args.most_relevant_repeat,
             plausible_repeat=args.plausible_repeat,
             irrelevant_repeat=args.irrelevant_repeat,
+            all_action_ids=all_action_ids,
+            other_zero_mode=args.other_zero_mode,
         )
         print(json.dumps(summary.__dict__, indent=2, sort_keys=True))
         return
@@ -667,9 +794,11 @@ def main() -> None:
             alpha=args.alpha,
             default_bonus=args.default_bonus,
             l2=args.l2,
+            epochs=args.epochs,
             device=args.device,
             progress_every=args.progress_every,
             track_train_hit_rate=args.track_train_hit_rate,
+            model_type=args.model_type,
         )
         print(json.dumps({
             "data_dir": summary.data_dir,
@@ -714,6 +843,7 @@ def main() -> None:
             most_relevant_repeat=args.most_relevant_repeat,
             plausible_repeat=args.plausible_repeat,
             irrelevant_repeat=args.irrelevant_repeat,
+            other_zero_mode=args.other_zero_mode,
             alpha=args.alpha,
             default_bonus=args.default_bonus,
             l2=args.l2,
@@ -722,6 +852,7 @@ def main() -> None:
             device=args.device,
             progress_every=args.progress_every,
             track_train_hit_rate=args.track_train_hit_rate,
+            model_type=args.model_type,
         )
         print(json.dumps({
             "workflow_name": summary.workflow_name,
@@ -754,6 +885,7 @@ def main() -> None:
             most_relevant_repeat=args.most_relevant_repeat,
             plausible_repeat=args.plausible_repeat,
             irrelevant_repeat=args.irrelevant_repeat,
+            other_zero_mode=args.other_zero_mode,
             alpha=args.alpha,
             default_bonus=args.default_bonus,
             l2=args.l2,
@@ -762,6 +894,7 @@ def main() -> None:
             device=args.device,
             progress_every=args.progress_every,
             track_train_hit_rate=args.track_train_hit_rate,
+            model_type=args.model_type,
         )
         print(json.dumps({
             "workflow_name": summary.workflow_name,
@@ -778,6 +911,87 @@ def main() -> None:
             "app_training": summary.app_training.__dict__,
             "evaluation_report_path": summary.evaluation_report_path,
             "extra_summary": summary.extra_summary,
+        }, indent=2))
+        return
+
+    if args.command == "run-v6-plan-all-data":
+        summary = run_v6_plan_all_data(
+            input_path=args.input,
+            catalog_markdown=args.catalog_markdown,
+            output_dir=args.output_dir,
+            relevance_markdown=args.relevance_markdown,
+            most_relevant_reward=args.most_relevant_reward,
+            plausible_reward=args.plausible_reward,
+            irrelevant_reward=args.irrelevant_reward,
+            most_relevant_repeat=args.most_relevant_repeat,
+            plausible_repeat=args.plausible_repeat,
+            irrelevant_repeat=args.irrelevant_repeat,
+            other_zero_mode=args.other_zero_mode,
+            alpha=args.alpha,
+            default_bonus=args.default_bonus,
+            l2=args.l2,
+            epochs=args.epochs,
+            top_k=args.top_k,
+            device=args.device,
+            progress_every=args.progress_every,
+            track_train_hit_rate=args.track_train_hit_rate,
+            model_type=args.model_type,
+        )
+        print(json.dumps({
+            "workflow_name": summary.workflow_name,
+            "output_dir": summary.output_dir,
+            "top_k": summary.top_k,
+            "relevance_markdown": summary.relevance_markdown,
+            "train_raw_path": summary.train_raw_path,
+            "test_raw_path": summary.test_raw_path,
+            "ro_train_samples_path": summary.ro_train_samples_path,
+            "app_train_samples_path": summary.app_train_samples_path,
+            "ro_expansion": summary.ro_expansion,
+            "app_expansion": summary.app_expansion,
+            "ro_training": summary.ro_training.__dict__,
+            "app_training": summary.app_training.__dict__,
+            "evaluation_report_path": summary.evaluation_report_path,
+            "extra_summary": summary.extra_summary,
+        }, indent=2))
+        return
+
+    if args.command == "mine-v6-hard-negatives":
+        summary = mine_v6_hard_negative_candidates(
+            artifact_dir=args.artifact_dir,
+            metadata_path=args.metadata,
+            raw_input_path=args.input_raw,
+            catalog_markdown=args.catalog_markdown,
+            label_namespace=args.label_namespace,
+            top_k=args.top_k,
+            max_candidates_per_scenario=args.max_candidates_per_scenario,
+            device=args.device,
+            progress_every=args.progress_every,
+            min_count=args.min_count,
+            min_rate=args.min_rate,
+        )
+        Path(args.output_json).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.output_json).write_text(json.dumps({
+            "raw_input_path": summary.raw_input_path,
+            "artifact_dir": summary.artifact_dir,
+            "metadata_path": summary.metadata_path,
+            "catalog_markdown": summary.catalog_markdown,
+            "label_namespace": summary.label_namespace,
+            "top_k": summary.top_k,
+            "sample_count": summary.sample_count,
+            "scenarios_with_samples": summary.scenarios_with_samples,
+            "max_candidates_per_scenario": summary.max_candidates_per_scenario,
+            "per_scenario": summary.per_scenario,
+        }, indent=2))
+        Path(args.output_markdown).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.output_markdown).write_text(render_hard_negative_candidates_markdown(summary))
+        print(json.dumps({
+            "output_json": str(Path(args.output_json)),
+            "output_markdown": str(Path(args.output_markdown)),
+            "label_namespace": summary.label_namespace,
+            "top_k": summary.top_k,
+            "sample_count": summary.sample_count,
+            "scenarios_with_samples": summary.scenarios_with_samples,
+            "max_candidates_per_scenario": summary.max_candidates_per_scenario,
         }, indent=2))
         return
 

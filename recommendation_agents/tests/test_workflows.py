@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import importlib.util
 import json
 from pathlib import Path
@@ -7,7 +8,16 @@ import tempfile
 import unittest
 
 from recommendation_agents.trainer import train_v0
-from recommendation_agents.workflows import evaluate_v0_topk, run_v6_plan_a, run_v6_plan_b, split_raw_by_scenario_episode
+from recommendation_agents.workflows import (
+    _select_hard_negative_candidates,
+    evaluate_v0_topk,
+    render_hard_negative_candidates_markdown,
+    run_v6_plan_a,
+    run_v6_plan_all_data,
+    run_v6_plan_b,
+    split_raw_by_scenario_episode,
+    HardNegativeMiningSummary,
+)
 
 
 TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
@@ -52,6 +62,57 @@ def _context(**overrides):
     }
     payload.update(overrides)
     return payload
+
+
+class HardNegativeMiningHelpersTest(unittest.TestCase):
+    def test_select_hard_negative_candidates_sorts_and_filters(self) -> None:
+        candidates = _select_hard_negative_candidates(
+            Counter(
+                {
+                    "O_SHOW_WEATHER": 9,
+                    "O_SHOW_SCHEDULE": 7,
+                    "O_SHOW_NEARBY_OPTIONS": 3,
+                }
+            ),
+            sample_count=10,
+            exclude_action_ids={"O_SHOW_SCHEDULE"},
+            max_candidates=2,
+            min_count=2,
+            min_rate=0.2,
+        )
+        self.assertEqual(
+            [row["action_id"] for row in candidates],
+            ["O_SHOW_WEATHER", "O_SHOW_NEARBY_OPTIONS"],
+        )
+        self.assertAlmostEqual(candidates[0]["rate"], 0.9)
+
+    def test_render_hard_negative_candidates_markdown_includes_candidates(self) -> None:
+        summary = HardNegativeMiningSummary(
+            raw_input_path="train.raw.jsonl",
+            artifact_dir="artifact",
+            metadata_path="metadata.json",
+            catalog_markdown="docs/scenario_recommendation_actions_v6.md",
+            label_namespace="ro",
+            top_k=6,
+            sample_count=12,
+            scenarios_with_samples=1,
+            max_candidates_per_scenario=3,
+            per_scenario={
+                "ARRIVE_OFFICE": {
+                    "sample_count": 12,
+                    "most_relevant_3": ["O_SHOW_SCHEDULE", "O_SHOW_TODO", "R_PLAN_DAY_OVER_COFFEE"],
+                    "other_plausible_3": ["O_SHOW_WEATHER", "O_SHOW_NEARBY_OPTIONS", "O_SHOW_NEWS"],
+                    "irrelevant_2": ["O_SHOW_PAYMENT_QR", "O_SHOW_RESTAURANTS"],
+                    "candidate_hard_negatives": [
+                        {"action_id": "O_SHOW_BOOKING_DETAILS", "display_action_id": "O_SHOW_BOOKING_DETAILS", "count": 4, "rate": 0.3333}
+                    ],
+                    "top10_non_acceptable_predicted_actions": [],
+                }
+            },
+        )
+        markdown = render_hard_negative_candidates_markdown(summary)
+        self.assertIn("ARRIVE_OFFICE", markdown)
+        self.assertIn("O_SHOW_BOOKING_DETAILS", markdown)
 
 
 @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch is required for the workflow evaluation tests")
@@ -378,6 +439,68 @@ class WorkflowEvaluationTest(unittest.TestCase):
             self.assertTrue((tmp_path / "plan_b" / "app_train_samples_expanded.jsonl").exists())
             self.assertTrue((tmp_path / "plan_b" / "eval_both_top3.json").exists())
             self.assertIn("split_summary", summary.extra_summary)
+
+    def test_run_v6_plan_all_data_uses_full_raw_for_train_and_test(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            raw_path = tmp_path / "raw.jsonl"
+            rows = []
+            for index in range(4):
+                rows.append(
+                    {
+                        "episode_id": f"arrive_office_ep{index:02d}",
+                        "scenario_id": "ARRIVE_OFFICE",
+                        "scenario_elapsed_sec": 0,
+                        "emit_recommendation": 1,
+                        "gt_ro": "O_SHOW_SCHEDULE",
+                        "gt_app": "productivity",
+                        "features": _context(hour=8 + index),
+                    }
+                )
+                rows.append(
+                    {
+                        "episode_id": f"home_evening_ep{index:02d}",
+                        "scenario_id": "HOME_EVENING",
+                        "scenario_elapsed_sec": 0,
+                        "emit_recommendation": 1,
+                        "gt_ro": "R_PLAN_DAY_OVER_COFFEE",
+                        "gt_app": "music",
+                        "features": _context(
+                            state_current="home_evening",
+                            precondition="office_working",
+                            ps_time="evening",
+                            hour=19,
+                            ps_location="home",
+                            wifiLostCategory="home",
+                            batteryLevel=70 + index,
+                        ),
+                    }
+                )
+            raw_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+            output_dir = tmp_path / "plan_all_data"
+            summary = run_v6_plan_all_data(
+                input_path=raw_path,
+                catalog_markdown=ROOT / "docs/scenario_recommendation_actions_v5.md",
+                output_dir=output_dir,
+                relevance_markdown=ROOT / "docs/scenario_recommendation_actions_v6.md",
+                alpha=0.05,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+            )
+
+            self.assertTrue((output_dir / "train.raw.jsonl").exists())
+            self.assertTrue((output_dir / "test.raw.jsonl").exists())
+            self.assertEqual((output_dir / "train.raw.jsonl").read_text(), raw_path.read_text())
+            self.assertEqual((output_dir / "test.raw.jsonl").read_text(), raw_path.read_text())
+            self.assertTrue((output_dir / "ro_train_samples_expanded.jsonl").exists())
+            self.assertTrue((output_dir / "app_train_samples_expanded.jsonl").exists())
+            self.assertTrue((output_dir / "ro_test_samples.jsonl").exists())
+            self.assertTrue((output_dir / "app_test_samples.jsonl").exists())
+            self.assertTrue((output_dir / "eval_both_top3.json").exists())
+            self.assertEqual(summary.extra_summary["split_policy"], "all_rows_for_train_and_test")
+            self.assertEqual(summary.extra_summary["raw_row_count"], len(rows))
 
 
 class StratifiedSplitTest(unittest.TestCase):

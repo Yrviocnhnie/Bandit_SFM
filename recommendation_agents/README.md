@@ -41,6 +41,12 @@ Current V0 model:
 
 This is a linear contextual bandit, not an MLP.
 
+Experimental model types now available:
+
+- `disjoint`: current strongest baseline, one linear UCB head per action
+- `shared-linear`: shared-parameter linear UCB with manual action features
+- `neural-linear`: small MLP encoder (`306 -> 128 -> 32`) plus per-action linear UCB on the 32-d latent
+
 ## Model I/O
 
 Input:
@@ -188,6 +194,160 @@ CUDA_VISIBLE_DEVICES=3 conda run --no-capture-output -n sfm python -m recommenda
 This writes the current candidate artifacts to:
 
 - `artifacts/v6_candidate_stratified_split`
+
+### Experimental: NeuralLinear V1 On The Current Best 3+43 Setup
+
+This is the recommended first neural bandit baseline.
+
+Why this version:
+
+- it keeps the bandit logic in the final layer, so online updates are still simple
+- it lets a small MLP learn a better non-linear context representation than pure linear UCB
+- it is much more stable than jumping directly to a full end-to-end `NeuralUCB`
+
+Architecture:
+
+- context encoder: `306 -> 128 -> 32`
+- encoder output: `h(x)` with dimension `32`
+- bandit layer: one linear UCB head per action, but now on the `32`-dim latent instead of the raw `306`-dim context
+
+For `R/O`, this means:
+
+- supervised pretraining head shape: `32 -> 46`
+- replay / online UCB head shape per action: `32 -> 1`
+
+#### How The Encoder Is Trained
+
+The encoder is **not** trained with UCB directly.
+
+Instead, we first do a standard supervised pretraining stage on the offline expanded training file:
+
+1. start from the expanded `R/O` samples
+2. group all rows that came from the same raw context using `source_base_event_id`
+3. build one dense target vector for that context
+4. train a small MLP to predict that dense target
+
+Current fixed pretraining settings:
+
+- loss: `MSE`
+- optimizer: `Adam`
+- learning rate: `1e-3`
+- epochs: `10`
+- batch size: `min(256, max(32, num_grouped_contexts))`
+
+#### What A Reward Vector Means
+
+For the current best `3+43` setup:
+
+- each raw context is expanded over the full `46`-action `R/O` space
+- the `3` `most_relevant` actions get reward `1.0`
+- the other `43` actions get reward `0.0`
+
+After grouping rows from the same context, we get one `46`-dim dense reward vector.
+
+Example:
+
+- action 0: `1.0`
+- action 1: `1.0`
+- action 2: `1.0`
+- actions 3..45: `0.0`
+
+That `46`-dim vector is the supervised target used to train the pretraining head.
+
+#### How The Per-Action Linear UCB Heads Are Trained
+
+After encoder pretraining finishes:
+
+- we keep the trained encoder
+- we throw away the temporary supervised `32 -> 46` head
+- we freeze the encoder
+- we replay the original offline training samples again
+
+During this replay stage:
+
+- each sample context is encoded into `h(x) in R^32`
+- the selected action and reward from the offline sample are used to update that action's linear UCB state
+- only the UCB heads are updated during replay
+- the encoder weights do not change in this stage
+
+So the current implementation is:
+
+- supervised pretraining learns the representation
+- offline replay builds the bandit heads
+- future online learning can keep updating only the linear UCB heads
+
+#### What "Online" Means In This V1
+
+In this first version:
+
+- the encoder is trained offline from historical data
+- the UCB heads are initialized by replaying the offline training samples
+- later, if you want online learning, you can keep updating the UCB heads with new user feedback without retraining the whole encoder every step
+
+This is why this design is often called `NeuralLinear`:
+
+- neural network for representation learning
+- linear bandit for exploration and online updates
+
+Recommended first run:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 conda run --no-capture-output -n sfm python -m recommendation_agents.cli run-v6-plan-b \
+  --input ../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl \
+  --catalog-markdown docs/scenario_recommendation_actions_v5.md \
+  --output-dir artifacts/v6_neural_linear_3p43_stratified_split \
+  --relevance-markdown docs/scenario_recommendation_actions_v6.md \
+  --test-ratio 0.2 \
+  --most-relevant-reward 1.0 \
+  --plausible-reward 0.0 \
+  --irrelevant-reward 0.0 \
+  --most-relevant-repeat 1 \
+  --plausible-repeat 0 \
+  --irrelevant-repeat 0 \
+  --other-zero-mode exclude-most-only \
+  --alpha 0.0 \
+  --default-bonus 0.0 \
+  --epochs 1 \
+  --top-k 3 \
+  --progress-every 10000 \
+  --device cuda \
+  --model-type neural-linear \
+  --no-track-train-hit-rate
+```
+
+### Plan All Data: Train On All, Evaluate On All
+
+Use this when you want a quick upper-bound style sanity check on the full dataset:
+
+- use the full raw dataset as the training raw file
+- use the same full raw dataset as the evaluation raw file
+- expand only the training side
+- keep evaluation as one prediction per raw context
+
+```bash
+CUDA_VISIBLE_DEVICES=3 conda run --no-capture-output -n sfm python -m recommendation_agents.cli run-v6-plan-all-data \
+  --input ../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl \
+  --catalog-markdown docs/scenario_recommendation_actions_v5.md \
+  --output-dir artifacts/v6_candidate_all_data \
+  --relevance-markdown docs/scenario_recommendation_actions_v6.md \
+  --most-relevant-reward 1.0 \
+  --plausible-reward 0.1 \
+  --irrelevant-reward 0.0 \
+  --most-relevant-repeat 1 \
+  --plausible-repeat 1 \
+  --irrelevant-repeat 1 \
+  --alpha 0.0 \
+  --default-bonus 0.0 \
+  --epochs 1 \
+  --top-k 3 \
+  --progress-every 10000 \
+  --device cuda \
+  --no-track-train-hit-rate
+```
+
+This writes the all-data artifacts to:
+
+- `artifacts/v6_candidate_all_data`
 
 Main outputs for both plans:
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from recommendation_agents.linucb import MaskedSharedLinearUCB, build_shared_action_feature_matrix
 from recommendation_agents.schemas import ScoreRequest
 from recommendation_agents.trainer import score_v0, train_v0
 
@@ -55,6 +56,26 @@ def _context(**overrides):
 
 @unittest.skipUnless(TORCH_AVAILABLE, 'PyTorch is required for the training pipeline tests')
 class TrainingPipelineTest(unittest.TestCase):
+    def test_shared_action_features_include_identity_block(self) -> None:
+        action_ids = ['O_SHOW_SCHEDULE', 'O_SHOW_TODO', 'R_PLAN_DAY_OVER_COFFEE']
+        matrix = build_shared_action_feature_matrix(action_ids)
+        self.assertEqual(matrix.shape[0], 3)
+        identity_block = matrix[:, 1 : 1 + len(action_ids)]
+        self.assertEqual(identity_block.tolist(), [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ])
+
+    def test_shared_linear_model_adds_small_context_interaction_block(self) -> None:
+        model = MaskedSharedLinearUCB(
+            action_ids=['O_SHOW_SCHEDULE', 'O_SHOW_TODO', 'R_PLAN_DAY_OVER_COFFEE'],
+            feature_dim=306,
+            device='cpu',
+        )
+        self.assertGreater(model.context_feature_dim, model.feature_dim)
+        self.assertEqual(model.context_interaction_dim, 10)
+
     def _write_fixture_files(self, tmp_dir: str) -> tuple[Path, Path]:
         metadata_path = Path(tmp_dir) / 'metadata.json'
         samples_path = Path(tmp_dir) / 'samples.jsonl'
@@ -156,6 +177,62 @@ class TrainingPipelineTest(unittest.TestCase):
                 device='cpu',
             )
             self.assertEqual([item.action_id for item in ranked], ['O_SHOW_TODO', 'R_PLAN_DAY_OVER_COFFEE'])
+
+    def test_train_and_score_with_shared_linear_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path, samples_path = self._write_fixture_files(tmp_dir)
+            artifact_dir = Path(tmp_dir) / 'artifact_shared'
+
+            metrics = train_v0(
+                metadata_path=metadata_path,
+                samples_path=samples_path,
+                output_dir=artifact_dir,
+                alpha=0.05,
+                default_bonus=0.75,
+                device='cpu',
+                progress_every=10,
+                model_type='shared-linear',
+            )
+            self.assertEqual(metrics.sample_count, 4)
+
+            ranked = score_v0(
+                artifact_dir=artifact_dir,
+                metadata_path=metadata_path,
+                request=ScoreRequest(context=_context()),
+                top_k=3,
+                device='cpu',
+            )
+            self.assertEqual(len(ranked), 3)
+            manifest = json.loads((artifact_dir / 'manifest.json').read_text())
+            self.assertEqual(manifest['model_type'], 'masked_shared_linear_ucb_v0')
+
+    def test_train_and_score_with_neural_linear_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path, samples_path = self._write_fixture_files(tmp_dir)
+            artifact_dir = Path(tmp_dir) / 'artifact_neural'
+
+            metrics = train_v0(
+                metadata_path=metadata_path,
+                samples_path=samples_path,
+                output_dir=artifact_dir,
+                alpha=0.05,
+                default_bonus=0.75,
+                device='cpu',
+                progress_every=10,
+                model_type='neural-linear',
+            )
+            self.assertEqual(metrics.sample_count, 4)
+
+            ranked = score_v0(
+                artifact_dir=artifact_dir,
+                metadata_path=metadata_path,
+                request=ScoreRequest(context=_context()),
+                top_k=3,
+                device='cpu',
+            )
+            self.assertEqual(len(ranked), 3)
+            manifest = json.loads((artifact_dir / 'manifest.json').read_text())
+            self.assertEqual(manifest['model_type'], 'masked_neural_linear_ucb_v0')
 
 
 if __name__ == '__main__':

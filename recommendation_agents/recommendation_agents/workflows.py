@@ -19,10 +19,13 @@ from recommendation_agents.catalog import (
     build_ro_metadata_from_catalog_markdown,
 )
 from recommendation_agents.feature_space import V0FeatureSpace
-from recommendation_agents.linucb import MaskedDisjointLinUCB
+from recommendation_agents.linucb import load_bandit_model
 from recommendation_agents.metadata import BanditMetadata
 from recommendation_agents.raw_synthetic import (
     ExpandedRawConversionSummary,
+    _build_context,
+    _load_jsonl,
+    _scenario_id,
     convert_raw_sequence_to_v0,
     convert_raw_sequence_to_v0_app,
     convert_raw_sequence_to_v6_expanded_app,
@@ -119,6 +122,20 @@ class V6WorkflowSummary:
     extra_summary: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class HardNegativeMiningSummary:
+    raw_input_path: str
+    artifact_dir: str
+    metadata_path: str
+    catalog_markdown: str
+    label_namespace: str
+    top_k: int
+    sample_count: int
+    scenarios_with_samples: int
+    max_candidates_per_scenario: int
+    per_scenario: dict[str, dict[str, Any]]
+
+
 def _write_json(path: str | Path, payload: Any) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,6 +146,12 @@ def _write_json_unsorted(path: str | Path, payload: Any) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2))
+
+
+def _display_action_id(model_action_id: str) -> str:
+    if "::" in model_action_id:
+        return model_action_id.split("::", 1)[1]
+    return model_action_id
 
 
 def _copy_file(src: str | Path, dst: str | Path) -> None:
@@ -338,6 +361,7 @@ def _run_v6_training_bundle(
     most_relevant_repeat: int,
     plausible_repeat: int,
     irrelevant_repeat: int,
+    other_zero_mode: str,
     alpha: float,
     default_bonus: float,
     l2: float,
@@ -348,8 +372,11 @@ def _run_v6_training_bundle(
     workflow_name: str,
     extra_summary: dict[str, Any],
     track_train_hit_rate: bool,
+    model_type: str,
 ) -> V6WorkflowSummary:
     output_path = Path(output_dir)
+    ro_metadata = BanditMetadata.load(output_path / "ro_metadata.json")
+    app_metadata = BanditMetadata.load(output_path / "app_metadata.json")
     ro_expansion = convert_raw_sequence_to_v6_expanded_ro(
         input_path=output_path / "train.raw.jsonl",
         output_samples_path=output_path / "ro_train_samples_expanded.jsonl",
@@ -360,6 +387,8 @@ def _run_v6_training_bundle(
         most_relevant_repeat=most_relevant_repeat,
         plausible_repeat=plausible_repeat,
         irrelevant_repeat=irrelevant_repeat,
+        all_action_ids=list(ro_metadata.global_action_ids),
+        other_zero_mode=other_zero_mode,
     )
     app_expansion = convert_raw_sequence_to_v6_expanded_app(
         input_path=output_path / "train.raw.jsonl",
@@ -371,6 +400,8 @@ def _run_v6_training_bundle(
         most_relevant_repeat=most_relevant_repeat,
         plausible_repeat=plausible_repeat,
         irrelevant_repeat=irrelevant_repeat,
+        all_action_ids=list(app_metadata.global_action_ids),
+        other_zero_mode=other_zero_mode,
     )
     training_summary = train_v0_both(
         data_dir=output_path,
@@ -381,6 +412,7 @@ def _run_v6_training_bundle(
         device=device,
         progress_every=progress_every,
         track_train_hit_rate=track_train_hit_rate,
+        model_type=model_type,
     )
     eval_summary = eval_v0_both(
         data_dir=output_path,
@@ -438,6 +470,7 @@ def run_v6_plan_a(
     most_relevant_repeat: int = 1,
     plausible_repeat: int = 1,
     irrelevant_repeat: int = 1,
+    other_zero_mode: str = "none",
     alpha: float = 0.05,
     default_bonus: float = 0.0,
     l2: float = 1.0,
@@ -446,6 +479,7 @@ def run_v6_plan_a(
     device: str = "auto",
     progress_every: int = 1000,
     track_train_hit_rate: bool = False,
+    model_type: str = "disjoint",
 ) -> V6WorkflowSummary:
     input_path = Path(input_data_dir)
     output_path = Path(output_dir)
@@ -470,6 +504,7 @@ def run_v6_plan_a(
         most_relevant_repeat=most_relevant_repeat,
         plausible_repeat=plausible_repeat,
         irrelevant_repeat=irrelevant_repeat,
+        other_zero_mode=other_zero_mode,
         alpha=alpha,
         default_bonus=default_bonus,
         l2=l2,
@@ -491,9 +526,12 @@ def run_v6_plan_a(
                 "plausible_repeat": int(plausible_repeat),
                 "irrelevant_repeat": int(irrelevant_repeat),
             },
+            "other_zero_mode": other_zero_mode,
             "epochs": int(epochs),
+            "model_type": model_type,
         },
         track_train_hit_rate=track_train_hit_rate,
+        model_type=model_type,
     )
 
 
@@ -509,6 +547,7 @@ def run_v6_plan_b(
     most_relevant_repeat: int = 1,
     plausible_repeat: int = 1,
     irrelevant_repeat: int = 1,
+    other_zero_mode: str = "none",
     alpha: float = 0.05,
     default_bonus: float = 0.0,
     l2: float = 1.0,
@@ -517,6 +556,7 @@ def run_v6_plan_b(
     device: str = "auto",
     progress_every: int = 1000,
     track_train_hit_rate: bool = False,
+    model_type: str = "disjoint",
 ) -> V6WorkflowSummary:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -551,6 +591,7 @@ def run_v6_plan_b(
         most_relevant_repeat=most_relevant_repeat,
         plausible_repeat=plausible_repeat,
         irrelevant_repeat=irrelevant_repeat,
+        other_zero_mode=other_zero_mode,
         alpha=alpha,
         default_bonus=default_bonus,
         l2=l2,
@@ -573,12 +614,116 @@ def run_v6_plan_b(
                 "plausible_repeat": int(plausible_repeat),
                 "irrelevant_repeat": int(irrelevant_repeat),
             },
+            "other_zero_mode": other_zero_mode,
             "epochs": int(epochs),
+            "model_type": model_type,
             "split_summary": asdict(split_summary),
             "ro_metadata": asdict(ro_catalog),
             "app_metadata": asdict(app_catalog),
         },
         track_train_hit_rate=track_train_hit_rate,
+        model_type=model_type,
+    )
+
+
+def run_v6_plan_all_data(
+    input_path: str | Path,
+    catalog_markdown: str | Path,
+    output_dir: str | Path,
+    relevance_markdown: str | Path = "docs/scenario_recommendation_actions_v6.md",
+    most_relevant_reward: float = 1.0,
+    plausible_reward: float = 0.6,
+    irrelevant_reward: float = 0.0,
+    most_relevant_repeat: int = 1,
+    plausible_repeat: int = 1,
+    irrelevant_repeat: int = 1,
+    other_zero_mode: str = "none",
+    alpha: float = 0.05,
+    default_bonus: float = 0.0,
+    l2: float = 1.0,
+    epochs: int = 1,
+    top_k: int = 3,
+    device: str = "auto",
+    progress_every: int = 1000,
+    track_train_hit_rate: bool = False,
+    model_type: str = "disjoint",
+) -> V6WorkflowSummary:
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    ro_catalog = build_ro_metadata_from_catalog_markdown(catalog_markdown, output_path / "ro_metadata.json")
+    app_catalog = build_app_metadata_from_catalog_markdown(catalog_markdown, output_path / "app_metadata.json")
+
+    train_raw_path = output_path / "train.raw.jsonl"
+    test_raw_path = output_path / "test.raw.jsonl"
+    _copy_file(input_path, train_raw_path)
+    _copy_file(input_path, test_raw_path)
+
+    convert_raw_sequence_to_v0(
+        input_path=test_raw_path,
+        output_samples_path=output_path / "ro_test_samples.jsonl",
+        output_metadata_path=output_path / "ro_metadata_inferred_test.json",
+        reward=1.0,
+    )
+    convert_raw_sequence_to_v0_app(
+        input_path=test_raw_path,
+        output_samples_path=output_path / "app_test_samples.jsonl",
+        output_metadata_path=output_path / "app_metadata_inferred_test.json",
+        reward=1.0,
+    )
+
+    raw_rows = _load_jsonl_for_split(input_path)
+    scenario_ids = sorted(
+        {
+            str(row.get("scenario_id") or row.get("scenarioId"))
+            for row in raw_rows
+            if row.get("scenario_id") or row.get("scenarioId")
+        }
+    )
+
+    return _run_v6_training_bundle(
+        output_dir=output_path,
+        relevance_markdown=relevance_markdown,
+        most_relevant_reward=most_relevant_reward,
+        plausible_reward=plausible_reward,
+        irrelevant_reward=irrelevant_reward,
+        most_relevant_repeat=most_relevant_repeat,
+        plausible_repeat=plausible_repeat,
+        irrelevant_repeat=irrelevant_repeat,
+        other_zero_mode=other_zero_mode,
+        alpha=alpha,
+        default_bonus=default_bonus,
+        l2=l2,
+        epochs=epochs,
+        top_k=top_k,
+        device=device,
+        progress_every=progress_every,
+        workflow_name="run_v6_plan_all_data",
+        extra_summary={
+            "input_path": str(Path(input_path)),
+            "catalog_markdown": str(Path(catalog_markdown)),
+            "split_policy": "all_rows_for_train_and_test",
+            "raw_row_count": len(raw_rows),
+            "scenario_count": len(scenario_ids),
+            "scenario_ids": scenario_ids,
+            "reward_config": {
+                "most_relevant_reward": float(most_relevant_reward),
+                "plausible_reward": float(plausible_reward),
+                "irrelevant_reward": float(irrelevant_reward),
+            },
+            "repeat_config": {
+                "most_relevant_repeat": int(most_relevant_repeat),
+                "plausible_repeat": int(plausible_repeat),
+                "irrelevant_repeat": int(irrelevant_repeat),
+            },
+            "other_zero_mode": other_zero_mode,
+            "epochs": int(epochs),
+            "model_type": model_type,
+            "ro_metadata": asdict(ro_catalog),
+            "app_metadata": asdict(app_catalog),
+        },
+        track_train_hit_rate=track_train_hit_rate,
+        model_type=model_type,
     )
 
 
@@ -591,6 +736,7 @@ def train_v0_both(
     device: str = "auto",
     progress_every: int = 1000,
     track_train_hit_rate: bool = False,
+    model_type: str = "disjoint",
 ) -> TrainBothSummary:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     data_path = Path(data_dir)
@@ -608,8 +754,9 @@ def train_v0_both(
         app_rows = sum(1 for line in handle if line.strip())
     total_start = time.time()
     logger.info(
-        "[WORKFLOW] Starting joint training | data_dir=%s | device=%s | epochs=%d | track_train_hit_rate=%s",
+        "[WORKFLOW] Starting joint training | data_dir=%s | model_type=%s | device=%s | epochs=%d | track_train_hit_rate=%s",
         data_path,
+        model_type,
         device,
         epochs,
         track_train_hit_rate,
@@ -629,6 +776,7 @@ def train_v0_both(
         progress_every=progress_every,
         progress_label="RO",
         track_train_hit_rate=track_train_hit_rate,
+        model_type=model_type,
     )
     logger.info("[WORKFLOW] Finished R/O model training in %.1fs", time.time() - ro_start)
     app_start = time.time()
@@ -645,6 +793,7 @@ def train_v0_both(
         progress_every=progress_every,
         progress_label="APP",
         track_train_hit_rate=track_train_hit_rate,
+        model_type=model_type,
     )
     logger.info("[WORKFLOW] Finished App model training in %.1fs", time.time() - app_start)
     logger.info("[WORKFLOW] Finished joint training in %.1fs", time.time() - total_start)
@@ -669,6 +818,7 @@ def train_v0_both(
         "l2": summary.l2,
         "epochs": summary.epochs,
         "device": summary.device,
+        "model_type": model_type,
         "ro": asdict(summary.ro),
         "app": asdict(summary.app),
     })
@@ -695,6 +845,213 @@ def _top_action_distribution(
     return distribution
 
 
+def _select_hard_negative_candidates(
+    counts: Counter[str],
+    *,
+    sample_count: int,
+    exclude_action_ids: set[str],
+    max_candidates: int,
+    min_count: int = 1,
+    min_rate: float = 0.0,
+) -> list[dict[str, Any]]:
+    if max_candidates < 0:
+        raise ValueError("max_candidates must be non-negative")
+    if min_count < 1:
+        raise ValueError("min_count must be at least 1")
+    if not 0.0 <= min_rate <= 1.0:
+        raise ValueError("min_rate must be in [0, 1]")
+    if sample_count <= 0 or max_candidates == 0:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for action_id, count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
+        if action_id in exclude_action_ids:
+            continue
+        rate = count / sample_count
+        if count < min_count or rate < min_rate:
+            continue
+        rows.append(
+            {
+                "action_id": action_id,
+                "display_action_id": _display_action_id(action_id),
+                "count": count,
+                "rate": rate,
+            }
+        )
+        if len(rows) >= max_candidates:
+            break
+    return rows
+
+
+def render_hard_negative_candidates_markdown(summary: HardNegativeMiningSummary) -> str:
+    lines = [
+        "# Hard-Negative Candidate Mining",
+        "",
+        f"- label_namespace: `{summary.label_namespace}`",
+        f"- top_k: `{summary.top_k}`",
+        f"- sample_count: `{summary.sample_count}`",
+        f"- scenarios_with_samples: `{summary.scenarios_with_samples}`",
+        f"- max_candidates_per_scenario: `{summary.max_candidates_per_scenario}`",
+        "",
+        "| scenario_id | sample_count | most_relevant_3 | plausible_3 | current_irrelevant_2 | candidate_hard_negatives |",
+        "| --- | ---: | --- | --- | --- | --- |",
+    ]
+    for scenario_id in sorted(summary.per_scenario):
+        row = summary.per_scenario[scenario_id]
+        formatted_candidates = "<br>".join(
+            f"`{candidate['display_action_id']}` ({candidate['count']}, {candidate['rate']:.1%})"
+            for candidate in row["candidate_hard_negatives"]
+        ) or "-"
+        lines.append(
+            "| {scenario_id} | {sample_count} | {most_relevant} | {plausible} | {irrelevant} | {candidates} |".format(
+                scenario_id=scenario_id,
+                sample_count=row["sample_count"],
+                most_relevant="<br>".join(f"`{_display_action_id(action_id)}`" for action_id in row["most_relevant_3"]),
+                plausible="<br>".join(f"`{_display_action_id(action_id)}`" for action_id in row["other_plausible_3"]),
+                irrelevant="<br>".join(f"`{_display_action_id(action_id)}`" for action_id in row["irrelevant_2"]) or "-",
+                candidates=formatted_candidates,
+            )
+        )
+    return "\n".join(lines) + "\n"
+
+
+def mine_v6_hard_negative_candidates(
+    artifact_dir: str | Path,
+    metadata_path: str | Path,
+    raw_input_path: str | Path,
+    catalog_markdown: str | Path,
+    label_namespace: str,
+    top_k: int = 6,
+    max_candidates_per_scenario: int = 5,
+    device: str = "auto",
+    progress_every: int = 1000,
+    min_count: int = 1,
+    min_rate: float = 0.0,
+) -> HardNegativeMiningSummary:
+    if label_namespace not in {"ro", "app"}:
+        raise ValueError("label_namespace must be 'ro' or 'app'")
+    if top_k <= 0:
+        raise ValueError("top_k must be positive")
+    if progress_every <= 0:
+        raise ValueError("progress_every must be positive")
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    metadata = BanditMetadata.load(metadata_path)
+    relevance_catalog = parse_v6_relevance_markdown(catalog_markdown)[label_namespace]
+    feature_space = V0FeatureSpace()
+    model = load_bandit_model(artifact_dir, device=device)
+    raw_rows = _load_jsonl(raw_input_path)
+    if not raw_rows:
+        raise ValueError(f"No raw rows found in {raw_input_path}")
+
+    logger.info(
+        "Starting hard-negative mining | rows=%d | top_k=%d | label=%s | device=%s",
+        len(raw_rows),
+        top_k,
+        label_namespace,
+        device,
+    )
+    start_time = time.time()
+    per_scenario_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    per_scenario_samples: Counter[str] = Counter()
+    skipped_rows_missing_scenario = 0
+
+    for index, row in enumerate(raw_rows, start=1):
+        scenario_id = _scenario_id(row)
+        if scenario_id is None or scenario_id not in relevance_catalog:
+            skipped_rows_missing_scenario += 1
+            continue
+
+        context = _build_context(row)
+        x = feature_space.encode(context)
+        ranked = model.rank(
+            x,
+            metadata.candidate_action_ids(scenario_id),
+            metadata.default_action_id(scenario_id),
+            top_k=top_k,
+        )
+        scenario_spec = relevance_catalog[scenario_id]
+        most_relevant = {
+            metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["most_relevant_3"]
+        }
+        plausible = {
+            metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["other_plausible_3"]
+        }
+        irrelevant = {
+            metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["irrelevant_2"]
+        }
+        exclude = most_relevant | plausible | irrelevant
+        per_scenario_samples[scenario_id] += 1
+        for item in ranked:
+            if item.action_id not in exclude:
+                per_scenario_counts[scenario_id][item.action_id] += 1
+
+        if index % progress_every == 0:
+            elapsed = time.time() - start_time
+            rows_per_sec = index / elapsed if elapsed > 0 else 0.0
+            logger.info(
+                "Processed %d/%d rows for mining | elapsed=%s | %.1f rows/s",
+                index,
+                len(raw_rows),
+                _format_duration(elapsed),
+                rows_per_sec,
+            )
+
+    per_scenario: dict[str, dict[str, Any]] = {}
+    for scenario_id in sorted(relevance_catalog):
+        row_count = per_scenario_samples[scenario_id]
+        if row_count == 0:
+            continue
+        scenario_spec = relevance_catalog[scenario_id]
+        most_relevant = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["most_relevant_3"]]
+        plausible = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["other_plausible_3"]]
+        irrelevant = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["irrelevant_2"]]
+        candidates = _select_hard_negative_candidates(
+            per_scenario_counts[scenario_id],
+            sample_count=row_count,
+            exclude_action_ids=set(),
+            max_candidates=max_candidates_per_scenario,
+            min_count=min_count,
+            min_rate=min_rate,
+        )
+        per_scenario[scenario_id] = {
+            "sample_count": row_count,
+            "most_relevant_3": most_relevant,
+            "other_plausible_3": plausible,
+            "irrelevant_2": irrelevant,
+            "candidate_hard_negatives": candidates,
+            "top10_non_acceptable_predicted_actions": _top_action_distribution(
+                per_scenario_counts[scenario_id],
+                sample_count=row_count,
+                top_k=top_k,
+                limit=10,
+            ),
+        }
+
+    elapsed_total = time.time() - start_time
+    evaluated_rows = len(raw_rows) - skipped_rows_missing_scenario
+    logger.info(
+        "Finished hard-negative mining | rows=%d | evaluated=%d | scenarios=%d | elapsed=%s | avg %.1f rows/s",
+        len(raw_rows),
+        evaluated_rows,
+        len(per_scenario),
+        _format_duration(elapsed_total),
+        len(raw_rows) / elapsed_total if elapsed_total > 0 else 0.0,
+    )
+    return HardNegativeMiningSummary(
+        raw_input_path=str(Path(raw_input_path)),
+        artifact_dir=str(Path(artifact_dir)),
+        metadata_path=str(Path(metadata_path)),
+        catalog_markdown=str(Path(catalog_markdown)),
+        label_namespace=label_namespace,
+        top_k=top_k,
+        sample_count=evaluated_rows,
+        scenarios_with_samples=len(per_scenario),
+        max_candidates_per_scenario=max_candidates_per_scenario,
+        per_scenario=per_scenario,
+    )
+
+
 def evaluate_v0_topk(
     artifact_dir: str | Path,
     metadata_path: str | Path,
@@ -717,7 +1074,7 @@ def evaluate_v0_topk(
     metadata = BanditMetadata.load(metadata_path)
     relevance_catalog = parse_v6_relevance_markdown(catalog_markdown)[label_namespace]
     feature_space = V0FeatureSpace()
-    model = MaskedDisjointLinUCB.load(artifact_dir, device=device)
+    model = load_bandit_model(artifact_dir, device=device)
     rows = [
         TrainingEvent.from_dict(json.loads(line))
         for line in Path(test_samples_path).read_text().splitlines()
@@ -768,6 +1125,11 @@ def evaluate_v0_topk(
         most_relevant = tuple(metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["most_relevant_3"])
         plausible = tuple(metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["other_plausible_3"])
         irrelevant = tuple(metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["irrelevant_2"])
+        if label_namespace == "ro":
+            irrelevant = irrelevant + tuple(
+                metadata.resolve_action_token(action_id, scenario_id)
+                for action_id in scenario_spec.get("extra_hard_negative_ro", ())
+            )
         acceptable = set(most_relevant) | set(plausible)
 
         most_count = sum(1 for action_id in most_relevant if action_id in pred_set)
@@ -851,12 +1213,19 @@ def evaluate_v0_topk(
         most_relevant = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["most_relevant_3"]]
         plausible = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["other_plausible_3"]]
         irrelevant = [metadata.resolve_action_token(action_id, scenario_id) for action_id in scenario_spec["irrelevant_2"]]
+        extra_hard_negative_ro = []
+        if label_namespace == "ro":
+            extra_hard_negative_ro = [
+                metadata.resolve_action_token(action_id, scenario_id)
+                for action_id in scenario_spec.get("extra_hard_negative_ro", ())
+            ]
         scenario_eval[scenario_id] = {
             "sample_count": row_count,
             "most_relevant_3": most_relevant,
             "other_plausible_3": plausible,
             "acceptable_6": most_relevant + plausible,
             "irrelevant_2": irrelevant,
+            "extra_hard_negative_ro": extra_hard_negative_ro,
             "avg_most_relevant_covered_in_topk": scenario_most_sum[scenario_id] / row_count,
             "avg_most_relevant_covered_in_topk_ratio": scenario_most_sum[scenario_id] / (row_count * 3.0),
             "avg_acceptable_covered_in_topk": scenario_acceptable_sum[scenario_id] / row_count,

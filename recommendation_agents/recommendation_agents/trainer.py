@@ -14,7 +14,12 @@ from typing import Any, Iterable
 import numpy as np
 
 from recommendation_agents.feature_space import V0FeatureSpace
-from recommendation_agents.linucb import MaskedDisjointLinUCB, RankedAction
+from recommendation_agents.linucb import (
+    RankedAction,
+    create_bandit_model,
+    load_bandit_model,
+    _require_torch,
+)
 from recommendation_agents.metadata import BanditMetadata
 from recommendation_agents.raw_synthetic import (
     _build_context,
@@ -45,6 +50,130 @@ def _format_duration(seconds: float) -> str:
     if minutes:
         return f"{minutes:d}m{secs:02d}s"
     return f"{secs:d}s"
+
+
+def _event_feature_vector(
+    event: TrainingEvent,
+    feature_space: V0FeatureSpace,
+) -> np.ndarray:
+    if event.context_vector is not None:
+        x = np.asarray(event.context_vector, dtype=np.float32)
+        if x.shape != (feature_space.dimension,):
+            raise ValueError(
+                f"context_vector for event {event.event_id or '<unknown>'} has shape {x.shape}; "
+                f"expected ({feature_space.dimension},)"
+            )
+        return x
+    return feature_space.encode(event.context)
+
+
+def _build_neural_linear_supervision(
+    samples_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+) -> tuple[np.ndarray, np.ndarray]:
+    grouped: dict[str, dict[str, Any]] = {}
+    action_to_index = {action_id: index for index, action_id in enumerate(metadata.all_action_ids())}
+
+    for row_index, payload in enumerate(load_jsonl(samples_path), start=1):
+        event = TrainingEvent.from_dict(payload)
+        group_key = str(payload.get("source_base_event_id") or event.event_id or f"row-{row_index}")
+        x = _event_feature_vector(event, feature_space)
+        selected_action = metadata.resolve_action_token(event.selected_action, event.scenario_id)
+
+        if group_key not in grouped:
+            grouped[group_key] = {
+                "x": x,
+                "target": np.zeros((len(action_to_index),), dtype=np.float32),
+            }
+        target = grouped[group_key]["target"]
+        target[action_to_index[selected_action]] = max(target[action_to_index[selected_action]], float(event.reward))
+
+    if not grouped:
+        raise ValueError("No grouped supervision examples were built for neural-linear pretraining")
+
+    contexts = np.stack([group["x"] for group in grouped.values()]).astype(np.float32)
+    targets = np.stack([group["target"] for group in grouped.values()]).astype(np.float32)
+    return contexts, targets
+
+
+def _pretrain_neural_linear_encoder(
+    model,
+    samples_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+    progress_label: str | None = None,
+) -> dict[str, float | int]:
+    torch = _require_torch()
+    label_prefix = f"[{progress_label}] " if progress_label else ""
+    contexts, targets = _build_neural_linear_supervision(samples_path, metadata, feature_space)
+    context_tensor = torch.as_tensor(contexts, dtype=torch.float32, device=model.device)
+    target_tensor = torch.as_tensor(targets, dtype=torch.float32, device=model.device)
+
+    head = torch.nn.Linear(model.latent_dim, targets.shape[1]).to(model.device)
+    optimizer = torch.optim.Adam(
+        list(model.encoder.parameters()) + list(head.parameters()),
+        lr=1e-3,
+    )
+    loss_fn = torch.nn.MSELoss()
+    encoder_pretrain_epochs = 10
+    batch_size = min(256, max(32, contexts.shape[0]))
+
+    logger.info(
+        "%sStarting neural-linear encoder pretraining | grouped_contexts=%d | target_dim=%d | epochs=%d | batch_size=%d",
+        label_prefix,
+        contexts.shape[0],
+        targets.shape[1],
+        encoder_pretrain_epochs,
+        batch_size,
+    )
+    start_time = time.time()
+    model.encoder.train()
+    final_loss = 0.0
+
+    for epoch_index in range(encoder_pretrain_epochs):
+        permutation = torch.randperm(context_tensor.shape[0], device=model.device)
+        epoch_loss = 0.0
+        batch_count = 0
+        for batch_start in range(0, context_tensor.shape[0], batch_size):
+            batch_indices = permutation[batch_start : batch_start + batch_size]
+            batch_x = context_tensor.index_select(0, batch_indices)
+            batch_y = target_tensor.index_select(0, batch_indices)
+            optimizer.zero_grad(set_to_none=True)
+            latent = model.encoder(batch_x)
+            predictions = head(latent)
+            loss = loss_fn(predictions, batch_y)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += float(loss.item())
+            batch_count += 1
+        final_loss = epoch_loss / max(batch_count, 1)
+        logger.info(
+            "%sNeural-linear pretrain epoch %d/%d | mse=%.6f",
+            label_prefix,
+            epoch_index + 1,
+            encoder_pretrain_epochs,
+            final_loss,
+        )
+
+    model.encoder.eval()
+    elapsed = time.time() - start_time
+    logger.info(
+        "%sFinished neural-linear encoder pretraining | grouped_contexts=%d | elapsed=%s",
+        label_prefix,
+        contexts.shape[0],
+        _format_duration(elapsed),
+    )
+    return {
+        "grouped_contexts": int(contexts.shape[0]),
+        "target_dim": int(targets.shape[1]),
+        "encoder_pretrain_epochs": int(encoder_pretrain_epochs),
+        "encoder_hidden_dim": int(model.hidden_dim),
+        "encoder_latent_dim": int(model.latent_dim),
+        "encoder_batch_size": int(batch_size),
+        "encoder_learning_rate": 1e-3,
+        "encoder_final_mse": float(final_loss),
+    }
 
 
 @dataclass(frozen=True)
@@ -241,7 +370,7 @@ def _count_interleaved_splits(total_rows: int, train_window: int, eval_window: i
 
 
 def _resolve_rank_result(
-    model: MaskedDisjointLinUCB,
+    model,
     metadata: BanditMetadata,
     scenario_id: str | None,
     x: Any,
@@ -257,7 +386,7 @@ def _resolve_rank_result(
 def _write_interleaved_artifact(
     output_dir: str | Path,
     metadata_path: str | Path,
-    model: MaskedDisjointLinUCB,
+    model,
     metrics: InterleavedTrainingMetrics,
     scenario_counts: Counter[str],
     hyperparameters: dict[str, Any],
@@ -292,6 +421,7 @@ def train_v0(
     progress_label: str | None = None,
     track_train_hit_rate: bool = False,
     epochs: int = 1,
+    model_type: str = "disjoint",
 ) -> TrainingMetrics:
     if progress_every <= 0:
         raise ValueError("progress_every must be positive")
@@ -299,13 +429,15 @@ def train_v0(
         raise ValueError("epochs must be positive")
     _configure_progress_logger()
     label_prefix = f"[{progress_label}] " if progress_label else ""
+    normalized_model_type = model_type.replace("-", "_").lower()
     metadata = BanditMetadata.load(metadata_path)
     samples_per_epoch = _count_nonempty_lines(samples_path)
     total_samples_expected = samples_per_epoch * epochs
     start_time = time.time()
     logger.info(
-        "%sStarting training | samples_per_epoch=%d | epochs=%d | total_samples=%d | actions=%d | feature_dim=%d | device=%s",
+        "%sStarting training | model_type=%s | samples_per_epoch=%d | epochs=%d | total_samples=%d | actions=%d | feature_dim=%d | device=%s",
         label_prefix,
+        model_type,
         samples_per_epoch,
         epochs,
         total_samples_expected,
@@ -314,7 +446,8 @@ def train_v0(
         device,
     )
     feature_space = V0FeatureSpace()
-    model = MaskedDisjointLinUCB(
+    model = create_bandit_model(
+        model_type=model_type,
         action_ids=metadata.all_action_ids(),
         feature_dim=feature_space.dimension,
         alpha=alpha,
@@ -322,6 +455,15 @@ def train_v0(
         l2=l2,
         device=device,
     )
+    neural_pretrain_report: dict[str, float | int] | None = None
+    if normalized_model_type == "neural_linear":
+        neural_pretrain_report = _pretrain_neural_linear_encoder(
+            model=model,
+            samples_path=samples_path,
+            metadata=metadata,
+            feature_space=feature_space,
+            progress_label=progress_label,
+        )
 
     total_reward = 0.0
     sample_count = 0
@@ -346,15 +488,7 @@ def train_v0(
                 )
 
             default_action_id = metadata.default_action_id(event.scenario_id)
-            if event.context_vector is not None:
-                x = np.asarray(event.context_vector, dtype=np.float32)
-                if x.shape != (feature_space.dimension,):
-                    raise ValueError(
-                        f"context_vector for event {event.event_id or '<unknown>'} has shape {x.shape}; "
-                        f"expected ({feature_space.dimension},)"
-                    )
-            else:
-                x = feature_space.encode(event.context)
+            x = _event_feature_vector(event, feature_space)
             if track_train_hit_rate:
                 ranking = model.rank(x, candidate_actions, default_action_id, top_k=1)
                 if ranking[0].action_id == selected_action:
@@ -426,6 +560,8 @@ def train_v0(
             "device": model.device,
             "track_train_hit_rate": track_train_hit_rate,
             "epochs": epochs,
+            "model_type": model_type,
+            "neural_pretrain": neural_pretrain_report,
         },
     }
     elapsed_total = time.time() - start_time
@@ -455,6 +591,7 @@ def train_v0_from_raw(
     progress_label: str | None = None,
     track_train_hit_rate: bool = False,
     epochs: int = 1,
+    model_type: str = "disjoint",
 ) -> RawTrainingSummary:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -491,6 +628,7 @@ def train_v0_from_raw(
         progress_label=progress_label or label_type.upper(),
         track_train_hit_rate=track_train_hit_rate,
         epochs=epochs,
+        model_type=model_type,
     )
     summary = RawTrainingSummary(
         input_path=str(Path(input_path)),
@@ -561,7 +699,8 @@ def train_v0_dual_from_raw(
     train_rows, eval_rows = _count_interleaved_splits(len(samples), train_window, eval_window)
     ro_metadata = BanditMetadata.load(ro_metadata_path)
     app_metadata = BanditMetadata.load(app_metadata_path)
-    ro_model = MaskedDisjointLinUCB(
+    ro_model = create_bandit_model(
+        model_type="disjoint",
         action_ids=ro_metadata.all_action_ids(),
         feature_dim=feature_space.dimension,
         alpha=alpha,
@@ -569,7 +708,8 @@ def train_v0_dual_from_raw(
         l2=l2,
         device=device,
     )
-    app_model = MaskedDisjointLinUCB(
+    app_model = create_bandit_model(
+        model_type="disjoint",
         action_ids=app_metadata.all_action_ids(),
         feature_dim=feature_space.dimension,
         alpha=alpha,
@@ -827,7 +967,7 @@ def score_v0(
     resolved_metadata_path = Path(metadata_path) if metadata_path is not None else Path(artifact_dir) / "metadata.snapshot.json"
     metadata = BanditMetadata.load(resolved_metadata_path)
     feature_space = V0FeatureSpace()
-    model = MaskedDisjointLinUCB.load(artifact_dir, device=device)
+    model = load_bandit_model(artifact_dir, device=device)
     candidate_actions = (
         tuple(metadata.resolve_action_token(action_id, request.scenario_id) for action_id in request.shown_actions)
         if request.shown_actions
@@ -848,7 +988,7 @@ def choose_v0(
     resolved_metadata_path = Path(metadata_path) if metadata_path is not None else Path(artifact_dir) / "metadata.snapshot.json"
     metadata = BanditMetadata.load(resolved_metadata_path)
     feature_space = V0FeatureSpace()
-    model = MaskedDisjointLinUCB.load(artifact_dir, device=device)
+    model = load_bandit_model(artifact_dir, device=device)
     candidate_actions = (
         tuple(metadata.resolve_action_token(action_id, request.scenario_id) for action_id in request.shown_actions)
         if request.shown_actions

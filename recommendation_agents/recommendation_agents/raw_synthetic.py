@@ -288,6 +288,8 @@ def _expand_raw_sequence_with_v6_relevance(
     most_relevant_repeat: int,
     plausible_repeat: int,
     irrelevant_repeat: int,
+    all_action_ids: list[str] | tuple[str, ...] | None = None,
+    other_zero_mode: str = "none",
 ) -> ExpandedRawConversionSummary:
     if label_namespace not in {"ro", "app"}:
         raise ValueError("label_namespace must be 'ro' or 'app'")
@@ -297,6 +299,12 @@ def _expand_raw_sequence_with_v6_relevance(
         raise ValueError("plausible_repeat must be non-negative")
     if irrelevant_repeat < 0:
         raise ValueError("irrelevant_repeat must be non-negative")
+    if other_zero_mode not in {"none", "exclude-most-plausible", "exclude-most-only", "exclude-all-labeled"}:
+        raise ValueError(
+            "other_zero_mode must be one of: none, exclude-most-plausible, exclude-most-only, exclude-all-labeled"
+        )
+    if other_zero_mode != "none" and not all_action_ids:
+        raise ValueError("all_action_ids must be provided when other_zero_mode is not 'none'")
 
     raw_rows = _load_jsonl(input_path)
     relevance_catalog = parse_v6_relevance_markdown(relevance_markdown)[label_namespace]
@@ -328,26 +336,47 @@ def _expand_raw_sequence_with_v6_relevance(
         context_vector = feature_space.encode(context).tolist()
         base_event_id = _event_id(row, scenario_id)
         source_episode_id = row.get("episode_id")
+        most_relevant_ids = tuple(relevance_catalog[scenario_id]["most_relevant_3"])
+        plausible_ids = tuple(relevance_catalog[scenario_id]["other_plausible_3"])
+        irrelevant_ids = tuple(relevance_catalog[scenario_id]["irrelevant_2"])
+        if label_namespace == "ro":
+            irrelevant_ids = irrelevant_ids + tuple(relevance_catalog[scenario_id].get("extra_hard_negative_ro", ()))
         tiers = [
             (
                 "most_relevant",
-                relevance_catalog[scenario_id]["most_relevant_3"],
+                most_relevant_ids,
                 float(most_relevant_reward),
                 most_relevant_repeat,
             ),
             (
                 "plausible",
-                relevance_catalog[scenario_id]["other_plausible_3"],
+                plausible_ids,
                 float(plausible_reward),
                 plausible_repeat,
             ),
             (
                 "irrelevant",
-                relevance_catalog[scenario_id]["irrelevant_2"],
+                irrelevant_ids,
                 float(irrelevant_reward),
                 irrelevant_repeat,
             ),
         ]
+        if other_zero_mode != "none":
+            excluded = set(most_relevant_ids)
+            if other_zero_mode == "exclude-most-plausible":
+                excluded.update(plausible_ids)
+            elif other_zero_mode == "exclude-all-labeled":
+                excluded.update(plausible_ids)
+                excluded.update(irrelevant_ids)
+            extra_zero_actions = tuple(action_id for action_id in all_action_ids if action_id not in excluded)
+            tiers.append(
+                (
+                    "other_zero",
+                    extra_zero_actions,
+                    0.0,
+                    1,
+                )
+            )
         kept_input_rows += 1
         scenario_counts[scenario_id] += 1
         for tier_name, action_ids_for_tier, reward, repeat_count in tiers:
@@ -396,6 +425,8 @@ def convert_raw_sequence_to_v6_expanded_ro(
     most_relevant_repeat: int = 1,
     plausible_repeat: int = 1,
     irrelevant_repeat: int = 1,
+    all_action_ids: list[str] | tuple[str, ...] | None = None,
+    other_zero_mode: str = "none",
 ) -> ExpandedRawConversionSummary:
     return _expand_raw_sequence_with_v6_relevance(
         input_path=input_path,
@@ -408,6 +439,8 @@ def convert_raw_sequence_to_v6_expanded_ro(
         most_relevant_repeat=most_relevant_repeat,
         plausible_repeat=plausible_repeat,
         irrelevant_repeat=irrelevant_repeat,
+        all_action_ids=all_action_ids,
+        other_zero_mode=other_zero_mode,
     )
 
 
@@ -421,6 +454,8 @@ def convert_raw_sequence_to_v6_expanded_app(
     most_relevant_repeat: int = 1,
     plausible_repeat: int = 1,
     irrelevant_repeat: int = 1,
+    all_action_ids: list[str] | tuple[str, ...] | None = None,
+    other_zero_mode: str = "none",
 ) -> ExpandedRawConversionSummary:
     return _expand_raw_sequence_with_v6_relevance(
         input_path=input_path,
@@ -433,4 +468,6 @@ def convert_raw_sequence_to_v6_expanded_app(
         most_relevant_repeat=most_relevant_repeat,
         plausible_repeat=plausible_repeat,
         irrelevant_repeat=irrelevant_repeat,
+        all_action_ids=all_action_ids,
+        other_zero_mode=other_zero_mode,
     )
