@@ -1,0 +1,1614 @@
+{
+  "version": "v5_global_shared_ro",
+  "summary": {
+    "totalScenarios": 65,
+    "legacyRoActionCount": 167,
+    "globalRoActionCount": 46,
+    "globalReminderCount": 26,
+    "globalOperationCount": 20,
+    "globalReduction": "167 -> 46"
+  },
+  "mergePrinciples": [
+    "O actions are merged primarily by operation. If parameters are needed, they must be directly resolvable from the current features, and RL/UCB only recommends the action.",
+    "R actions are merged primarily by user intent. If only the wording or scenario phrasing differs, they are consolidated into the same reminder semantics.",
+    "The scenario layer keeps only action references, trigger conditions, and default ordering, and does not carry action parameters; parameters are decided by the feature resolver at execution time.",
+    "Each scenario keeps at least 2 default R/O actions and at least 3 default app category items ranked by common sense."
+  ],
+  "globalActions": [
+    {
+      "actionId": "R_PLAN_DAY_OVER_COFFEE",
+      "actionType": "R",
+      "nameZh": "Ease into planning over coffee",
+      "nameEn": "Plan the day over coffee",
+      "description": "Consolidates \"having coffee,\" \"starting the day,\" and \"thinking through priorities\" into one light start-of-day reminder.",
+      "payloadTemplate": {
+        "message": "Take a few minutes to think about the most important things for today and ease into the day."
+      }
+    },
+    {
+      "actionId": "R_WORK_START_SETTLE_IN",
+      "actionType": "R",
+      "nameZh": "Settle back into work rhythm",
+      "nameEn": "Settle back into work",
+      "description": "Covers reminders about settling back into work after arriving at the office or returning after lunch.",
+      "payloadTemplate": {
+        "message": "Settle into a steady rhythm first, then the rest of the work will feel smoother."
+      }
+    },
+    {
+      "actionId": "R_WORK_BREAK_AND_STRETCH",
+      "actionType": "R",
+      "nameZh": "Take a break and move during work",
+      "nameEn": "Take a break and stretch during work",
+      "description": "Merges reminders to rest, hydrate, and move around across office work, work from home, prolonged sitting, and long focus sessions.",
+      "payloadTemplate": {
+        "message": "You have been at it for a while. Get up and move a bit, and do not forget water and a short eye break."
+      }
+    },
+    {
+      "actionId": "R_WRAP_UP_AND_REST_AFTER_WORK",
+      "actionType": "R",
+      "nameZh": "Wrap up and rest at the right time",
+      "nameEn": "Wrap up and rest",
+      "description": "Merges reminders to wrap up when staying late at the office or working overtime late at night.",
+      "payloadTemplate": {
+        "message": "It is getting late. Try to wrap up what you are doing and leave yourself some room to rest."
+      }
+    },
+    {
+      "actionId": "R_CLOCK_OUT_BEFORE_LEAVING",
+      "actionType": "R",
+      "nameZh": "Clock out before leaving",
+      "nameEn": "Clock out before leaving",
+      "description": "Keeps the explicit reminder to complete departure actions before leaving the office.",
+      "payloadTemplate": {
+        "message": "Before leaving, do not forget to finish the departure-related steps, such as clocking out."
+      }
+    },
+    {
+      "actionId": "R_CHECK_TRIP_OR_BOOKING_INFO",
+      "actionType": "R",
+      "nameZh": "Check trip or booking details",
+      "nameEn": "Check trip or booking details",
+      "description": "Merges reminders to confirm key details in advance for transit departures, hotels, movies, hospital visits, rideshares, and similar cases.",
+      "payloadTemplate": {
+        "message": "It is a good idea to confirm the key details of this trip or booking first, so things do not feel rushed later."
+      }
+    },
+    {
+      "actionId": "R_MEAL_BREAK",
+      "actionType": "R",
+      "nameZh": "Take a meal break or get something to eat",
+      "nameEn": "Take a meal break",
+      "description": "Merges meal reminders for lunchtime and midday outings from the office.",
+      "payloadTemplate": {
+        "message": "It is about time to eat something. A short break with food will feel better too."
+      }
+    },
+    {
+      "actionId": "R_HOME_RELAX_AND_RESET",
+      "actionType": "R",
+      "nameZh": "Relax and reset at home",
+      "nameEn": "Relax and reset at home",
+      "description": "Merges relaxation reminders for arriving home, being at home in the afternoon or evening, and other quiet-at-home moments.",
+      "payloadTemplate": {
+        "message": "Let yourself slow down, drink some water, relax a bit, and then decide what to do next."
+      }
+    },
+    {
+      "actionId": "R_SLEEP_SOON_AND_CHARGE",
+      "actionType": "R",
+      "nameZh": "Get ready for rest and cut down on late-night screen time",
+      "nameEn": "Get ready for rest",
+      "description": "Merges \"it is time to rest\" reminders across late night at home, returning home late, and lying in bed using the phone late at night.",
+      "payloadTemplate": {
+        "message": "It is already quite late. Try to get ready to rest, and do not forget to take care of both yourself and your phone."
+      }
+    },
+    {
+      "actionId": "R_WEEKEND_OR_MORNING_GREETING",
+      "actionType": "R",
+      "nameZh": "Ease into the morning or weekend",
+      "nameEn": "Ease into the morning or weekend",
+      "description": "Merges light \"ease into the day\" reminders for waking up and weekend mornings.",
+      "payloadTemplate": {
+        "message": "You can ease into today comfortably. No need to rush."
+      }
+    },
+    {
+      "actionId": "R_ENJOY_LEISURE_MOMENT",
+      "actionType": "R",
+      "nameZh": "Enjoy this relaxing moment",
+      "nameEn": "Enjoy the current leisure moment",
+      "description": "Merges light \"enjoy the moment\" reminders across shopping, dining, coffee, walking, and weekend outings.",
+      "payloadTemplate": {
+        "message": "This is a good time to relax a little and simply enjoy the moment."
+      }
+    },
+    {
+      "actionId": "R_OUTDOOR_HYDRATE_AND_REST",
+      "actionType": "R",
+      "nameZh": "Hydrate and rest during outdoor activity",
+      "nameEn": "Hydrate and rest outdoors",
+      "description": "Merges hydration and rest reminders across outdoor running and long walking scenarios.",
+      "payloadTemplate": {
+        "message": "Do not forget to hydrate during outdoor activity. If you are tired, find a place to rest for a bit."
+      }
+    },
+    {
+      "actionId": "R_WORKOUT_PREP",
+      "actionType": "R",
+      "nameZh": "Prepare before starting a workout",
+      "nameEn": "Prepare before workout",
+      "description": "Merges prep reminders such as warming up for morning exercise, getting ready to resume after a gym rest, and hydrating before heading to the gym.",
+      "payloadTemplate": {
+        "message": "Warm up and drink some water before you start training. It will feel steadier."
+      }
+    },
+    {
+      "actionId": "R_POST_WORKOUT_RECOVERY",
+      "actionType": "R",
+      "nameZh": "Recover after exercise",
+      "nameEn": "Recover after workout",
+      "description": "Merges recovery reminders across post-gym stretching, recovery after long training, and hydrating after exercise.",
+      "payloadTemplate": {
+        "message": "After exercise, remember to stretch and hydrate, and give your body some time to recover."
+      }
+    },
+    {
+      "actionId": "R_COMMUTE_STEADY_AND_SAFE",
+      "actionType": "R",
+      "nameZh": "Stay steady and safe while commuting or cycling",
+      "nameEn": "Commute steadily and safely",
+      "description": "Merges \"steady and safe\" reminders across commuting and cycling.",
+      "payloadTemplate": {
+        "message": "Take it steady on the road. No need to rush. Safety comes first."
+      }
+    },
+    {
+      "actionId": "R_LONG_DRIVE_REST",
+      "actionType": "R",
+      "nameZh": "Rest after a long drive",
+      "nameEn": "Rest during a long drive",
+      "description": "Keeps the strong reminder to rest after a long period of driving.",
+      "payloadTemplate": {
+        "message": "You have been driving for quite a while. Find a suitable place to take a break."
+      }
+    },
+    {
+      "actionId": "R_NOISY_ENV_STAY_SAFE",
+      "actionType": "R",
+      "nameZh": "Stay safe and watch your belongings in noisy environments",
+      "nameEn": "Stay safe in a noisy environment",
+      "description": "Merges safety reminders for crowded noisy places and noisy late-night environments.",
+      "payloadTemplate": {
+        "message": "It is a bit noisy around you. Keep an eye on safety and your important belongings."
+      }
+    },
+    {
+      "actionId": "R_DELIVERY_PICKUP_REMINDER",
+      "actionType": "R",
+      "nameZh": "There is an item waiting for pickup",
+      "nameEn": "Pick up the delivery",
+      "description": "Keeps the explicit reminder for package or item pickup.",
+      "payloadTemplate": {
+        "message": "There is something waiting to be handled. Pick it up when it is convenient."
+      }
+    },
+    {
+      "actionId": "R_WAITING_TIME_USEFUL",
+      "actionType": "R",
+      "nameZh": "Use the waiting time well",
+      "nameEn": "Use the waiting time well",
+      "description": "Merges reminders that waiting time in education-related scenarios can be used to check plans or handle small tasks.",
+      "payloadTemplate": {
+        "message": "You can make use of this waiting time to check your plans or take care of a small task."
+      }
+    },
+    {
+      "actionId": "R_AFTER_MEAL_WALK",
+      "actionType": "R",
+      "nameZh": "Take a walk after the meal",
+      "nameEn": "Take a walk after the meal",
+      "description": "Keeps the standalone reminder for a walk after a meal.",
+      "payloadTemplate": {
+        "message": "A short walk after the meal would feel nice."
+      }
+    },
+    {
+      "actionId": "R_PREPARE_FOR_MEETING",
+      "actionType": "R",
+      "nameZh": "Prepare before the meeting starts",
+      "nameEn": "Prepare for the meeting",
+      "description": "Keeps the preparation reminder for right before a meeting starts.",
+      "payloadTemplate": {
+        "message": "The meeting is about to start. A quick preparation now will help you feel more ready."
+      }
+    },
+    {
+      "actionId": "R_CAPTURE_MEETING_FOLLOW_UPS",
+      "actionType": "R",
+      "nameZh": "Capture follow-ups during the meeting",
+      "nameEn": "Capture meeting follow-ups",
+      "description": "Keeps the reminder to record follow-up items during meetings.",
+      "payloadTemplate": {
+        "message": "Stay focused on the discussion, and jot down follow-up items as they come up."
+      }
+    },
+    {
+      "actionId": "R_DEPART_EARLY_FOR_OFFSITE",
+      "actionType": "R",
+      "nameZh": "Leave early for the offsite event",
+      "nameEn": "Leave a bit early for the offsite event",
+      "description": "Keeps the reminder to leave a bit early when travel is needed for a meeting or appointment.",
+      "payloadTemplate": {
+        "message": "This involves travel, so leaving a bit early will make things more comfortable."
+      }
+    },
+    {
+      "actionId": "R_DEEP_WORK_WINDOW",
+      "actionType": "R",
+      "nameZh": "This is a good window for focused work",
+      "nameEn": "This is a good window for focused work",
+      "description": "Merges \"good for focus\" reminders across no-meeting days, quiet school periods, and quiet cafés.",
+      "payloadTemplate": {
+        "message": "This is a good stretch of time for focused work on something important."
+      }
+    },
+    {
+      "actionId": "R_CALENDAR_QUICK_LOOK",
+      "actionType": "R",
+      "nameZh": "Quick calendar check",
+      "nameEn": "Take a quick look at the calendar",
+      "description": "Keeps the light reminder to take a quick look when the day has schedule items.",
+      "payloadTemplate": {
+        "message": "It looks like you have plans today. A quick look will help you stay on top of them."
+      }
+    },
+    {
+      "actionId": "R_OPEN_CURTAINS_OR_LIGHT",
+      "actionType": "R",
+      "nameZh": "Adjust the lighting when it is too dark",
+      "nameEn": "Brighten the environment",
+      "description": "Keeps the reminder to adjust the environment when it has been dark for too long.",
+      "payloadTemplate": {
+        "message": "It has been dark for quite a while. Consider turning on a light or opening the curtains to reset your state."
+      }
+    },
+    {
+      "actionId": "O_SHOW_SCHEDULE",
+      "actionType": "O",
+      "nameZh": "Show schedule",
+      "nameEn": "Show schedule",
+      "description": "Merges checking today’s schedule and tomorrow’s schedule; the date and view are decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Show the schedule.",
+        "operation": "show_schedule"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "day",
+            "values": [
+              "today",
+              "tomorrow"
+            ]
+          },
+          {
+            "name": "view",
+            "values": [
+              "default",
+              "overview"
+            ]
+          }
+        ],
+        "features": [
+          "ps_time",
+          "cal_hasUpcoming",
+          "cal_eventCount",
+          "cal_nextMinutes",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_TODAY_TODO",
+      "actionType": "O",
+      "nameZh": "Show today's to-do list",
+      "nameEn": "Show today to-do list",
+      "description": "Merges all show_today_todo_list cases into one shared operation.",
+      "payloadTemplate": {
+        "message": "Show today's to-do items.",
+        "operation": "show_today_todo_list"
+      }
+    },
+    {
+      "actionId": "O_SHOW_WEATHER",
+      "actionType": "O",
+      "nameZh": "Show weather",
+      "nameEn": "Show weather",
+      "description": "Shows the weather; whether it is the current weather or today’s weather is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Show the weather.",
+        "operation": "show_weather"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "scope",
+            "values": [
+              "current",
+              "today"
+            ]
+          }
+        ],
+        "features": [
+          "ps_time",
+          "ps_motion",
+          "ps_location",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_PAYMENT_QR",
+      "actionType": "O",
+      "nameZh": "Show payment QR",
+      "nameEn": "Show payment QR",
+      "description": "Merges payment QR operations across dining, shopping, cafés, movies, and similar scenarios.",
+      "payloadTemplate": {
+        "message": "Get the payment QR ready first.",
+        "operation": "show_payment_qr"
+      }
+    },
+    {
+      "actionId": "O_SHOW_COMMUTE_TRAFFIC",
+      "actionType": "O",
+      "nameZh": "Show commute traffic",
+      "nameEn": "Show commute traffic",
+      "description": "Shows commute traffic; the destination is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Show traffic and the estimated arrival time.",
+        "operation": "show_commute_traffic"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "destination",
+            "values": [
+              "home",
+              "work"
+            ]
+          }
+        ],
+        "features": [
+          "state_current",
+          "state_prev",
+          "wifiLostCategory",
+          "ps_motion"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_TRAVEL_INFO",
+      "actionType": "O",
+      "nameZh": "Show travel information",
+      "nameEn": "Show travel information",
+      "description": "Shared operation for showing trip information; the trip type is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Show the key details of the current trip.",
+        "operation": "show_travel_information"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "travelType",
+            "values": [
+              "train",
+              "flight",
+              "ride"
+            ]
+          }
+        ],
+        "features": [
+          "flightNumber",
+          "flightCountdownMin",
+          "sms_train_count",
+          "sms_flight_count",
+          "sms_ride_count"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_BOOKING_DETAILS",
+      "actionType": "O",
+      "nameZh": "Show booking or order details",
+      "nameEn": "Show booking details",
+      "description": "Shared operation for showing booking or order details; the booking type is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Show the details of this booking or order.",
+        "operation": "show_booking_details"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "bookingType",
+            "values": [
+              "hotel",
+              "movie",
+              "hospital"
+            ]
+          }
+        ],
+        "features": [
+          "sms_hotel_count",
+          "sms_movie_count",
+          "sms_hospital_count"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_MEETING_DETAILS",
+      "actionType": "O",
+      "nameZh": "Show meeting details",
+      "nameEn": "Show meeting details",
+      "description": "Merges meeting-info viewing actions for upcoming meetings and offsite meetings.",
+      "payloadTemplate": {
+        "message": "Show the meeting time, location, and related information.",
+        "operation": "show_meeting_details"
+      }
+    },
+    {
+      "actionId": "O_SHOW_NEARBY_OPTIONS",
+      "actionType": "O",
+      "nameZh": "Show nearby options",
+      "nameEn": "Show nearby options",
+      "description": "Shows suitable nearby places; the place type is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Show suitable nearby options.",
+        "operation": "show_nearby_places"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "placeType",
+            "values": [
+              "general",
+              "restaurant",
+              "service_area"
+            ]
+          }
+        ],
+        "features": [
+          "ps_motion",
+          "ps_time",
+          "ps_location",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_WALKING_ROUTE",
+      "actionType": "O",
+      "nameZh": "Show walking route",
+      "nameEn": "Show walking route",
+      "description": "Merges walking-route actions for park walks, after-meal walks, and weekend walks.",
+      "payloadTemplate": {
+        "message": "Show a nearby walking route or return walking route.",
+        "operation": "show_walking_route"
+      }
+    },
+    {
+      "actionId": "O_SHOW_PICKUP_DETAILS",
+      "actionType": "O",
+      "nameZh": "Show pickup details",
+      "nameEn": "Show pickup details",
+      "description": "Keeps the operation for viewing pickup-related information.",
+      "payloadTemplate": {
+        "message": "Show the pickup details.",
+        "operation": "show_pickup_details"
+      }
+    },
+    {
+      "actionId": "O_PROMPT_ADD_FREQUENT_PLACE",
+      "actionType": "O",
+      "nameZh": "Prompt to add frequent place",
+      "nameEn": "Prompt to add frequent place",
+      "description": "Keeps the operation for prompting the user to add a frequent place after staying too long at an unknown location.",
+      "payloadTemplate": {
+        "message": "Prompt the user to add the current place as a frequent place.",
+        "operation": "prompt_add_frequent_place"
+      }
+    },
+    {
+      "actionId": "O_OPEN_NOTES_QUICK_ENTRY",
+      "actionType": "O",
+      "nameZh": "Open quick note entry",
+      "nameEn": "Open notes quick entry",
+      "description": "Keeps the operation that opens the quick note entry during meetings.",
+      "payloadTemplate": {
+        "message": "Open the quick note entry.",
+        "operation": "open_notes_quick_entry"
+      }
+    },
+    {
+      "actionId": "O_TURN_ON_EYE_COMFORT_MODE",
+      "actionType": "O",
+      "nameZh": "Turn on eye comfort mode",
+      "nameEn": "Turn on eye comfort mode",
+      "description": "Merges all eye-comfort-mode related operations into one shared action.",
+      "payloadTemplate": {
+        "message": "Turn on eye comfort mode.",
+        "operation": "turn_on_eye_comfort_mode"
+      }
+    },
+    {
+      "actionId": "O_TURN_ON_DND",
+      "actionType": "O",
+      "nameZh": "Turn on Do Not Disturb",
+      "nameEn": "Turn on Do Not Disturb",
+      "description": "Merges Do Not Disturb operations across meetings and pre-sleep scenarios.",
+      "payloadTemplate": {
+        "message": "Turn on Do Not Disturb.",
+        "operation": "turn_on_dnd"
+      }
+    },
+    {
+      "actionId": "O_TURN_ON_SILENT_MODE",
+      "actionType": "O",
+      "nameZh": "Turn on silent mode",
+      "nameEn": "Turn on silent mode",
+      "description": "Merges silent mode operations in schools and quiet cafés.",
+      "payloadTemplate": {
+        "message": "Turn on silent mode.",
+        "operation": "turn_on_silent_mode"
+      }
+    },
+    {
+      "actionId": "O_ENABLE_VIBRATION",
+      "actionType": "O",
+      "nameZh": "Enable vibration alerts",
+      "nameEn": "Enable vibration",
+      "description": "Merges vibration-alert operations in noisy environments.",
+      "payloadTemplate": {
+        "message": "Enable vibration alerts.",
+        "operation": "enable_vibration"
+      }
+    },
+    {
+      "actionId": "O_INCREASE_NOTIFICATION_VOLUME",
+      "actionType": "O",
+      "nameZh": "Increase notification volume",
+      "nameEn": "Increase notification volume",
+      "description": "Increases notification volume; the specific level is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Increase the notification volume.",
+        "operation": "increase_volume"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "level",
+            "values": [
+              "high",
+              "max"
+            ]
+          }
+        ],
+        "features": [
+          "ps_sound",
+          "ps_time",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_START_ACTIVITY_TRACKING",
+      "actionType": "O",
+      "nameZh": "Start activity tracking",
+      "nameEn": "Start activity tracking",
+      "description": "Starts activity tracking; the specific activity type is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Start tracking this activity.",
+        "operation": "start_activity_tracking"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "activityType",
+            "values": [
+              "walking",
+              "running",
+              "cycling",
+              "gym_workout",
+              "general_workout"
+            ]
+          }
+        ],
+        "features": [
+          "ps_motion",
+          "ps_location",
+          "ps_time",
+          "state_current",
+          "state_prev"
+        ]
+      }
+    },
+    {
+      "actionId": "O_START_CONTEXT_TIMER",
+      "actionType": "O",
+      "nameZh": "Start context timer",
+      "nameEn": "Start context timer",
+      "description": "Starts a timer; the specific mode is decided by the execution layer based on current features.",
+      "payloadTemplate": {
+        "message": "Start an appropriate timer.",
+        "operation": "start_context_timer"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "timerMode",
+            "values": [
+              "general",
+              "rest",
+              "recovery"
+            ]
+          }
+        ],
+        "features": [
+          "state_current",
+          "state_prev",
+          "ps_location",
+          "ps_motion"
+        ]
+      }
+    }
+  ],
+  "scenarioDefaults": [
+    {
+      "scenarioId": "ARRIVE_OFFICE",
+      "scenarioName": "Arrive at office",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_PLAN_DAY_OVER_COFFEE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "news",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_LUNCH_OUT",
+      "scenarioName": "Office lunch outing",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_MEAL_BREAK"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_WORKING",
+      "scenarioName": "Working at the office",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_BREAK_AND_STRETCH"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "LEAVE_OFFICE",
+      "scenarioName": "Leave office",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "O_SHOW_WEATHER",
+        "R_CLOCK_OUT_BEFORE_LEAVING"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "WEEKDAY_HOME_DAY",
+      "scenarioName": "Weekday at home during the day",
+      "category": "home",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WORK_BREAK_AND_STRETCH"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "reading",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "ARRIVE_TRANSIT_HUB",
+      "scenarioName": "Arrive at transit hub",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "productivity",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "LATE_NIGHT_OVERTIME",
+      "scenarioName": "Late-night overtime",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WRAP_UP_AND_REST_AFTER_WORK",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_OVERTIME",
+      "scenarioName": "Weekend overtime",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "EVENING_AT_OFFICE",
+      "scenarioName": "Evening at the office",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "O_SHOW_TODAY_TODO",
+        "R_WRAP_UP_AND_REST_AFTER_WORK"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "navigation",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "MORNING_EXERCISE",
+      "scenarioName": "Morning exercise",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "SHOPPING",
+      "scenarioName": "Shopping",
+      "category": "shopping",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "HOME_EVENING",
+      "scenarioName": "Evening at home",
+      "category": "home",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "entertainment",
+        "music",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "ARRIVE_DINING",
+      "scenarioName": "Arrive at a restaurant/café",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "HOME_LATE_NIGHT",
+      "scenarioName": "Late night at home",
+      "category": "sleep",
+      "defaultActionIds": [
+        "R_SLEEP_SOON_AND_CHARGE",
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "O_SHOW_SCHEDULE"
+      ],
+      "defaultAppCategories": [
+        "music",
+        "reading",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_MORNING",
+      "scenarioName": "Weekend morning",
+      "category": "morning",
+      "defaultActionIds": [
+        "O_SHOW_WEATHER",
+        "O_SHOW_SCHEDULE",
+        "R_WEEKEND_OR_MORNING_GREETING"
+      ],
+      "defaultAppCategories": [
+        "news",
+        "entertainment",
+        "game"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_OUTING",
+      "scenarioName": "Weekend outing",
+      "category": "shopping",
+      "defaultActionIds": [
+        "O_SHOW_WEATHER",
+        "O_SHOW_NEARBY_OPTIONS",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "LATE_RETURN_HOME",
+      "scenarioName": "Late return home",
+      "category": "home",
+      "defaultActionIds": [
+        "R_SLEEP_SOON_AND_CHARGE",
+        "O_TURN_ON_DND"
+      ],
+      "defaultAppCategories": [
+        "music",
+        "health",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "HOME_AFTERNOON",
+      "scenarioName": "Afternoon at home",
+      "category": "home",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "entertainment",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "MORNING_COFFEE",
+      "scenarioName": "Morning coffee",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_PLAN_DAY_OVER_COFFEE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "news",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "GYM_WORKOUT",
+      "scenarioName": "Gym workout",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_POST_WORKOUT_RECOVERY"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "GYM_REST",
+      "scenarioName": "Gym rest",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "GYM_LONG_STAY",
+      "scenarioName": "Long stay at the gym",
+      "category": "exercise",
+      "defaultActionIds": [
+        "R_POST_WORKOUT_RECOVERY",
+        "O_START_CONTEXT_TIMER"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "OUTDOOR_RUNNING",
+      "scenarioName": "Outdoor running",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_OUTDOOR_HYDRATE_AND_REST"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_OUTDOOR_WALK",
+      "scenarioName": "Weekend outdoor walk",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_SHOW_WALKING_ROUTE",
+        "O_SHOW_WEATHER",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "CYCLING",
+      "scenarioName": "Cycling",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WEATHER",
+        "R_COMMUTE_STEADY_AND_SAFE"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "COMMUTE_MORNING",
+      "scenarioName": "Morning commute arrival at office",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WORK_START_SETTLE_IN"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "COMMUTE_EVENING",
+      "scenarioName": "Arrive home after work",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "music",
+        "social",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "HOME_TO_GYM",
+      "scenarioName": "Arrive at the gym from home",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "WAKE_UP",
+      "scenarioName": "Wake up at home",
+      "category": "morning",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_WEATHER",
+        "R_WEEKEND_OR_MORNING_GREETING"
+      ],
+      "defaultAppCategories": [
+        "news",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "PARK_WALK",
+      "scenarioName": "Short walk in the park",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WALKING_ROUTE",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "health",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "LONG_DRIVE",
+      "scenarioName": "Long drive",
+      "category": "commute",
+      "defaultActionIds": [
+        "R_LONG_DRIVE_REST",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "CAFE_STAY",
+      "scenarioName": "Staying at a café",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "O_SHOW_SCHEDULE",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "QUIET_HOME",
+      "scenarioName": "Quiet time at home",
+      "category": "home",
+      "defaultActionIds": [
+        "R_HOME_RELAX_AND_RESET",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "music",
+        "game"
+      ]
+    },
+    {
+      "scenarioId": "NOISY_GATHERING",
+      "scenarioName": "Noisy gathering",
+      "category": "social",
+      "defaultActionIds": [
+        "O_ENABLE_VIBRATION",
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "R_NOISY_ENV_STAY_SAFE"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "music",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "LONG_OUTDOOR_WALK",
+      "scenarioName": "Long outdoor walk",
+      "category": "exercise",
+      "defaultActionIds": [
+        "R_OUTDOOR_HYDRATE_AND_REST",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "LATE_NIGHT_NOISY",
+      "scenarioName": "Noisy place late at night",
+      "category": "social",
+      "defaultActionIds": [
+        "O_ENABLE_VIBRATION",
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "R_NOISY_ENV_STAY_SAFE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "DELIVERY_AT_OFFICE",
+      "scenarioName": "Delivery at the office",
+      "category": "delivery",
+      "defaultActionIds": [
+        "O_SHOW_PICKUP_DETAILS",
+        "R_DELIVERY_PICKUP_REMINDER"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "productivity",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "EDUCATION_WAITING",
+      "scenarioName": "Waiting during class/tutoring",
+      "category": "education",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WAITING_TIME_USEFUL"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "game"
+      ]
+    },
+    {
+      "scenarioId": "EDUCATION_LONG_SIT",
+      "scenarioName": "Long sitting during class/tutoring",
+      "category": "education",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "HOME_LUNCH",
+      "scenarioName": "Lunch at home",
+      "category": "dining",
+      "defaultActionIds": [
+        "R_MEAL_BREAK",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "AFTER_LUNCH_WALK",
+      "scenarioName": "After-meal walk",
+      "category": "health",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WALKING_ROUTE",
+        "R_AFTER_MEAL_WALK"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "MEETING_UPCOMING",
+      "scenarioName": "Meeting starting soon",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_MEETING_DETAILS",
+        "O_TURN_ON_DND",
+        "R_PREPARE_FOR_MEETING"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "navigation",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "IN_MEETING",
+      "scenarioName": "In a meeting",
+      "category": "work",
+      "defaultActionIds": [
+        "O_TURN_ON_DND",
+        "O_OPEN_NOTES_QUICK_ENTRY",
+        "R_CAPTURE_MEETING_FOLLOW_UPS"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "social",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "REMOTE_MEETING",
+      "scenarioName": "Leaving for an offsite meeting",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "O_SHOW_MEETING_DETAILS",
+        "R_DEPART_EARLY_FOR_OFFSITE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "productivity",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "NO_MEETINGS",
+      "scenarioName": "No meetings today",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "R_DEEP_WORK_WINDOW"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "CAL_HAS_EVENTS",
+      "scenarioName": "Today's calendar reminder",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "R_CALENDAR_QUICK_LOOK"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "navigation",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "RETURN_OFFICE_AFTER_LUNCH",
+      "scenarioName": "Return to the office after lunch",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_START_SETTLE_IN"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "HOME_AFTER_GYM",
+      "scenarioName": "Home after workout",
+      "category": "exercise",
+      "defaultActionIds": [
+        "R_POST_WORKOUT_RECOVERY",
+        "O_START_CONTEXT_TIMER"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "COMMUTE_FROM_HOME",
+      "scenarioName": "Commuting from home",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "R_COMMUTE_STEADY_AND_SAFE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_TO_CAFE",
+      "scenarioName": "From office to café",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "shopping",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "LATE_NIGHT_PHONE",
+      "scenarioName": "Late-night phone use while lying down",
+      "category": "sleep",
+      "defaultActionIds": [
+        "R_SLEEP_SOON_AND_CHARGE",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "reading",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_FOCUS_LONG",
+      "scenarioName": "Long focused office session",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "HOME_DARK_LONG",
+      "scenarioName": "Home too dark for too long during the day",
+      "category": "health",
+      "defaultActionIds": [
+        "R_OPEN_CURTAINS_OR_LIGHT",
+        "O_SHOW_WEATHER",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "reading",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "UNKNOWN_LONG_STAY",
+      "scenarioName": "Long stay at an unknown location",
+      "category": "other",
+      "defaultActionIds": [
+        "O_PROMPT_ADD_FREQUENT_PLACE",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "shopping"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_LONG_SESSION",
+      "scenarioName": "Extra-long office session",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "health",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "HOME_EVENING_DARK",
+      "scenarioName": "Dark evening at home",
+      "category": "home",
+      "defaultActionIds": [
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "entertainment",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "HOME_EVENING_NOISY",
+      "scenarioName": "Noisy evening at home",
+      "category": "home",
+      "defaultActionIds": [
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "O_ENABLE_VIBRATION",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "music",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "SCHOOL_QUIET",
+      "scenarioName": "Quiet period at school",
+      "category": "education",
+      "defaultActionIds": [
+        "O_TURN_ON_SILENT_MODE",
+        "R_DEEP_WORK_WINDOW"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "CAFE_QUIET",
+      "scenarioName": "Quiet café",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_TURN_ON_SILENT_MODE",
+        "O_SHOW_SCHEDULE",
+        "R_DEEP_WORK_WINDOW"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "TRAIN_DEPARTURE",
+      "scenarioName": "High-speed rail trip reminder",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "news",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "FLIGHT_BOARDING",
+      "scenarioName": "Flight boarding reminder",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "news",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "HOTEL_CHECKIN",
+      "scenarioName": "Hotel check-in reminder",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_BOOKING_DETAILS",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "MOVIE_TICKET",
+      "scenarioName": "Movie ticket reminder",
+      "category": "entertainment",
+      "defaultActionIds": [
+        "O_SHOW_BOOKING_DETAILS",
+        "O_SHOW_PAYMENT_QR",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "entertainment",
+        "social",
+        "shopping"
+      ]
+    },
+    {
+      "scenarioId": "HOSPITAL_APPOINTMENT",
+      "scenarioName": "Hospital appointment reminder",
+      "category": "health",
+      "defaultActionIds": [
+        "O_SHOW_BOOKING_DETAILS",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "RIDESHARE_PICKUP",
+      "scenarioName": "Rideshare pickup reminder",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "music"
+      ]
+    }
+  ]
+}
