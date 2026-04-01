@@ -1,0 +1,137 @@
+{
+  "seed": 7,
+  "samples_per_scenario": 1000,
+  "scenarios": {
+    "RETURN_OFFICE_AFTER_COFFEE": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_START_SETTLE_IN"
+      ],
+      "default_app_categories": [
+        "productivity",
+        "music",
+        "news"
+      ]
+    },
+    "QUIET_CAFE_BEFORE_MEETING": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "O_SHOW_MEETING_DETAILS",
+        "R_PREPARE_FOR_MEETING",
+        "O_TURN_ON_SILENT_MODE"
+      ],
+      "default_app_categories": [
+        "productivity",
+        "navigation",
+        "reading"
+      ]
+    },
+    "POST_LUNCH_WALK_TO_OFFICE": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "R_AFTER_MEAL_WALK",
+        "O_SHOW_WALKING_ROUTE",
+        "O_SHOW_SCHEDULE"
+      ],
+      "default_app_categories": [
+        "navigation",
+        "health",
+        "music"
+      ]
+    },
+    "HOME_DEEP_WORK_MORNING": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "O_SHOW_TODAY_TODO",
+        "R_DEEP_WORK_WINDOW",
+        "O_SHOW_SCHEDULE"
+      ],
+      "default_app_categories": [
+        "productivity",
+        "reading",
+        "music"
+      ]
+    },
+    "TRANSIT_WAIT_WITH_UPCOMING_MEETING": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "O_SHOW_MEETING_DETAILS",
+        "R_PREPARE_FOR_MEETING",
+        "O_SHOW_TRAVEL_INFO"
+      ],
+      "default_app_categories": [
+        "navigation",
+        "productivity",
+        "news"
+      ]
+    },
+    "GYM_TO_CAFE_RECOVERY": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "R_POST_WORKOUT_RECOVERY",
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_PAYMENT_QR"
+      ],
+      "default_app_categories": [
+        "health",
+        "music",
+        "social"
+      ]
+    },
+    "LATE_OFFICE_PRE_DEPARTURE_WRAPUP": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "R_WRAP_UP_AND_REST_AFTER_WORK",
+        "O_SHOW_TODAY_TODO",
+        "R_CLOCK_OUT_BEFORE_LEAVING"
+      ],
+      "default_app_categories": [
+        "productivity",
+        "health",
+        "music"
+      ]
+    },
+    "UNKNOWN_LONG_STAY_WITH_BOOKING": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "R_CHECK_TRIP_OR_BOOKING_INFO",
+        "O_SHOW_BOOKING_DETAILS",
+        "O_PROMPT_ADD_FREQUENT_PLACE"
+      ],
+      "default_app_categories": [
+        "navigation",
+        "social",
+        "shopping"
+      ]
+    },
+    "HOME_DARK_WITH_CALENDAR_EVENT": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "R_OPEN_CURTAINS_OR_LIGHT",
+        "O_SHOW_SCHEDULE",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "default_app_categories": [
+        "health",
+        "reading",
+        "music"
+      ]
+    },
+    "AFTER_WORK_OUTDOOR_RESET": {
+      "rows_written": 1000,
+      "default_action_ids": [
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_WALKING_ROUTE",
+        "R_OUTDOOR_HYDRATE_AND_REST"
+      ],
+      "default_app_categories": [
+        "navigation",
+        "health",
+        "music"
+      ]
+    }
+  },
+  "total_rows": 10000
+}
