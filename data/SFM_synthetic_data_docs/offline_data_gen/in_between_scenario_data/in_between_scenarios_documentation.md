@@ -8,23 +8,6 @@ Design rules used here:
 - important features are listed explicitly, while remaining features must still be adjusted according to `state_current` and realistic context
 - `scenarioId` remains metadata only; it is not part of the model input
 
-## RETURN_OFFICE_AFTER_COFFEE — Return to office after coffee
-- **Type:** `interpolation`
-- **Category:** `work`
-- **Parent scenarios:** `ARRIVE_OFFICE`, `CAFE_STAY`, `RETURN_OFFICE_AFTER_LUNCH`
-- **Why this is a good test:** No exact legacy rule captures the transition from a short cafe stop back into work mode. Exact rules tend to fire either a cafe leisure action or a generic office-arrival action, but not a context-aware return-to-work action.
-- **Allowed `state_current`:** `office_arriving`, `office_working`
-- **Allowed `precondition`:** `at_cafe`, `at_cafe_quiet`
-- **Allowed `ps_time`:** `morning`, `forenoon`
-- **Allowed `ps_dayType`:** `workday`
-- **Rule-dependent fixed fields:** `{"wifiLost": 0, "wifiLostCategory": "unknown", "cal_inMeeting": 0}`
-- **Calendar mode:** `optional_light`
-- **Allowed `cal_nextLocation`:** `unknown`, `work`
-- **SMS generation mode:** `none`
-- **Default RO ranking:** `O_SHOW_TODAY_TODO`, `O_SHOW_SCHEDULE`, `R_WORK_START_SETTLE_IN`
-- **Default App ranking:** `productivity`, `music`, `news`
-- **Remaining-feature alignment note:** Important features are return-to-work state, cafe precondition, workday, and morning/forenoon timing. Remaining features should follow office state alignment: work location, realistic office phone postures, wifi/cellular mix, and activity states consistent with stationary/walking office motion.
-
 ## QUIET_CAFE_BEFORE_MEETING — Quiet cafe before meeting
 - **Type:** `compositional`
 - **Category:** `work`
@@ -42,39 +25,22 @@ Design rules used here:
 - **Default App ranking:** `productivity`, `navigation`, `reading`
 - **Remaining-feature alignment note:** The scenario keeps the state at a quiet cafe, so sound must stay quiet. The calendar is the key extra signal. Remaining features should stay cafe-realistic: stationary or light walking, cafe location, phone on-desk/face-up/in-use patterns, and mostly wifi with some cellular.
 
-## POST_LUNCH_WALK_TO_OFFICE — Post-lunch walk back to office
-- **Type:** `boundary`
-- **Category:** `work`
-- **Parent scenarios:** `OFFICE_LUNCH_OUT`, `AFTER_LUNCH_WALK`, `RETURN_OFFICE_AFTER_LUNCH`
-- **Why this is a good test:** This is between lunch-out, walking, and returning-to-office. Exact rules often split those cases and miss the mixed intent of an after-meal walk that is already transitioning back toward work.
-- **Allowed `state_current`:** `outdoor_walking`
-- **Allowed `precondition`:** `at_restaurant_lunch`, `at_cafe`
-- **Allowed `ps_time`:** `lunch`, `afternoon`
-- **Allowed `ps_dayType`:** `workday`
-- **Rule-dependent fixed fields:** `{"wifiLost": 0, "wifiLostCategory": "unknown", "cal_inMeeting": 0}`
-- **Calendar mode:** `optional_light`
-- **Allowed `cal_nextLocation`:** `work`
-- **SMS generation mode:** `none`
-- **Default RO ranking:** `R_AFTER_MEAL_WALK`, `O_SHOW_WALKING_ROUTE`, `O_SHOW_SCHEDULE`
-- **Default App ranking:** `navigation`, `health`, `music`
-- **Remaining-feature alignment note:** Keep the state outdoor_walking, so location must stay outdoor and motion must stay walking. The office-return intent is represented by the lunch-related precondition and work next-location rather than a new state taxonomy.
-
-## HOME_DEEP_WORK_MORNING — Deep work morning at home
-- **Type:** `interpolation`
-- **Category:** `work`
-- **Parent scenarios:** `WEEKDAY_HOME_DAY`, `NO_MEETINGS`, `CAL_HAS_EVENTS`
-- **Why this is a good test:** There is no exact named scenario for a clean remote deep-work block at home in the morning. Rules can identify home-work or no-meeting day, but they do not express the combined intent as one scenario.
-- **Allowed `state_current`:** `home_morning_workday`, `home_daytime_workday`
-- **Allowed `precondition`:** `home_sleeping`, `home_sleeping_lying`, `home_morning_workday`
-- **Allowed `ps_time`:** `dawn`, `morning`, `forenoon`
-- **Allowed `ps_dayType`:** `workday`
+## GYM_TO_CAFE_RECOVERY — Gym-to-cafe recovery
+- **Type:** `compositional`
+- **Category:** `exercise`
+- **Parent scenarios:** `HOME_AFTER_GYM`, `OFFICE_TO_CAFE`, `CAFE_STAY`
+- **Why this is a good test:** This is a realistic post-workout decompression state, but it is neither a pure gym state nor a pure cafe leisure state. Rules would usually classify one parent and lose the other intent.
+- **Allowed `state_current`:** `at_cafe`, `at_cafe_quiet`
+- **Allowed `precondition`:** `at_gym`, `at_gym_exercising`
+- **Allowed `ps_time`:** `afternoon`, `evening`
+- **Allowed `ps_dayType`:** `workday`, `weekend`, `holiday`
 - **Rule-dependent fixed fields:** `{"cal_hasUpcoming": 0, "cal_eventCount": 0, "cal_inMeeting": 0, "wifiLost": 0, "wifiLostCategory": "unknown"}`
 - **Calendar mode:** `none`
 - **Allowed `cal_nextLocation`:** `unknown`
 - **SMS generation mode:** `none`
-- **Default RO ranking:** `O_SHOW_TODAY_TODO`, `R_DEEP_WORK_WINDOW`, `O_SHOW_SCHEDULE`
-- **Default App ranking:** `productivity`, `reading`, `music`
-- **Remaining-feature alignment note:** This is a home-work scenario without meeting pressure. Remaining features should stay home-work realistic: mostly stationary, quiet or normal sound, wifi-dominant network, and phone on-desk / in-use / face-up patterns rather than commute or social patterns.
+- **Default RO ranking:** `R_POST_WORKOUT_RECOVERY`, `R_ENJOY_LEISURE_MOMENT`, `O_SHOW_PAYMENT_QR`
+- **Default App ranking:** `health`, `music`, `social`
+- **Remaining-feature alignment note:** The recovery intent is represented by the gym precondition, not by inventing a new recovery state. Remaining features must stay cafe-consistent, but battery and activity-duration can reflect that the person has recently been active.
 
 ## TRANSIT_WAIT_WITH_UPCOMING_MEETING — Transit wait with upcoming meeting
 - **Type:** `compositional`
@@ -93,22 +59,59 @@ Design rules used here:
 - **Default App ranking:** `navigation`, `productivity`, `news`
 - **Remaining-feature alignment note:** Keep the user stationary at the transit node. Remaining features should stay hub-realistic: cellular network, normal/noisy sound, face-up / in-use / pocket phone states, and sitting or standing activity states.
 
-## GYM_TO_CAFE_RECOVERY — Gym-to-cafe recovery
-- **Type:** `compositional`
-- **Category:** `exercise`
-- **Parent scenarios:** `HOME_AFTER_GYM`, `OFFICE_TO_CAFE`, `CAFE_STAY`
-- **Why this is a good test:** This is a realistic post-workout decompression state, but it is neither a pure gym state nor a pure cafe leisure state. Rules would usually classify one parent and lose the other intent.
-- **Allowed `state_current`:** `at_cafe`, `at_cafe_quiet`
-- **Allowed `precondition`:** `at_gym`, `at_gym_exercising`
-- **Allowed `ps_time`:** `afternoon`, `evening`
-- **Allowed `ps_dayType`:** `workday`, `weekend`, `holiday`
+## HOME_DEEP_WORK_MORNING — Deep work morning at home
+- **Type:** `interpolation`
+- **Category:** `work`
+- **Parent scenarios:** `WEEKDAY_HOME_DAY`, `NO_MEETINGS`, `CAL_HAS_EVENTS`
+- **Why this is a good test:** There is no exact named scenario for a clean remote deep-work block at home in the morning. Rules can identify home-work or no-meeting day, but they do not express the combined intent as one scenario.
+- **Allowed `state_current`:** `home_morning_workday`, `home_daytime_workday`
+- **Allowed `precondition`:** `home_sleeping`, `home_sleeping_lying`, `home_morning_workday`
+- **Allowed `ps_time`:** `dawn`, `morning`, `forenoon`
+- **Allowed `ps_dayType`:** `workday`
 - **Rule-dependent fixed fields:** `{"cal_hasUpcoming": 0, "cal_eventCount": 0, "cal_inMeeting": 0, "wifiLost": 0, "wifiLostCategory": "unknown"}`
 - **Calendar mode:** `none`
 - **Allowed `cal_nextLocation`:** `unknown`
 - **SMS generation mode:** `none`
-- **Default RO ranking:** `R_POST_WORKOUT_RECOVERY`, `R_ENJOY_LEISURE_MOMENT`, `O_SHOW_PAYMENT_QR`
-- **Default App ranking:** `health`, `music`, `social`
-- **Remaining-feature alignment note:** The recovery intent is represented by the gym precondition, not by inventing a new recovery state. Remaining features must stay cafe-consistent, but battery and activity-duration can reflect that the person has recently been active.
+- **Default RO ranking:** `O_SHOW_TODAY_TODO`, `R_DEEP_WORK_WINDOW`, `O_SHOW_SCHEDULE`
+- **Default App ranking:** `productivity`, `reading`, `music`
+- **Remaining-feature alignment note:** This is a home-work scenario without meeting pressure. Remaining features should stay home-work realistic: mostly stationary, quiet or normal sound, wifi-dominant network, and phone on-desk / in-use / face-up patterns rather than commute or social patterns.
+
+
+## RETURN_OFFICE_AFTER_COFFEE — Return to office after coffee
+- **Type:** `interpolation`
+- **Category:** `work`
+- **Parent scenarios:** `ARRIVE_OFFICE`, `CAFE_STAY`, `RETURN_OFFICE_AFTER_LUNCH`
+- **Why this is a good test:** No exact legacy rule captures the transition from a short cafe stop back into work mode. Exact rules tend to fire either a cafe leisure action or a generic office-arrival action, but not a context-aware return-to-work action.
+- **Allowed `state_current`:** `office_arriving`, `office_working`
+- **Allowed `precondition`:** `at_cafe`, `at_cafe_quiet`
+- **Allowed `ps_time`:** `morning`, `forenoon`
+- **Allowed `ps_dayType`:** `workday`
+- **Rule-dependent fixed fields:** `{"wifiLost": 0, "wifiLostCategory": "unknown", "cal_inMeeting": 0}`
+- **Calendar mode:** `optional_light`
+- **Allowed `cal_nextLocation`:** `unknown`, `work`
+- **SMS generation mode:** `none`
+- **Default RO ranking:** `O_SHOW_TODAY_TODO`, `O_SHOW_SCHEDULE`, `R_WORK_START_SETTLE_IN`
+- **Default App ranking:** `productivity`, `music`, `news`
+- **Remaining-feature alignment note:** Important features are return-to-work state, cafe precondition, workday, and morning/forenoon timing. Remaining features should follow office state alignment: work location, realistic office phone postures, wifi/cellular mix, and activity states consistent with stationary/walking office motion.
+
+
+## POST_LUNCH_WALK_TO_OFFICE — Post-lunch walk back to office
+- **Type:** `boundary`
+- **Category:** `work`
+- **Parent scenarios:** `OFFICE_LUNCH_OUT`, `AFTER_LUNCH_WALK`, `RETURN_OFFICE_AFTER_LUNCH`
+- **Why this is a good test:** This is between lunch-out, walking, and returning-to-office. Exact rules often split those cases and miss the mixed intent of an after-meal walk that is already transitioning back toward work.
+- **Allowed `state_current`:** `outdoor_walking`
+- **Allowed `precondition`:** `at_restaurant_lunch`, `at_cafe`
+- **Allowed `ps_time`:** `lunch`, `afternoon`
+- **Allowed `ps_dayType`:** `workday`
+- **Rule-dependent fixed fields:** `{"wifiLost": 0, "wifiLostCategory": "unknown", "cal_inMeeting": 0}`
+- **Calendar mode:** `optional_light`
+- **Allowed `cal_nextLocation`:** `work`
+- **SMS generation mode:** `none`
+- **Default RO ranking:** `R_AFTER_MEAL_WALK`, `O_SHOW_WALKING_ROUTE`, `O_SHOW_SCHEDULE`
+- **Default App ranking:** `navigation`, `health`, `music`
+- **Remaining-feature alignment note:** Keep the state outdoor_walking, so location must stay outdoor and motion must stay walking. The office-return intent is represented by the lunch-related precondition and work next-location rather than a new state taxonomy.
+
 
 ## LATE_OFFICE_PRE_DEPARTURE_WRAPUP — Late office pre-departure wrap-up
 - **Type:** `boundary`
