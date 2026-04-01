@@ -3,3 +3,4 @@ data/bandit_v0_firststep_no_triggers_1000eps_default_data.jsonl
 data/*.jsonl
 data/*.json
 data/bandit_train_data_updated_preconditions_and_state_current/*.jsonl
+data/bandit_train_data_unique_samples/bandit_v0_65_scenaroios_unique_support_to_2k_samples.jsonl

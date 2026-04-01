@@ -1,0 +1,545 @@
+{
+  "rules_source": "default_rules_1_english_with_preconditions_and_state_current.json",
+  "global_action_space_source": "global_action_space_english.json",
+  "count_report_source": "metainfo/scenario_unique_samples_count.md",
+  "min_rows_per_scenario": 2000,
+  "seed": 7,
+  "included_scenarios": [
+    "AFTER_LUNCH_WALK",
+    "ARRIVE_DINING",
+    "ARRIVE_OFFICE",
+    "ARRIVE_TRANSIT_HUB",
+    "CAFE_QUIET",
+    "CAFE_STAY",
+    "CAL_HAS_EVENTS",
+    "COMMUTE_EVENING",
+    "COMMUTE_FROM_HOME",
+    "COMMUTE_MORNING",
+    "CYCLING",
+    "DELIVERY_AT_OFFICE",
+    "EDUCATION_LONG_SIT",
+    "EDUCATION_WAITING",
+    "EVENING_AT_OFFICE",
+    "FLIGHT_BOARDING",
+    "GYM_LONG_STAY",
+    "GYM_REST",
+    "GYM_WORKOUT",
+    "HOME_AFTERNOON",
+    "HOME_AFTER_GYM",
+    "HOME_DARK_LONG",
+    "HOME_EVENING",
+    "HOME_EVENING_DARK",
+    "HOME_EVENING_NOISY",
+    "HOME_LATE_NIGHT",
+    "HOME_LUNCH",
+    "HOME_TO_GYM",
+    "HOSPITAL_APPOINTMENT",
+    "HOTEL_CHECKIN",
+    "IN_MEETING",
+    "LATE_NIGHT_NOISY",
+    "LATE_NIGHT_OVERTIME",
+    "LATE_NIGHT_PHONE",
+    "LATE_RETURN_HOME",
+    "LEAVE_OFFICE",
+    "LONG_DRIVE",
+    "LONG_OUTDOOR_WALK",
+    "MEETING_UPCOMING",
+    "MORNING_COFFEE",
+    "MORNING_EXERCISE",
+    "MOVIE_TICKET",
+    "NOISY_GATHERING",
+    "NO_MEETINGS",
+    "OFFICE_AFTERNOON",
+    "OFFICE_FOCUS_LONG",
+    "OFFICE_LONG_SESSION",
+    "OFFICE_LUNCH_OUT",
+    "OFFICE_TO_CAFE",
+    "OUTDOOR_RUNNING",
+    "PARK_WALK",
+    "QUIET_HOME",
+    "REMOTE_MEETING",
+    "RETURN_OFFICE_AFTER_LUNCH",
+    "RIDESHARE_PICKUP",
+    "SCHOOL_QUIET",
+    "SHOPPING",
+    "TRAIN_DEPARTURE",
+    "UNKNOWN_LONG_STAY",
+    "WAKE_UP",
+    "WEEKDAY_HOME_DAY",
+    "WEEKEND_MORNING",
+    "WEEKEND_OUTDOOR_WALK",
+    "WEEKEND_OUTING",
+    "WEEKEND_OVERTIME"
+  ],
+  "total_rows_written": 245608,
+  "count_mismatches": {
+    "AFTER_LUNCH_WALK": {
+      "expected": 7680,
+      "enumerated": 2560
+    },
+    "HOME_LATE_NIGHT": {
+      "expected": 3072,
+      "enumerated": 1536
+    },
+    "HOME_LUNCH": {
+      "expected": 2880,
+      "enumerated": 960
+    },
+    "IN_MEETING": {
+      "expected": 2944,
+      "enumerated": 1472
+    },
+    "LATE_NIGHT_NOISY": {
+      "expected": 4212,
+      "enumerated": 756
+    },
+    "LATE_NIGHT_PHONE": {
+      "expected": 576,
+      "enumerated": 288
+    },
+    "LATE_RETURN_HOME": {
+      "expected": 4608,
+      "enumerated": 1152
+    },
+    "MEETING_UPCOMING": {
+      "expected": 4864,
+      "enumerated": 85
+    },
+    "MORNING_COFFEE": {
+      "expected": 6912,
+      "enumerated": 3456
+    },
+    "MORNING_EXERCISE": {
+      "expected": 1944,
+      "enumerated": 648
+    },
+    "NOISY_GATHERING": {
+      "expected": 4212,
+      "enumerated": 1512
+    },
+    "QUIET_HOME": {
+      "expected": 15840,
+      "enumerated": 7920
+    },
+    "REMOTE_MEETING": {
+      "expected": 24576,
+      "enumerated": 396
+    },
+    "WAKE_UP": {
+      "expected": 1152,
+      "enumerated": 576
+    },
+    "WEEKEND_OUTDOOR_WALK": {
+      "expected": 324,
+      "enumerated": 216
+    },
+    "WEEKEND_OUTING": {
+      "expected": 4860,
+      "enumerated": 3240
+    }
+  },
+  "per_scenario": {
+    "AFTER_LUNCH_WALK": {
+      "unique_count_reported": 7680,
+      "unique_count_enumerated": 2560,
+      "final_rows_written": 2560,
+      "augmented": false
+    },
+    "ARRIVE_DINING": {
+      "unique_count_reported": 16128,
+      "unique_count_enumerated": 16128,
+      "final_rows_written": 16128,
+      "augmented": false
+    },
+    "ARRIVE_OFFICE": {
+      "unique_count_reported": 25920,
+      "unique_count_enumerated": 25920,
+      "final_rows_written": 25920,
+      "augmented": false
+    },
+    "ARRIVE_TRANSIT_HUB": {
+      "unique_count_reported": 6912,
+      "unique_count_enumerated": 6912,
+      "final_rows_written": 6912,
+      "augmented": false
+    },
+    "CAFE_QUIET": {
+      "unique_count_reported": 768,
+      "unique_count_enumerated": 768,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "CAFE_STAY": {
+      "unique_count_reported": 4608,
+      "unique_count_enumerated": 4608,
+      "final_rows_written": 4608,
+      "augmented": false
+    },
+    "CAL_HAS_EVENTS": {
+      "unique_count_reported": 3648,
+      "unique_count_enumerated": 3648,
+      "final_rows_written": 3648,
+      "augmented": false
+    },
+    "COMMUTE_EVENING": {
+      "unique_count_reported": 5888,
+      "unique_count_enumerated": 5888,
+      "final_rows_written": 5888,
+      "augmented": false
+    },
+    "COMMUTE_FROM_HOME": {
+      "unique_count_reported": 180,
+      "unique_count_enumerated": 180,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "COMMUTE_MORNING": {
+      "unique_count_reported": 2880,
+      "unique_count_enumerated": 2880,
+      "final_rows_written": 2880,
+      "augmented": false
+    },
+    "CYCLING": {
+      "unique_count_reported": 864,
+      "unique_count_enumerated": 864,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "DELIVERY_AT_OFFICE": {
+      "unique_count_reported": 2432,
+      "unique_count_enumerated": 2432,
+      "final_rows_written": 2432,
+      "augmented": false
+    },
+    "EDUCATION_LONG_SIT": {
+      "unique_count_reported": 3072,
+      "unique_count_enumerated": 3072,
+      "final_rows_written": 3072,
+      "augmented": false
+    },
+    "EDUCATION_WAITING": {
+      "unique_count_reported": 5760,
+      "unique_count_enumerated": 5760,
+      "final_rows_written": 5760,
+      "augmented": false
+    },
+    "EVENING_AT_OFFICE": {
+      "unique_count_reported": 1920,
+      "unique_count_enumerated": 1920,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "FLIGHT_BOARDING": {
+      "unique_count_reported": 1836,
+      "unique_count_enumerated": 1836,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "GYM_LONG_STAY": {
+      "unique_count_reported": 1296,
+      "unique_count_enumerated": 1296,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "GYM_REST": {
+      "unique_count_reported": 432,
+      "unique_count_enumerated": 432,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "GYM_WORKOUT": {
+      "unique_count_reported": 216,
+      "unique_count_enumerated": 216,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "HOME_AFTERNOON": {
+      "unique_count_reported": 5760,
+      "unique_count_enumerated": 5760,
+      "final_rows_written": 5760,
+      "augmented": false
+    },
+    "HOME_AFTER_GYM": {
+      "unique_count_reported": 6336,
+      "unique_count_enumerated": 6336,
+      "final_rows_written": 6336,
+      "augmented": false
+    },
+    "HOME_DARK_LONG": {
+      "unique_count_reported": 2160,
+      "unique_count_enumerated": 2160,
+      "final_rows_written": 2160,
+      "augmented": false
+    },
+    "HOME_EVENING": {
+      "unique_count_reported": 8832,
+      "unique_count_enumerated": 8832,
+      "final_rows_written": 8832,
+      "augmented": false
+    },
+    "HOME_EVENING_DARK": {
+      "unique_count_reported": 2304,
+      "unique_count_enumerated": 2304,
+      "final_rows_written": 2304,
+      "augmented": false
+    },
+    "HOME_EVENING_NOISY": {
+      "unique_count_reported": 864,
+      "unique_count_enumerated": 864,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "HOME_LATE_NIGHT": {
+      "unique_count_reported": 3072,
+      "unique_count_enumerated": 1536,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "HOME_LUNCH": {
+      "unique_count_reported": 2880,
+      "unique_count_enumerated": 960,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "HOME_TO_GYM": {
+      "unique_count_reported": 3240,
+      "unique_count_enumerated": 3240,
+      "final_rows_written": 3240,
+      "augmented": false
+    },
+    "HOSPITAL_APPOINTMENT": {
+      "unique_count_reported": 2052,
+      "unique_count_enumerated": 2052,
+      "final_rows_written": 2052,
+      "augmented": false
+    },
+    "HOTEL_CHECKIN": {
+      "unique_count_reported": 4608,
+      "unique_count_enumerated": 4608,
+      "final_rows_written": 4608,
+      "augmented": false
+    },
+    "IN_MEETING": {
+      "unique_count_reported": 2944,
+      "unique_count_enumerated": 1472,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "LATE_NIGHT_NOISY": {
+      "unique_count_reported": 4212,
+      "unique_count_enumerated": 756,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "LATE_NIGHT_OVERTIME": {
+      "unique_count_reported": 3840,
+      "unique_count_enumerated": 3840,
+      "final_rows_written": 3840,
+      "augmented": false
+    },
+    "LATE_NIGHT_PHONE": {
+      "unique_count_reported": 576,
+      "unique_count_enumerated": 288,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "LATE_RETURN_HOME": {
+      "unique_count_reported": 4608,
+      "unique_count_enumerated": 1152,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "LEAVE_OFFICE": {
+      "unique_count_reported": 648,
+      "unique_count_enumerated": 648,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "LONG_DRIVE": {
+      "unique_count_reported": 288,
+      "unique_count_enumerated": 288,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "LONG_OUTDOOR_WALK": {
+      "unique_count_reported": 162,
+      "unique_count_enumerated": 162,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "MEETING_UPCOMING": {
+      "unique_count_reported": 4864,
+      "unique_count_enumerated": 85,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "MORNING_COFFEE": {
+      "unique_count_reported": 6912,
+      "unique_count_enumerated": 3456,
+      "final_rows_written": 3456,
+      "augmented": false
+    },
+    "MORNING_EXERCISE": {
+      "unique_count_reported": 1944,
+      "unique_count_enumerated": 648,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "MOVIE_TICKET": {
+      "unique_count_reported": 14976,
+      "unique_count_enumerated": 14976,
+      "final_rows_written": 14976,
+      "augmented": false
+    },
+    "NOISY_GATHERING": {
+      "unique_count_reported": 4212,
+      "unique_count_enumerated": 1512,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "NO_MEETINGS": {
+      "unique_count_reported": 2880,
+      "unique_count_enumerated": 2880,
+      "final_rows_written": 2880,
+      "augmented": false
+    },
+    "OFFICE_AFTERNOON": {
+      "unique_count_reported": 2208,
+      "unique_count_enumerated": 2208,
+      "final_rows_written": 2208,
+      "augmented": false
+    },
+    "OFFICE_FOCUS_LONG": {
+      "unique_count_reported": 192,
+      "unique_count_enumerated": 192,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "OFFICE_LONG_SESSION": {
+      "unique_count_reported": 2208,
+      "unique_count_enumerated": 2208,
+      "final_rows_written": 2208,
+      "augmented": false
+    },
+    "OFFICE_LUNCH_OUT": {
+      "unique_count_reported": 1752,
+      "unique_count_enumerated": 1752,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "OFFICE_TO_CAFE": {
+      "unique_count_reported": 9216,
+      "unique_count_enumerated": 9216,
+      "final_rows_written": 9216,
+      "augmented": false
+    },
+    "OUTDOOR_RUNNING": {
+      "unique_count_reported": 486,
+      "unique_count_enumerated": 486,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "PARK_WALK": {
+      "unique_count_reported": 486,
+      "unique_count_enumerated": 486,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "QUIET_HOME": {
+      "unique_count_reported": 15840,
+      "unique_count_enumerated": 7920,
+      "final_rows_written": 7920,
+      "augmented": false
+    },
+    "REMOTE_MEETING": {
+      "unique_count_reported": 24576,
+      "unique_count_enumerated": 396,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "RETURN_OFFICE_AFTER_LUNCH": {
+      "unique_count_reported": 2304,
+      "unique_count_enumerated": 2304,
+      "final_rows_written": 2304,
+      "augmented": false
+    },
+    "RIDESHARE_PICKUP": {
+      "unique_count_reported": 4320,
+      "unique_count_enumerated": 4320,
+      "final_rows_written": 4320,
+      "augmented": false
+    },
+    "SCHOOL_QUIET": {
+      "unique_count_reported": 768,
+      "unique_count_enumerated": 768,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "SHOPPING": {
+      "unique_count_reported": 2592,
+      "unique_count_enumerated": 2592,
+      "final_rows_written": 2592,
+      "augmented": false
+    },
+    "TRAIN_DEPARTURE": {
+      "unique_count_reported": 3348,
+      "unique_count_enumerated": 3348,
+      "final_rows_written": 3348,
+      "augmented": false
+    },
+    "UNKNOWN_LONG_STAY": {
+      "unique_count_reported": 2160,
+      "unique_count_enumerated": 2160,
+      "final_rows_written": 2160,
+      "augmented": false
+    },
+    "WAKE_UP": {
+      "unique_count_reported": 1152,
+      "unique_count_enumerated": 576,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "WEEKDAY_HOME_DAY": {
+      "unique_count_reported": 960,
+      "unique_count_enumerated": 960,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "WEEKEND_MORNING": {
+      "unique_count_reported": 896,
+      "unique_count_enumerated": 896,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "WEEKEND_OUTDOOR_WALK": {
+      "unique_count_reported": 324,
+      "unique_count_enumerated": 216,
+      "final_rows_written": 2000,
+      "augmented": true
+    },
+    "WEEKEND_OUTING": {
+      "unique_count_reported": 4860,
+      "unique_count_enumerated": 3240,
+      "final_rows_written": 3240,
+      "augmented": false
+    },
+    "WEEKEND_OVERTIME": {
+      "unique_count_reported": 3840,
+      "unique_count_enumerated": 3840,
+      "final_rows_written": 3840,
+      "augmented": false
+    }
+  },
+  "gt_policy": {
+    "ro_default_prob": 0.5,
+    "ro_remaining_policy": "uniform over remaining ranked actions",
+    "app_default_prob": 0.5,
+    "app_remaining_policy": "uniform over remaining ranked app categories"
+  },
+  "generation_policy": {
+    "unique_support_source": "scenario_unique_samples_count.md",
+    "enumerate_all_unique_categorical_supports": true,
+    "augment_if_less_than_min_rows": true,
+    "keep_all_if_greater_than_or_equal_to_min_rows": true
+  }
+}
