@@ -70,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     train_parser.add_argument(
         "--model-type",
-        choices=("disjoint", "shared-linear", "neural-linear"),
+        choices=("disjoint", "shared-linear", "neural-linear", "neural-scorer", "neural-ucb-lite", "neural-ucb", "neural-ucb-direct"),
         default="disjoint",
         help="Bandit model type to train",
     )
@@ -126,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     train_raw_parser.add_argument(
         "--model-type",
-        choices=("disjoint", "shared-linear", "neural-linear"),
+        choices=("disjoint", "shared-linear", "neural-linear", "neural-scorer", "neural-ucb-lite", "neural-ucb", "neural-ucb-direct"),
         default="disjoint",
         help="Bandit model type to train",
     )
@@ -361,7 +361,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     train_both_parser.add_argument(
         "--model-type",
-        choices=("disjoint", "shared-linear", "neural-linear"),
+        choices=("disjoint", "shared-linear", "neural-linear", "neural-scorer", "neural-ucb-lite", "neural-ucb", "neural-ucb-direct"),
         default="disjoint",
         help="Bandit model type to train",
     )
@@ -410,7 +410,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan_a_parser.add_argument("--top-k", type=int, default=3)
     plan_a_parser.add_argument("--progress-every", type=int, default=1000)
     plan_a_parser.add_argument("--device", default="auto")
-    plan_a_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear"), default="disjoint")
+    plan_a_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear", "neural-scorer", "neural-ucb-lite", "neural-ucb", "neural-ucb-direct"), default="disjoint")
     plan_a_parser.add_argument(
         "--track-train-hit-rate",
         action=argparse.BooleanOptionalAction,
@@ -454,7 +454,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan_b_parser.add_argument("--top-k", type=int, default=3)
     plan_b_parser.add_argument("--progress-every", type=int, default=1000)
     plan_b_parser.add_argument("--device", default="auto")
-    plan_b_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear"), default="disjoint")
+    plan_b_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear", "neural-scorer", "neural-ucb-lite", "neural-ucb", "neural-ucb-direct"), default="disjoint")
     plan_b_parser.add_argument(
         "--track-train-hit-rate",
         action=argparse.BooleanOptionalAction,
@@ -497,7 +497,7 @@ def build_parser() -> argparse.ArgumentParser:
     plan_all_data_parser.add_argument("--top-k", type=int, default=3)
     plan_all_data_parser.add_argument("--progress-every", type=int, default=1000)
     plan_all_data_parser.add_argument("--device", default="auto")
-    plan_all_data_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear"), default="disjoint")
+    plan_all_data_parser.add_argument("--model-type", choices=("disjoint", "shared-linear", "neural-linear", "neural-scorer", "neural-ucb-lite", "neural-ucb", "neural-ucb-direct"), default="disjoint")
     plan_all_data_parser.add_argument(
         "--track-train-hit-rate",
         action=argparse.BooleanOptionalAction,

@@ -375,6 +375,19 @@ def _run_v6_training_bundle(
     model_type: str,
 ) -> V6WorkflowSummary:
     output_path = Path(output_dir)
+    _write_json(
+        output_path / "v6_training_config.json",
+        {
+            "relevance_markdown": str(Path(relevance_markdown)),
+            "most_relevant_reward": float(most_relevant_reward),
+            "plausible_reward": float(plausible_reward),
+            "irrelevant_reward": float(irrelevant_reward),
+            "most_relevant_repeat": int(most_relevant_repeat),
+            "plausible_repeat": int(plausible_repeat),
+            "irrelevant_repeat": int(irrelevant_repeat),
+            "other_zero_mode": other_zero_mode,
+        },
+    )
     ro_metadata = BanditMetadata.load(output_path / "ro_metadata.json")
     app_metadata = BanditMetadata.load(output_path / "app_metadata.json")
     ro_expansion = convert_raw_sequence_to_v6_expanded_ro(

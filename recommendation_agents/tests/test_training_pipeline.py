@@ -8,7 +8,7 @@ import unittest
 
 from recommendation_agents.linucb import MaskedSharedLinearUCB, build_shared_action_feature_matrix
 from recommendation_agents.schemas import ScoreRequest
-from recommendation_agents.trainer import score_v0, train_v0
+from recommendation_agents.trainer import _build_grouped_dense_examples, score_v0, train_v0
 
 
 TORCH_AVAILABLE = importlib.util.find_spec('torch') is not None
@@ -233,6 +233,135 @@ class TrainingPipelineTest(unittest.TestCase):
             self.assertEqual(len(ranked), 3)
             manifest = json.loads((artifact_dir / 'manifest.json').read_text())
             self.assertEqual(manifest['model_type'], 'masked_neural_linear_ucb_v0')
+
+    def test_grouped_dense_examples_build_expected_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path, samples_path = self._write_fixture_files(tmp_dir)
+            from recommendation_agents.feature_space import V0FeatureSpace
+            from recommendation_agents.metadata import BanditMetadata
+
+            examples = _build_grouped_dense_examples(
+                samples_path=samples_path,
+                metadata=BanditMetadata.load(metadata_path),
+                feature_space=V0FeatureSpace(),
+            )
+            self.assertEqual(len(examples), 4)
+            first = examples[0]
+            self.assertEqual(first.target.shape[0], 3)
+            self.assertAlmostEqual(float(first.target.max()), 1.0)
+
+    def test_train_and_score_with_neural_scorer_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path, samples_path = self._write_fixture_files(tmp_dir)
+            artifact_dir = Path(tmp_dir) / 'artifact_neural_scorer'
+
+            metrics = train_v0(
+                metadata_path=metadata_path,
+                samples_path=samples_path,
+                output_dir=artifact_dir,
+                alpha=0.0,
+                default_bonus=0.0,
+                device='cpu',
+                progress_every=10,
+                model_type='neural-scorer',
+            )
+            self.assertEqual(metrics.sample_count, 4)
+            ranked = score_v0(
+                artifact_dir=artifact_dir,
+                metadata_path=metadata_path,
+                request=ScoreRequest(context=_context()),
+                top_k=3,
+                device='cpu',
+            )
+            self.assertEqual(len(ranked), 3)
+            manifest = json.loads((artifact_dir / 'manifest.json').read_text())
+            self.assertEqual(manifest['model_type'], 'masked_neural_scorer_v0')
+
+    def test_train_and_score_with_neural_ucb_lite_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path, samples_path = self._write_fixture_files(tmp_dir)
+            artifact_dir = Path(tmp_dir) / 'artifact_neural_ucb_lite'
+
+            metrics = train_v0(
+                metadata_path=metadata_path,
+                samples_path=samples_path,
+                output_dir=artifact_dir,
+                alpha=0.05,
+                default_bonus=0.75,
+                device='cpu',
+                progress_every=10,
+                model_type='neural-ucb-lite',
+            )
+            self.assertEqual(metrics.sample_count, 4)
+            ranked = score_v0(
+                artifact_dir=artifact_dir,
+                metadata_path=metadata_path,
+                request=ScoreRequest(context=_context()),
+                top_k=3,
+                device='cpu',
+            )
+            self.assertEqual(len(ranked), 3)
+            report = json.loads((artifact_dir / 'training_report.json').read_text())
+            self.assertEqual(report['hyperparameters']['model_type'], 'neural-ucb-lite')
+            self.assertIn('neural_pretrain', report['hyperparameters'])
+            self.assertEqual(report['hyperparameters']['neural_pretrain']['ucb_feature_dim'], 65)
+            manifest = json.loads((artifact_dir / 'manifest.json').read_text())
+            self.assertEqual(manifest['model_type'], 'masked_neural_ucb_lite_v0')
+
+    def test_train_and_score_with_neural_ucb_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path, samples_path = self._write_fixture_files(tmp_dir)
+            artifact_dir = Path(tmp_dir) / 'artifact_neural_ucb'
+
+            metrics = train_v0(
+                metadata_path=metadata_path,
+                samples_path=samples_path,
+                output_dir=artifact_dir,
+                alpha=0.05,
+                default_bonus=0.75,
+                device='cpu',
+                progress_every=10,
+                model_type='neural-ucb',
+            )
+            self.assertGreaterEqual(metrics.sample_count, 1)
+            ranked = score_v0(
+                artifact_dir=artifact_dir,
+                metadata_path=metadata_path,
+                request=ScoreRequest(context=_context()),
+                top_k=3,
+                device='cpu',
+            )
+            self.assertEqual(len(ranked), 3)
+            manifest = json.loads((artifact_dir / 'manifest.json').read_text())
+            self.assertEqual(manifest['model_type'], 'masked_neural_ucb_v0')
+            self.assertGreater(manifest['parameter_dim'], 0)
+
+    def test_train_and_score_with_neural_ucb_direct_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path, samples_path = self._write_fixture_files(tmp_dir)
+            artifact_dir = Path(tmp_dir) / 'artifact_neural_ucb_direct'
+
+            metrics = train_v0(
+                metadata_path=metadata_path,
+                samples_path=samples_path,
+                output_dir=artifact_dir,
+                alpha=0.05,
+                default_bonus=0.75,
+                device='cpu',
+                progress_every=10,
+                model_type='neural-ucb-direct',
+            )
+            self.assertEqual(metrics.sample_count, 4)
+            ranked = score_v0(
+                artifact_dir=artifact_dir,
+                metadata_path=metadata_path,
+                request=ScoreRequest(context=_context()),
+                top_k=3,
+                device='cpu',
+            )
+            self.assertEqual(len(ranked), 3)
+            manifest = json.loads((artifact_dir / 'manifest.json').read_text())
+            self.assertEqual(manifest['model_type'], 'masked_neural_ucb_direct_v0')
 
 
 if __name__ == '__main__':

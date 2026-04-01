@@ -54,6 +54,33 @@ def _tokenize_action_id(action_id: str) -> list[str]:
     return [piece for piece in action_id.lower().replace("::", "_").split("_") if piece]
 
 
+def _build_mlp(
+    input_dim: int,
+    hidden_dims: tuple[int, ...],
+    output_dim: int,
+):
+    torch = _require_torch()
+    layers: list[object] = []
+    prev_dim = input_dim
+    for hidden_dim in hidden_dims:
+        layers.append(torch.nn.Linear(prev_dim, hidden_dim))
+        layers.append(torch.nn.ReLU())
+        prev_dim = hidden_dim
+    layers.append(torch.nn.Linear(prev_dim, output_dim))
+    return torch.nn.Sequential(*layers)
+
+
+def _augment_with_bias(x: np.ndarray) -> np.ndarray:
+    return np.concatenate([x.astype(np.float32, copy=False), np.ones((1,), dtype=np.float32)], axis=0)
+
+
+def _flatten_grad_tuple(gradients) -> np.ndarray:
+    flattened = [gradient.detach().reshape(-1).cpu().numpy().astype(np.float64, copy=False) for gradient in gradients]
+    if not flattened:
+        return np.zeros((0,), dtype=np.float64)
+    return np.concatenate(flattened, axis=0)
+
+
 SHARED_ACTION_TYPES = (
     "show",
     "recommend",
@@ -809,7 +836,7 @@ class MaskedNeuralLinearUCB:
         l2: float = 1.0,
         device: str = "auto",
         hidden_dim: int = 128,
-        latent_dim: int = 32,
+        latent_dim: int = 64,
     ) -> None:
         if not action_ids:
             raise ValueError("action_ids must not be empty")
@@ -948,7 +975,7 @@ class MaskedNeuralLinearUCB:
             action_ids=list(manifest["action_ids"]),
             feature_dim=int(manifest["feature_dim"]),
             hidden_dim=int(manifest.get("hidden_dim", 128)),
-            latent_dim=int(manifest.get("latent_dim", 32)),
+            latent_dim=int(manifest.get("latent_dim", 64)),
             alpha=float(manifest["alpha"]),
             default_bonus=float(manifest["default_bonus"]),
             l2=float(manifest["l2"]),
@@ -981,6 +1008,727 @@ class MaskedNeuralLinearUCB:
         return ranked[0]
 
 
+class MaskedNeuralScorer:
+    """Pure neural scorer with no uncertainty bonus."""
+
+    def __init__(
+        self,
+        action_ids: list[str],
+        feature_dim: int,
+        alpha: float = 0.0,
+        default_bonus: float = 0.0,
+        l2: float = 1.0,
+        device: str = "auto",
+        hidden_dims: tuple[int, int] = (128, 64),
+    ) -> None:
+        if not action_ids:
+            raise ValueError("action_ids must not be empty")
+        if feature_dim <= 0:
+            raise ValueError("feature_dim must be positive")
+
+        self.device = _resolve_device(device)
+        self.action_ids = list(action_ids)
+        self.feature_dim = int(feature_dim)
+        self.hidden_dims = tuple(int(value) for value in hidden_dims)
+        self.alpha = float(alpha)
+        self.default_bonus = float(default_bonus)
+        self.l2 = float(l2)
+        self.action_to_index = {action_id: index for index, action_id in enumerate(self.action_ids)}
+
+        self.network = _build_mlp(self.feature_dim, self.hidden_dims, len(self.action_ids)).to(self.device)
+        self.network.eval()
+
+    def score_all(self, x: np.ndarray) -> np.ndarray:
+        if x.shape != (self.feature_dim,):
+            raise ValueError(f"Expected x with shape ({self.feature_dim},), got {x.shape}")
+        torch = _require_torch()
+        x_tensor = torch.as_tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
+        self.network.eval()
+        with torch.no_grad():
+            scores = self.network(x_tensor).squeeze(0)
+        return scores.detach().cpu().numpy().astype(np.float32, copy=False)
+
+    def rank(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        top_k: int | None = None,
+    ) -> list[RankedAction]:
+        candidates = list(dict.fromkeys(candidate_action_ids))
+        if not candidates:
+            raise ValueError("candidate_action_ids must not be empty")
+        scores = self.score_all(x)
+        ranked: list[RankedAction] = []
+        for action_id in candidates:
+            if action_id not in self.action_to_index:
+                raise KeyError(f"Unknown action_id {action_id!r}")
+            mean_reward = float(scores[self.action_to_index[action_id]])
+            default_bonus_value = self.default_bonus if default_action_id is not None and action_id == default_action_id else 0.0
+            ranked.append(
+                RankedAction(
+                    action_id=action_id,
+                    score=mean_reward + default_bonus_value,
+                    mean_reward=mean_reward,
+                    uncertainty=0.0,
+                    default_bonus=float(default_bonus_value),
+                )
+            )
+        ranked.sort(key=lambda item: item.score, reverse=True)
+        if top_k is None:
+            return ranked
+        return ranked[:top_k]
+
+    def partial_fit(self, x: np.ndarray, action_id: str, reward: float) -> None:  # noqa: ARG002
+        return None
+
+    def save(self, output_dir: str | Path) -> None:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "model_type": "masked_neural_scorer_v0",
+            "action_ids": self.action_ids,
+            "feature_dim": self.feature_dim,
+            "hidden_dims": list(self.hidden_dims),
+            "alpha": self.alpha,
+            "default_bonus": self.default_bonus,
+            "l2": self.l2,
+            "device": self.device,
+        }
+        (output_path / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
+        torch = _require_torch()
+        torch.save(self.network.state_dict(), output_path / "network_state.pt")
+
+    @classmethod
+    def load(
+        cls,
+        artifact_dir: str | Path,
+        device: str = "auto",
+    ) -> "MaskedNeuralScorer":
+        artifact_path = Path(artifact_dir)
+        manifest = json.loads((artifact_path / "manifest.json").read_text())
+        model = cls(
+            action_ids=list(manifest["action_ids"]),
+            feature_dim=int(manifest["feature_dim"]),
+            alpha=float(manifest.get("alpha", 0.0)),
+            default_bonus=float(manifest.get("default_bonus", 0.0)),
+            l2=float(manifest.get("l2", 1.0)),
+            device=device,
+            hidden_dims=tuple(int(value) for value in manifest.get("hidden_dims", [128, 64])),
+        )
+        torch = _require_torch()
+        model.network.load_state_dict(torch.load(artifact_path / "network_state.pt", map_location=model.device))
+        model.network.eval()
+        return model
+
+    def choose(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        epsilon: float = 0.0,
+        seed: int | None = None,
+    ) -> RankedAction:
+        ranked = self.rank(x, candidate_action_ids, default_action_id, top_k=None)
+        if not 0.0 <= epsilon <= 1.0:
+            raise ValueError("epsilon must be in [0, 1]")
+        if epsilon == 0.0:
+            return ranked[0]
+        rng = random.Random(seed)
+        if rng.random() < epsilon:
+            return ranked[rng.randrange(len(ranked))]
+        return ranked[0]
+
+
+class MaskedNeuralUCBLite:
+    """Neural trunk with last-layer linear UCB heads."""
+
+    def __init__(
+        self,
+        action_ids: list[str],
+        feature_dim: int,
+        alpha: float = 0.15,
+        default_bonus: float = 0.75,
+        l2: float = 1.0,
+        device: str = "auto",
+        hidden_dims: tuple[int, int] = (128, 64),
+    ) -> None:
+        if not action_ids:
+            raise ValueError("action_ids must not be empty")
+        if feature_dim <= 0:
+            raise ValueError("feature_dim must be positive")
+        if l2 <= 0:
+            raise ValueError("l2 must be positive")
+
+        self.device = _resolve_device(device)
+        self.action_ids = list(action_ids)
+        self.feature_dim = int(feature_dim)
+        self.hidden_dims = tuple(int(value) for value in hidden_dims)
+        self.latent_dim = int(self.hidden_dims[-1])
+        self.alpha = float(alpha)
+        self.default_bonus = float(default_bonus)
+        self.l2 = float(l2)
+        self.action_to_index = {action_id: index for index, action_id in enumerate(self.action_ids)}
+
+        self.trunk = _build_mlp(self.feature_dim, self.hidden_dims[:-1], self.latent_dim).to(self.device)
+        self.trunk.eval()
+        self.ucb_feature_dim = self.latent_dim + 1
+        torch = _require_torch()
+        identity = torch.eye(self.ucb_feature_dim, dtype=torch.float32, device=self.device) / self.l2
+        self.a_inv = identity.unsqueeze(0).repeat(len(self.action_ids), 1, 1)
+        self.b = torch.zeros((len(self.action_ids), self.ucb_feature_dim), dtype=torch.float32, device=self.device)
+
+    def encode_context(self, x: np.ndarray) -> np.ndarray:
+        if x.shape != (self.feature_dim,):
+            raise ValueError(f"Expected x with shape ({self.feature_dim},), got {x.shape}")
+        torch = _require_torch()
+        x_tensor = torch.as_tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
+        self.trunk.eval()
+        with torch.no_grad():
+            latent = self.trunk(x_tensor).squeeze(0)
+        return latent.detach().cpu().numpy().astype(np.float32, copy=False)
+
+    def initialize_from_pretrained_head(self, weight: np.ndarray, bias: np.ndarray) -> None:
+        if weight.shape != (len(self.action_ids), self.latent_dim):
+            raise ValueError(f"Expected weight shape ({len(self.action_ids)}, {self.latent_dim}), got {weight.shape}")
+        if bias.shape != (len(self.action_ids),):
+            raise ValueError(f"Expected bias shape ({len(self.action_ids)},), got {bias.shape}")
+        theta = np.concatenate([weight.astype(np.float32, copy=False), bias[:, None].astype(np.float32, copy=False)], axis=1)
+        torch = _require_torch()
+        theta_tensor = torch.as_tensor(theta, dtype=torch.float32, device=self.device)
+        self.b = theta_tensor * self.l2
+
+    def rank(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        top_k: int | None = None,
+    ) -> list[RankedAction]:
+        candidates = list(dict.fromkeys(candidate_action_ids))
+        if not candidates:
+            raise ValueError("candidate_action_ids must not be empty")
+        h = _augment_with_bias(self.encode_context(x))
+        torch = _require_torch()
+        h_tensor = torch.as_tensor(h, dtype=torch.float32, device=self.device)
+        ranked: list[RankedAction] = []
+        for action_id in candidates:
+            if action_id not in self.action_to_index:
+                raise KeyError(f"Unknown action_id {action_id!r}")
+            index = self.action_to_index[action_id]
+            a_inv = self.a_inv[index]
+            b = self.b[index]
+            theta = torch.matmul(a_inv, b.unsqueeze(-1)).squeeze(-1)
+            mean_reward = float(torch.dot(theta, h_tensor).item())
+            a_inv_h = torch.matmul(a_inv, h_tensor)
+            uncertainty = float(torch.sqrt(torch.clamp(torch.dot(h_tensor, a_inv_h), min=0.0)).item())
+            default_bonus_value = self.default_bonus if default_action_id is not None and action_id == default_action_id else 0.0
+            ranked.append(
+                RankedAction(
+                    action_id=action_id,
+                    score=mean_reward + self.alpha * uncertainty + default_bonus_value,
+                    mean_reward=mean_reward,
+                    uncertainty=uncertainty,
+                    default_bonus=float(default_bonus_value),
+                )
+            )
+        ranked.sort(key=lambda item: item.score, reverse=True)
+        if top_k is None:
+            return ranked
+        return ranked[:top_k]
+
+    def partial_fit(self, x: np.ndarray, action_id: str, reward: float) -> None:
+        if action_id not in self.action_to_index:
+            raise KeyError(f"Unknown action_id {action_id!r}")
+        torch = _require_torch()
+        index = self.action_to_index[action_id]
+        h = _augment_with_bias(self.encode_context(x))
+        h_tensor = torch.as_tensor(h, dtype=torch.float32, device=self.device)
+        a_inv = self.a_inv[index]
+        a_inv_h = torch.matmul(a_inv, h_tensor)
+        denominator = 1.0 + torch.dot(h_tensor, a_inv_h)
+        self.a_inv[index] = a_inv - torch.outer(a_inv_h, a_inv_h) / denominator
+        self.b[index] = self.b[index] + float(reward) * h_tensor
+
+    def save(self, output_dir: str | Path) -> None:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "model_type": "masked_neural_ucb_lite_v0",
+            "action_ids": self.action_ids,
+            "feature_dim": self.feature_dim,
+            "hidden_dims": list(self.hidden_dims),
+            "latent_dim": self.latent_dim,
+            "ucb_feature_dim": self.ucb_feature_dim,
+            "alpha": self.alpha,
+            "default_bonus": self.default_bonus,
+            "l2": self.l2,
+            "device": self.device,
+        }
+        (output_path / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
+        torch = _require_torch()
+        torch.save(self.trunk.state_dict(), output_path / "trunk_state.pt")
+        np.savez_compressed(
+            output_path / "weights.npz",
+            a_inv=self.a_inv.detach().cpu().numpy(),
+            b=self.b.detach().cpu().numpy(),
+        )
+
+    @classmethod
+    def load(
+        cls,
+        artifact_dir: str | Path,
+        device: str = "auto",
+    ) -> "MaskedNeuralUCBLite":
+        artifact_path = Path(artifact_dir)
+        manifest = json.loads((artifact_path / "manifest.json").read_text())
+        model = cls(
+            action_ids=list(manifest["action_ids"]),
+            feature_dim=int(manifest["feature_dim"]),
+            alpha=float(manifest["alpha"]),
+            default_bonus=float(manifest["default_bonus"]),
+            l2=float(manifest["l2"]),
+            device=device,
+            hidden_dims=tuple(int(value) for value in manifest.get("hidden_dims", [128, 64])),
+        )
+        torch = _require_torch()
+        model.trunk.load_state_dict(torch.load(artifact_path / "trunk_state.pt", map_location=model.device))
+        model.trunk.eval()
+        weights = np.load(artifact_path / "weights.npz")
+        model.a_inv = torch.as_tensor(weights["a_inv"], dtype=torch.float32, device=model.device)
+        model.b = torch.as_tensor(weights["b"], dtype=torch.float32, device=model.device)
+        return model
+
+    def choose(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        epsilon: float = 0.0,
+        seed: int | None = None,
+    ) -> RankedAction:
+        ranked = self.rank(x, candidate_action_ids, default_action_id, top_k=None)
+        if not 0.0 <= epsilon <= 1.0:
+            raise ValueError("epsilon must be in [0, 1]")
+        if epsilon == 0.0:
+            return ranked[0]
+        rng = random.Random(seed)
+        if rng.random() < epsilon:
+            return ranked[rng.randrange(len(ranked))]
+        return ranked[0]
+
+
+class MaskedNeuralUCB:
+    """Exact full-network NeuralUCB over a small projected input space."""
+
+    def __init__(
+        self,
+        action_ids: list[str],
+        feature_dim: int,
+        alpha: float = 0.15,
+        default_bonus: float = 0.75,
+        l2: float = 1.0,
+        device: str = "auto",
+        projection_dim: int = 2,
+        hidden_dim: int = 2,
+        projection_seed: int = 0,
+        learning_rate: float = 1e-3,
+    ) -> None:
+        if not action_ids:
+            raise ValueError("action_ids must not be empty")
+        if feature_dim <= 0:
+            raise ValueError("feature_dim must be positive")
+        if l2 <= 0:
+            raise ValueError("l2 must be positive")
+        if projection_dim <= 0:
+            raise ValueError("projection_dim must be positive")
+        if hidden_dim <= 0:
+            raise ValueError("hidden_dim must be positive")
+
+        self.device = _resolve_device(device)
+        self.action_ids = list(action_ids)
+        self.feature_dim = int(feature_dim)
+        self.alpha = float(alpha)
+        self.default_bonus = float(default_bonus)
+        self.l2 = float(l2)
+        self.projection_dim = int(projection_dim)
+        self.hidden_dim = int(hidden_dim)
+        self.projection_seed = int(projection_seed)
+        self.learning_rate = float(learning_rate)
+        self.action_to_index = {action_id: index for index, action_id in enumerate(self.action_ids)}
+
+        rng = np.random.default_rng(self.projection_seed)
+        self.projection_matrix = rng.normal(
+            loc=0.0,
+            scale=1.0 / max(self.feature_dim, 1) ** 0.5,
+            size=(self.feature_dim, self.projection_dim),
+        ).astype(np.float32)
+
+        torch = _require_torch()
+        self.network = _build_mlp(self.projection_dim, (self.hidden_dim,), len(self.action_ids)).to(self.device)
+        self.network.eval()
+        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.learning_rate)
+        self.parameter_dim = int(sum(parameter.numel() for parameter in self.network.parameters()))
+        identity = torch.eye(self.parameter_dim, dtype=torch.float64, device=self.device) / self.l2
+        self.a_inv = identity
+
+    def _project_context(self, x: np.ndarray):
+        if x.shape != (self.feature_dim,):
+            raise ValueError(f"Expected x with shape ({self.feature_dim},), got {x.shape}")
+        projected = np.matmul(x.astype(np.float32, copy=False), self.projection_matrix)
+        torch = _require_torch()
+        return torch.as_tensor(projected, dtype=torch.float32, device=self.device).unsqueeze(0)
+
+    def _score_tensor(self, x: np.ndarray):
+        x_tensor = self._project_context(x)
+        return self.network(x_tensor).squeeze(0)
+
+    def _gradient_feature(self, x: np.ndarray, action_index: int) -> np.ndarray:
+        torch = _require_torch()
+        self.network.zero_grad(set_to_none=True)
+        scores = self._score_tensor(x)
+        scores[action_index].backward()
+        gradients = [parameter.grad for parameter in self.network.parameters() if parameter.grad is not None]
+        return _flatten_grad_tuple(gradients)
+
+    def rank(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        top_k: int | None = None,
+    ) -> list[RankedAction]:
+        candidates = list(dict.fromkeys(candidate_action_ids))
+        if not candidates:
+            raise ValueError("candidate_action_ids must not be empty")
+        torch = _require_torch()
+        self.network.eval()
+        with torch.no_grad():
+            scores = self._score_tensor(x).detach().cpu().numpy().astype(np.float32, copy=False)
+        ranked: list[RankedAction] = []
+        for action_id in candidates:
+            if action_id not in self.action_to_index:
+                raise KeyError(f"Unknown action_id {action_id!r}")
+            index = self.action_to_index[action_id]
+            gradient = self._gradient_feature(x, index)
+            gradient_tensor = torch.as_tensor(gradient, dtype=torch.float64, device=self.device)
+            a_inv_g = torch.matmul(self.a_inv, gradient_tensor)
+            uncertainty = float(torch.sqrt(torch.clamp(torch.dot(gradient_tensor, a_inv_g), min=0.0)).item())
+            mean_reward = float(scores[index])
+            default_bonus_value = self.default_bonus if default_action_id is not None and action_id == default_action_id else 0.0
+            ranked.append(
+                RankedAction(
+                    action_id=action_id,
+                    score=mean_reward + self.alpha * uncertainty + default_bonus_value,
+                    mean_reward=mean_reward,
+                    uncertainty=uncertainty,
+                    default_bonus=float(default_bonus_value),
+                )
+            )
+        ranked.sort(key=lambda item: item.score, reverse=True)
+        if top_k is None:
+            return ranked
+        return ranked[:top_k]
+
+    def partial_fit(self, x: np.ndarray, action_id: str, reward: float) -> None:
+        if action_id not in self.action_to_index:
+            raise KeyError(f"Unknown action_id {action_id!r}")
+        index = self.action_to_index[action_id]
+        torch = _require_torch()
+        gradient = self._gradient_feature(x, index)
+        gradient_tensor = torch.as_tensor(gradient, dtype=torch.float64, device=self.device)
+        a_inv_g = torch.matmul(self.a_inv, gradient_tensor)
+        denominator = 1.0 + torch.dot(gradient_tensor, a_inv_g)
+        self.a_inv = self.a_inv - torch.outer(a_inv_g, a_inv_g) / denominator
+
+        self.network.train()
+        self.optimizer.zero_grad(set_to_none=True)
+        scores = self._score_tensor(x)
+        loss = 0.5 * (scores[index] - float(reward)) ** 2
+        loss.backward()
+        self.optimizer.step()
+        self.network.eval()
+
+    def save(self, output_dir: str | Path) -> None:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "model_type": "masked_neural_ucb_v0",
+            "action_ids": self.action_ids,
+            "feature_dim": self.feature_dim,
+            "alpha": self.alpha,
+            "default_bonus": self.default_bonus,
+            "l2": self.l2,
+            "device": self.device,
+            "projection_dim": self.projection_dim,
+            "hidden_dim": self.hidden_dim,
+            "projection_seed": self.projection_seed,
+            "learning_rate": self.learning_rate,
+            "parameter_dim": self.parameter_dim,
+        }
+        (output_path / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
+        torch = _require_torch()
+        torch.save(self.network.state_dict(), output_path / "network_state.pt")
+        np.savez_compressed(
+            output_path / "weights.npz",
+            a_inv=self.a_inv.detach().cpu().numpy(),
+            projection_matrix=self.projection_matrix,
+        )
+
+    @classmethod
+    def load(
+        cls,
+        artifact_dir: str | Path,
+        device: str = "auto",
+    ) -> "MaskedNeuralUCB":
+        artifact_path = Path(artifact_dir)
+        manifest = json.loads((artifact_path / "manifest.json").read_text())
+        model = cls(
+            action_ids=list(manifest["action_ids"]),
+            feature_dim=int(manifest["feature_dim"]),
+            alpha=float(manifest["alpha"]),
+            default_bonus=float(manifest["default_bonus"]),
+            l2=float(manifest["l2"]),
+            device=device,
+            projection_dim=int(manifest.get("projection_dim", 2)),
+            hidden_dim=int(manifest.get("hidden_dim", 2)),
+            projection_seed=int(manifest.get("projection_seed", 0)),
+            learning_rate=float(manifest.get("learning_rate", 1e-3)),
+        )
+        torch = _require_torch()
+        model.network.load_state_dict(torch.load(artifact_path / "network_state.pt", map_location=model.device))
+        model.network.eval()
+        weights = np.load(artifact_path / "weights.npz")
+        if "projection_matrix" in weights:
+            model.projection_matrix = weights["projection_matrix"].astype(np.float32, copy=False)
+        model.a_inv = torch.as_tensor(weights["a_inv"], dtype=torch.float64, device=model.device)
+        model.parameter_dim = int(manifest.get("parameter_dim", model.parameter_dim))
+        return model
+
+    def choose(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        epsilon: float = 0.0,
+        seed: int | None = None,
+    ) -> RankedAction:
+        ranked = self.rank(x, candidate_action_ids, default_action_id, top_k=None)
+        if not 0.0 <= epsilon <= 1.0:
+            raise ValueError("epsilon must be in [0, 1]")
+        if epsilon == 0.0:
+            return ranked[0]
+        rng = random.Random(seed)
+        if rng.random() < epsilon:
+            return ranked[rng.randrange(len(ranked))]
+        return ranked[0]
+
+
+class MaskedNeuralUCBDirect:
+    """Shared neural scorer trained directly on bandit replay with hidden-feature UCB."""
+
+    def __init__(
+        self,
+        action_ids: list[str],
+        feature_dim: int,
+        alpha: float = 0.15,
+        default_bonus: float = 0.75,
+        l2: float = 1.0,
+        device: str = "auto",
+        hidden_dims: tuple[int, int] = (128, 64),
+        learning_rate: float = 1e-3,
+    ) -> None:
+        if not action_ids:
+            raise ValueError("action_ids must not be empty")
+        if feature_dim <= 0:
+            raise ValueError("feature_dim must be positive")
+        if l2 <= 0:
+            raise ValueError("l2 must be positive")
+
+        self.device = _resolve_device(device)
+        self.action_ids = list(action_ids)
+        self.feature_dim = int(feature_dim)
+        self.hidden_dims = tuple(int(value) for value in hidden_dims)
+        if len(self.hidden_dims) != 2:
+            raise ValueError("hidden_dims for neural-ucb-direct must have length 2")
+        self.latent_dim = int(self.hidden_dims[-1])
+        self.alpha = float(alpha)
+        self.default_bonus = float(default_bonus)
+        self.l2 = float(l2)
+        self.learning_rate = float(learning_rate)
+        self.action_to_index = {action_id: index for index, action_id in enumerate(self.action_ids)}
+
+        torch = _require_torch()
+        self.trunk = torch.nn.Sequential(
+            torch.nn.Linear(self.feature_dim, self.hidden_dims[0]),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.hidden_dims[0], self.latent_dim),
+            torch.nn.ReLU(),
+        ).to(self.device)
+        self.head = torch.nn.Linear(self.latent_dim, len(self.action_ids)).to(self.device)
+        self.trunk.eval()
+        self.head.eval()
+        self.optimizer = torch.optim.Adam(
+            list(self.trunk.parameters()) + list(self.head.parameters()),
+            lr=self.learning_rate,
+        )
+        self.ucb_feature_dim = self.latent_dim + 1
+        identity = torch.eye(self.ucb_feature_dim, dtype=torch.float32, device=self.device) / self.l2
+        self.a_inv = identity.unsqueeze(0).repeat(len(self.action_ids), 1, 1)
+
+    def _forward_with_hidden(self, x: np.ndarray):
+        if x.shape != (self.feature_dim,):
+            raise ValueError(f"Expected x with shape ({self.feature_dim},), got {x.shape}")
+        torch = _require_torch()
+        x_tensor = torch.as_tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
+        hidden = self.trunk(x_tensor).squeeze(0)
+        scores = self.head(hidden.unsqueeze(0)).squeeze(0)
+        return hidden, scores
+
+    def encode_context(self, x: np.ndarray) -> np.ndarray:
+        self.trunk.eval()
+        self.head.eval()
+        with _require_torch().no_grad():
+            hidden, _scores = self._forward_with_hidden(x)
+        return hidden.detach().cpu().numpy().astype(np.float32, copy=False)
+
+    def score_all(self, x: np.ndarray) -> np.ndarray:
+        self.trunk.eval()
+        self.head.eval()
+        with _require_torch().no_grad():
+            _hidden, scores = self._forward_with_hidden(x)
+        return scores.detach().cpu().numpy().astype(np.float32, copy=False)
+
+    def rank(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        top_k: int | None = None,
+    ) -> list[RankedAction]:
+        candidates = list(dict.fromkeys(candidate_action_ids))
+        if not candidates:
+            raise ValueError("candidate_action_ids must not be empty")
+        h = _augment_with_bias(self.encode_context(x))
+        scores = self.score_all(x)
+        torch = _require_torch()
+        h_tensor = torch.as_tensor(h, dtype=torch.float32, device=self.device)
+        ranked: list[RankedAction] = []
+        for action_id in candidates:
+            if action_id not in self.action_to_index:
+                raise KeyError(f"Unknown action_id {action_id!r}")
+            index = self.action_to_index[action_id]
+            a_inv = self.a_inv[index]
+            a_inv_h = torch.matmul(a_inv, h_tensor)
+            uncertainty = float(torch.sqrt(torch.clamp(torch.dot(h_tensor, a_inv_h), min=0.0)).item())
+            mean_reward = float(scores[index])
+            default_bonus_value = self.default_bonus if default_action_id is not None and action_id == default_action_id else 0.0
+            ranked.append(
+                RankedAction(
+                    action_id=action_id,
+                    score=mean_reward + self.alpha * uncertainty + default_bonus_value,
+                    mean_reward=mean_reward,
+                    uncertainty=uncertainty,
+                    default_bonus=float(default_bonus_value),
+                )
+            )
+        ranked.sort(key=lambda item: item.score, reverse=True)
+        if top_k is None:
+            return ranked
+        return ranked[:top_k]
+
+    def partial_fit(self, x: np.ndarray, action_id: str, reward: float) -> None:
+        if action_id not in self.action_to_index:
+            raise KeyError(f"Unknown action_id {action_id!r}")
+        index = self.action_to_index[action_id]
+        torch = _require_torch()
+        self.trunk.train()
+        self.head.train()
+        hidden, scores = self._forward_with_hidden(x)
+        h = torch.cat([hidden.detach(), torch.ones((1,), dtype=torch.float32, device=self.device)], dim=0)
+        a_inv = self.a_inv[index]
+        a_inv_h = torch.matmul(a_inv, h)
+        denominator = 1.0 + torch.dot(h, a_inv_h)
+        self.a_inv[index] = a_inv - torch.outer(a_inv_h, a_inv_h) / denominator
+
+        self.optimizer.zero_grad(set_to_none=True)
+        loss = 0.5 * (scores[index] - float(reward)) ** 2
+        loss.backward()
+        self.optimizer.step()
+        self.trunk.eval()
+        self.head.eval()
+
+    def save(self, output_dir: str | Path) -> None:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "model_type": "masked_neural_ucb_direct_v0",
+            "action_ids": self.action_ids,
+            "feature_dim": self.feature_dim,
+            "hidden_dims": list(self.hidden_dims),
+            "latent_dim": self.latent_dim,
+            "ucb_feature_dim": self.ucb_feature_dim,
+            "alpha": self.alpha,
+            "default_bonus": self.default_bonus,
+            "l2": self.l2,
+            "learning_rate": self.learning_rate,
+            "device": self.device,
+        }
+        (output_path / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
+        torch = _require_torch()
+        torch.save(self.trunk.state_dict(), output_path / "trunk_state.pt")
+        torch.save(self.head.state_dict(), output_path / "head_state.pt")
+        np.savez_compressed(
+            output_path / "weights.npz",
+            a_inv=self.a_inv.detach().cpu().numpy(),
+        )
+
+    @classmethod
+    def load(
+        cls,
+        artifact_dir: str | Path,
+        device: str = "auto",
+    ) -> "MaskedNeuralUCBDirect":
+        artifact_path = Path(artifact_dir)
+        manifest = json.loads((artifact_path / "manifest.json").read_text())
+        model = cls(
+            action_ids=list(manifest["action_ids"]),
+            feature_dim=int(manifest["feature_dim"]),
+            alpha=float(manifest["alpha"]),
+            default_bonus=float(manifest["default_bonus"]),
+            l2=float(manifest["l2"]),
+            device=device,
+            hidden_dims=tuple(int(value) for value in manifest.get("hidden_dims", [128, 64])),
+            learning_rate=float(manifest.get("learning_rate", 1e-3)),
+        )
+        torch = _require_torch()
+        model.trunk.load_state_dict(torch.load(artifact_path / "trunk_state.pt", map_location=model.device))
+        model.head.load_state_dict(torch.load(artifact_path / "head_state.pt", map_location=model.device))
+        model.trunk.eval()
+        model.head.eval()
+        weights = np.load(artifact_path / "weights.npz")
+        model.a_inv = torch.as_tensor(weights["a_inv"], dtype=torch.float32, device=model.device)
+        return model
+
+    def choose(
+        self,
+        x: np.ndarray,
+        candidate_action_ids: Iterable[str],
+        default_action_id: str | None = None,
+        epsilon: float = 0.0,
+        seed: int | None = None,
+    ) -> RankedAction:
+        ranked = self.rank(x, candidate_action_ids, default_action_id, top_k=None)
+        if not 0.0 <= epsilon <= 1.0:
+            raise ValueError("epsilon must be in [0, 1]")
+        if epsilon == 0.0:
+            return ranked[0]
+        rng = random.Random(seed)
+        if rng.random() < epsilon:
+            return ranked[rng.randrange(len(ranked))]
+        return ranked[0]
+
+
 def create_bandit_model(
     model_type: str,
     action_ids: list[str],
@@ -990,8 +1738,8 @@ def create_bandit_model(
     l2: float = 1.0,
     device: str = "auto",
 ):
-    normalized = model_type.replace("-", "_").lower()
-    if normalized == "disjoint":
+    normalized_model_type = model_type.replace("-", "_").lower()
+    if normalized_model_type == "disjoint":
         return MaskedDisjointLinUCB(
             action_ids=action_ids,
             feature_dim=feature_dim,
@@ -1000,7 +1748,7 @@ def create_bandit_model(
             l2=l2,
             device=device,
         )
-    if normalized == "shared_linear":
+    if normalized_model_type == "shared_linear":
         return MaskedSharedLinearUCB(
             action_ids=action_ids,
             feature_dim=feature_dim,
@@ -1009,7 +1757,7 @@ def create_bandit_model(
             l2=l2,
             device=device,
         )
-    if normalized == "neural_linear":
+    if normalized_model_type == "neural_linear":
         return MaskedNeuralLinearUCB(
             action_ids=action_ids,
             feature_dim=feature_dim,
@@ -1018,17 +1766,64 @@ def create_bandit_model(
             l2=l2,
             device=device,
         )
-    raise ValueError("model_type must be 'disjoint', 'shared-linear', or 'neural-linear'")
+    if normalized_model_type == "neural_scorer":
+        return MaskedNeuralScorer(
+            action_ids=action_ids,
+            feature_dim=feature_dim,
+            alpha=alpha,
+            default_bonus=default_bonus,
+            l2=l2,
+            device=device,
+        )
+    if normalized_model_type == "neural_ucb_lite":
+        return MaskedNeuralUCBLite(
+            action_ids=action_ids,
+            feature_dim=feature_dim,
+            alpha=alpha,
+            default_bonus=default_bonus,
+            l2=l2,
+            device=device,
+        )
+    if normalized_model_type == "neural_ucb":
+        return MaskedNeuralUCB(
+            action_ids=action_ids,
+            feature_dim=feature_dim,
+            alpha=alpha,
+            default_bonus=default_bonus,
+            l2=l2,
+            device=device,
+        )
+    if normalized_model_type == "neural_ucb_direct":
+        return MaskedNeuralUCBDirect(
+            action_ids=action_ids,
+            feature_dim=feature_dim,
+            alpha=alpha,
+            default_bonus=default_bonus,
+            l2=l2,
+            device=device,
+        )
+    raise ValueError(
+        f"Unknown model_type {model_type!r}. Expected one of disjoint, shared-linear, neural-linear, "
+        "neural-scorer, neural-ucb-lite, neural-ucb, neural-ucb-direct."
+    )
 
 
 def load_bandit_model(artifact_dir: str | Path, device: str = "auto"):
     artifact_path = Path(artifact_dir)
     manifest = json.loads((artifact_path / "manifest.json").read_text())
-    model_type = str(manifest.get("model_type", "masked_disjoint_linucb_v0"))
+    model_type = manifest.get("model_type")
     if model_type == "masked_disjoint_linucb_v0":
         return MaskedDisjointLinUCB.load(artifact_path, device=device)
     if model_type == "masked_shared_linear_ucb_v0":
         return MaskedSharedLinearUCB.load(artifact_path, device=device)
     if model_type == "masked_neural_linear_ucb_v0":
         return MaskedNeuralLinearUCB.load(artifact_path, device=device)
-    raise ValueError(f"Unsupported model_type {model_type!r} in {artifact_path / 'manifest.json'}")
+    if model_type == "masked_neural_scorer_v0":
+        return MaskedNeuralScorer.load(artifact_path, device=device)
+    if model_type == "masked_neural_ucb_lite_v0":
+        return MaskedNeuralUCBLite.load(artifact_path, device=device)
+    if model_type == "masked_neural_ucb_v0":
+        return MaskedNeuralUCB.load(artifact_path, device=device)
+    if model_type == "masked_neural_ucb_direct_v0":
+        return MaskedNeuralUCBDirect.load(artifact_path, device=device)
+    raise ValueError(f"Unknown manifest model_type {model_type!r}")

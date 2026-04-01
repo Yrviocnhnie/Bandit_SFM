@@ -31,9 +31,19 @@ from recommendation_agents.raw_synthetic import (
     convert_raw_sequence_to_v0_app,
 )
 from recommendation_agents.schemas import ScoreRequest, TrainingEvent
+from recommendation_agents.v6_relevance import parse_v6_relevance_markdown
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class GroupedDenseExample:
+    base_event_id: str
+    scenario_id: str | None
+    x: np.ndarray
+    target: np.ndarray
+    positive_action_rewards: tuple[tuple[str, float], ...]
 
 
 def _count_nonempty_lines(path: str | Path) -> int:
@@ -67,48 +77,265 @@ def _event_feature_vector(
     return feature_space.encode(event.context)
 
 
-def _build_neural_linear_supervision(
+def _iter_grouped_dense_rows(
     samples_path: str | Path,
     metadata: BanditMetadata,
     feature_space: V0FeatureSpace,
-) -> tuple[np.ndarray, np.ndarray]:
-    grouped: dict[str, dict[str, Any]] = {}
+) -> Iterable[tuple[str, str | None, np.ndarray, np.ndarray, tuple[tuple[str, float], ...]]]:
     action_to_index = {action_id: index for index, action_id in enumerate(metadata.all_action_ids())}
+    action_ids = metadata.all_action_ids()
+    seen_group_keys: set[str] = set()
+    current_group_key: str | None = None
+    current_target: np.ndarray | None = None
+    current_x: np.ndarray | None = None
+    current_scenario_id: str | None = None
+
+    def _flush_current_group() -> tuple[str, str | None, np.ndarray, np.ndarray, tuple[tuple[str, float], ...]] | None:
+        nonlocal current_group_key, current_target, current_x, current_scenario_id
+        if current_group_key is None or current_target is None or current_x is None:
+            return None
+        target = current_target.astype(np.float32, copy=False)
+        positive_action_rewards = tuple(
+            (action_ids[index], float(reward))
+            for index, reward in enumerate(target.tolist())
+            if reward > 0.0
+        )
+        result = (
+            current_group_key,
+            current_scenario_id,
+            current_x.astype(np.float32, copy=False),
+            target,
+            positive_action_rewards,
+        )
+        seen_group_keys.add(current_group_key)
+        return result
 
     for row_index, payload in enumerate(load_jsonl(samples_path), start=1):
         event = TrainingEvent.from_dict(payload)
         group_key = str(payload.get("source_base_event_id") or event.event_id or f"row-{row_index}")
-        x = _event_feature_vector(event, feature_space)
+        if group_key != current_group_key:
+            if group_key in seen_group_keys:
+                raise ValueError(
+                    "Training samples are not grouped contiguously by source_base_event_id; "
+                    "neural grouped supervision expects contiguous groups"
+                )
+            flushed = _flush_current_group()
+            if flushed is not None:
+                yield flushed
+            current_group_key = group_key
+            current_target = np.zeros((len(action_to_index),), dtype=np.float32)
+            current_x = _event_feature_vector(event, feature_space)
+            current_scenario_id = event.scenario_id
+
+        assert current_target is not None
         selected_action = metadata.resolve_action_token(event.selected_action, event.scenario_id)
+        action_index = action_to_index[selected_action]
+        current_target[action_index] = max(current_target[action_index], float(event.reward))
 
-        if group_key not in grouped:
-            grouped[group_key] = {
-                "x": x,
-                "target": np.zeros((len(action_to_index),), dtype=np.float32),
-            }
-        target = grouped[group_key]["target"]
-        target[action_to_index[selected_action]] = max(target[action_to_index[selected_action]], float(event.reward))
+    flushed = _flush_current_group()
+    if flushed is not None:
+        yield flushed
 
-    if not grouped:
-        raise ValueError("No grouped supervision examples were built for neural-linear pretraining")
 
-    contexts = np.stack([group["x"] for group in grouped.values()]).astype(np.float32)
-    targets = np.stack([group["target"] for group in grouped.values()]).astype(np.float32)
-    return contexts, targets
+def _build_grouped_dense_examples(
+    samples_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+) -> list[GroupedDenseExample]:
+    examples = [
+        GroupedDenseExample(
+            base_event_id=base_event_id,
+            scenario_id=scenario_id,
+            x=x,
+            target=target,
+            positive_action_rewards=positive_action_rewards,
+        )
+        for base_event_id, scenario_id, x, target, positive_action_rewards in _iter_grouped_dense_rows(
+            samples_path, metadata, feature_space
+        )
+    ]
+    if not examples:
+        raise ValueError("No grouped supervision examples were built from the training samples")
+    return examples
+
+
+def _load_v6_dense_supervision_config(
+    samples_path: str | Path,
+    metadata_path: str | Path,
+) -> dict[str, Any] | None:
+    samples_path = Path(samples_path)
+    config_path = samples_path.parent / "v6_training_config.json"
+    raw_train_path = samples_path.parent / "train.raw.jsonl"
+    if not config_path.exists() or not raw_train_path.exists():
+        return None
+    payload = json.loads(config_path.read_text())
+    metadata_name = Path(metadata_path).name.lower()
+    if metadata_name.startswith("ro_"):
+        label_namespace = "ro"
+    elif metadata_name.startswith("app_"):
+        label_namespace = "app"
+    else:
+        return None
+    payload["label_namespace"] = label_namespace
+    payload["raw_train_path"] = str(raw_train_path)
+    return payload
+
+
+def _build_grouped_dense_supervision_from_raw(
+    *,
+    raw_train_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+    label_namespace: str,
+    relevance_markdown: str | Path,
+    most_relevant_reward: float,
+    plausible_reward: float,
+    irrelevant_reward: float,
+    most_relevant_repeat: int,
+    plausible_repeat: int,
+    irrelevant_repeat: int,
+    other_zero_mode: str,
+    include_examples: bool,
+) -> tuple[np.ndarray, np.ndarray, list[GroupedDenseExample] | None]:
+    relevance_catalog = parse_v6_relevance_markdown(relevance_markdown)[label_namespace]
+    expected_groups = _count_nonempty_lines(raw_train_path)
+    action_ids = metadata.all_action_ids()
+    action_to_index = {action_id: index for index, action_id in enumerate(action_ids)}
+    contexts = np.empty((expected_groups, feature_space.dimension), dtype=np.float32)
+    targets = np.zeros((expected_groups, len(action_ids)), dtype=np.float32)
+    examples: list[GroupedDenseExample] | None = [] if include_examples else None
+    write_index = 0
+
+    for row in _load_jsonl(raw_train_path):
+        label = _raw_label(row, "gt_ro_action_id", "gt_ro") if label_namespace == "ro" else _raw_label(
+            row, "gt_app_category", "gt_app"
+        )
+        if label == "NONE":
+            continue
+        scenario_id = _scenario_id(row)
+        if scenario_id is None or scenario_id not in relevance_catalog:
+            raise ValueError(f"Scenario {scenario_id!r} is missing from the V6 relevance catalog")
+        contexts[write_index] = feature_space.encode(_build_context(row))
+        target = targets[write_index]
+        rel = relevance_catalog[scenario_id]
+        tiers = [
+            ("most_relevant", tuple(rel["most_relevant_3"]), float(most_relevant_reward), most_relevant_repeat),
+            ("plausible", tuple(rel["other_plausible_3"]), float(plausible_reward), plausible_repeat),
+        ]
+        irrelevant_ids = tuple(rel["irrelevant_2"])
+        if label_namespace == "ro":
+            irrelevant_ids = irrelevant_ids + tuple(rel.get("extra_hard_negative_ro", ()))
+        tiers.append(("irrelevant", irrelevant_ids, float(irrelevant_reward), irrelevant_repeat))
+        for _tier_name, tier_action_ids, reward, repeat_count in tiers:
+            if repeat_count <= 0:
+                continue
+            for action_id in tier_action_ids:
+                resolved_action = metadata.resolve_action_token(action_id, scenario_id)
+                action_index = action_to_index[resolved_action]
+                target[action_index] = max(target[action_index], reward)
+        if other_zero_mode not in {"none", "exclude-most-only", "exclude-most-plausible", "exclude-all-labeled"}:
+            raise ValueError(f"Unsupported other_zero_mode for dense supervision: {other_zero_mode!r}")
+        if include_examples:
+            positive_action_rewards = tuple(
+                (action_ids[index], float(reward))
+                for index, reward in enumerate(target.tolist())
+                if reward > 0.0
+            )
+            examples.append(
+                GroupedDenseExample(
+                    base_event_id=_event_id(row, scenario_id),
+                    scenario_id=scenario_id,
+                    x=contexts[write_index].copy(),
+                    target=target.copy(),
+                    positive_action_rewards=positive_action_rewards,
+                )
+            )
+        write_index += 1
+
+    if write_index == 0:
+        raise ValueError("No grouped supervision examples were built from train.raw.jsonl")
+    return contexts[:write_index], targets[:write_index], examples
+
+
+def _build_grouped_dense_supervision(
+    samples_path: str | Path,
+    metadata_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+) -> tuple[np.ndarray, np.ndarray]:
+    raw_config = _load_v6_dense_supervision_config(samples_path, metadata_path)
+    if raw_config is not None:
+        contexts, targets, _ = _build_grouped_dense_supervision_from_raw(
+            raw_train_path=raw_config["raw_train_path"],
+            metadata=metadata,
+            feature_space=feature_space,
+            label_namespace=raw_config["label_namespace"],
+            relevance_markdown=raw_config["relevance_markdown"],
+            most_relevant_reward=float(raw_config["most_relevant_reward"]),
+            plausible_reward=float(raw_config["plausible_reward"]),
+            irrelevant_reward=float(raw_config["irrelevant_reward"]),
+            most_relevant_repeat=int(raw_config["most_relevant_repeat"]),
+            plausible_repeat=int(raw_config["plausible_repeat"]),
+            irrelevant_repeat=int(raw_config["irrelevant_repeat"]),
+            other_zero_mode=str(raw_config["other_zero_mode"]),
+            include_examples=False,
+        )
+        return contexts, targets
+
+    samples_path = Path(samples_path)
+    raw_train_path = samples_path.parent / "train.raw.jsonl"
+    expected_groups = _count_nonempty_lines(raw_train_path) if raw_train_path.exists() else None
+    action_count = len(metadata.all_action_ids())
+
+    if expected_groups:
+        contexts = np.empty((expected_groups, feature_space.dimension), dtype=np.float32)
+        targets = np.zeros((expected_groups, action_count), dtype=np.float32)
+        group_index = 0
+        for _base_event_id, _scenario_id, x, target, _positive_action_rewards in _iter_grouped_dense_rows(
+            samples_path,
+            metadata,
+            feature_space,
+        ):
+            if group_index >= expected_groups:
+                raise ValueError(
+                    "Grouped supervision produced more contexts than train.raw.jsonl suggests; "
+                    "check source_base_event_id grouping"
+                )
+            contexts[group_index] = x
+            targets[group_index] = target
+            group_index += 1
+        if group_index == 0:
+            raise ValueError("No grouped supervision examples were built from the training samples")
+        if group_index != expected_groups:
+            contexts = contexts[:group_index]
+            targets = targets[:group_index]
+        return contexts, targets
+
+    contexts_list: list[np.ndarray] = []
+    targets_list: list[np.ndarray] = []
+    for _base_event_id, _scenario_id, x, target, _positive_action_rewards in _iter_grouped_dense_rows(
+        samples_path,
+        metadata,
+        feature_space,
+    ):
+        contexts_list.append(x)
+        targets_list.append(target)
+    if not contexts_list:
+        raise ValueError("No grouped supervision examples were built from the training samples")
+    return np.stack(contexts_list).astype(np.float32), np.stack(targets_list).astype(np.float32)
 
 
 def _pretrain_neural_linear_encoder(
     model,
     samples_path: str | Path,
+    metadata_path: str | Path,
     metadata: BanditMetadata,
     feature_space: V0FeatureSpace,
     progress_label: str | None = None,
 ) -> dict[str, float | int]:
     torch = _require_torch()
     label_prefix = f"[{progress_label}] " if progress_label else ""
-    contexts, targets = _build_neural_linear_supervision(samples_path, metadata, feature_space)
-    context_tensor = torch.as_tensor(contexts, dtype=torch.float32, device=model.device)
-    target_tensor = torch.as_tensor(targets, dtype=torch.float32, device=model.device)
+    contexts, targets = _build_grouped_dense_supervision(samples_path, metadata_path, metadata, feature_space)
 
     head = torch.nn.Linear(model.latent_dim, targets.shape[1]).to(model.device)
     optimizer = torch.optim.Adam(
@@ -117,7 +344,7 @@ def _pretrain_neural_linear_encoder(
     )
     loss_fn = torch.nn.MSELoss()
     encoder_pretrain_epochs = 10
-    batch_size = min(256, max(32, contexts.shape[0]))
+    batch_size = min(64, max(16, contexts.shape[0]))
 
     logger.info(
         "%sStarting neural-linear encoder pretraining | grouped_contexts=%d | target_dim=%d | epochs=%d | batch_size=%d",
@@ -132,13 +359,13 @@ def _pretrain_neural_linear_encoder(
     final_loss = 0.0
 
     for epoch_index in range(encoder_pretrain_epochs):
-        permutation = torch.randperm(context_tensor.shape[0], device=model.device)
+        permutation = np.random.permutation(contexts.shape[0])
         epoch_loss = 0.0
         batch_count = 0
-        for batch_start in range(0, context_tensor.shape[0], batch_size):
+        for batch_start in range(0, contexts.shape[0], batch_size):
             batch_indices = permutation[batch_start : batch_start + batch_size]
-            batch_x = context_tensor.index_select(0, batch_indices)
-            batch_y = target_tensor.index_select(0, batch_indices)
+            batch_x = torch.as_tensor(contexts[batch_indices], dtype=torch.float32, device=model.device)
+            batch_y = torch.as_tensor(targets[batch_indices], dtype=torch.float32, device=model.device)
             optimizer.zero_grad(set_to_none=True)
             latent = model.encoder(batch_x)
             predictions = head(latent)
@@ -174,6 +401,170 @@ def _pretrain_neural_linear_encoder(
         "encoder_learning_rate": 1e-3,
         "encoder_final_mse": float(final_loss),
     }
+
+
+def _pretrain_neural_module(
+    module,
+    contexts: np.ndarray,
+    targets: np.ndarray,
+    device: str,
+    progress_label: str | None,
+    stage_name: str,
+    learning_rate: float = 1e-3,
+    epochs: int = 10,
+) -> dict[str, float | int]:
+    torch = _require_torch()
+    label_prefix = f"[{progress_label}] " if progress_label else ""
+    optimizer = torch.optim.Adam(module.parameters(), lr=learning_rate)
+    loss_fn = torch.nn.MSELoss()
+    batch_size = min(64, max(16, contexts.shape[0]))
+    module.train()
+    start_time = time.time()
+    final_loss = 0.0
+    logger.info(
+        "%sStarting %s pretraining | grouped_contexts=%d | target_dim=%d | epochs=%d | batch_size=%d",
+        label_prefix,
+        stage_name,
+        contexts.shape[0],
+        targets.shape[1],
+        epochs,
+        batch_size,
+    )
+    for epoch_index in range(epochs):
+        permutation = np.random.permutation(contexts.shape[0])
+        epoch_loss = 0.0
+        batch_count = 0
+        for batch_start in range(0, contexts.shape[0], batch_size):
+            batch_indices = permutation[batch_start : batch_start + batch_size]
+            batch_x = torch.as_tensor(contexts[batch_indices], dtype=torch.float32, device=device)
+            batch_y = torch.as_tensor(targets[batch_indices], dtype=torch.float32, device=device)
+            optimizer.zero_grad(set_to_none=True)
+            predictions = module(batch_x)
+            loss = loss_fn(predictions, batch_y)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += float(loss.item())
+            batch_count += 1
+        final_loss = epoch_loss / max(batch_count, 1)
+        logger.info(
+            "%s%s pretrain epoch %d/%d | mse=%.6f",
+            label_prefix,
+            stage_name,
+            epoch_index + 1,
+            epochs,
+            final_loss,
+        )
+    module.eval()
+    elapsed = time.time() - start_time
+    logger.info(
+        "%sFinished %s pretraining | grouped_contexts=%d | elapsed=%s",
+        label_prefix,
+        stage_name,
+        contexts.shape[0],
+        _format_duration(elapsed),
+    )
+    return {
+        "grouped_contexts": int(contexts.shape[0]),
+        "target_dim": int(targets.shape[1]),
+        "pretrain_epochs": int(epochs),
+        "pretrain_batch_size": int(batch_size),
+        "pretrain_learning_rate": float(learning_rate),
+        "pretrain_final_mse": float(final_loss),
+    }
+
+
+def _pretrain_neural_scorer(
+    model,
+    samples_path: str | Path,
+    metadata_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+    progress_label: str | None,
+) -> tuple[dict[str, float | int], np.ndarray, np.ndarray]:
+    contexts, targets = _build_grouped_dense_supervision(samples_path, metadata_path, metadata, feature_space)
+    report = _pretrain_neural_module(
+        module=model.network,
+        contexts=contexts,
+        targets=targets,
+        device=model.device,
+        progress_label=progress_label,
+        stage_name="neural-scorer",
+    )
+    report["network_hidden_dims"] = list(model.hidden_dims)
+    return report, contexts, targets
+
+
+def _pretrain_neural_ucb_lite(
+    model,
+    samples_path: str | Path,
+    metadata_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+    progress_label: str | None,
+) -> dict[str, float | int]:
+    torch = _require_torch()
+    contexts, targets = _build_grouped_dense_supervision(samples_path, metadata_path, metadata, feature_space)
+    head = torch.nn.Linear(model.latent_dim, targets.shape[1]).to(model.device)
+    pretrain_model = torch.nn.Sequential(model.trunk, head)
+    report = _pretrain_neural_module(
+        module=pretrain_model,
+        contexts=contexts,
+        targets=targets,
+        device=model.device,
+        progress_label=progress_label,
+        stage_name="neural-ucb-lite",
+    )
+    model.initialize_from_pretrained_head(
+        weight=head.weight.detach().cpu().numpy(),
+        bias=head.bias.detach().cpu().numpy(),
+    )
+    report["trunk_hidden_dims"] = list(model.hidden_dims)
+    report["latent_dim"] = int(model.latent_dim)
+    report["ucb_feature_dim"] = int(model.ucb_feature_dim)
+    return report
+
+
+def _pretrain_neural_ucb(
+    model,
+    samples_path: str | Path,
+    metadata_path: str | Path,
+    metadata: BanditMetadata,
+    feature_space: V0FeatureSpace,
+    progress_label: str | None,
+) -> tuple[dict[str, float | int], list[GroupedDenseExample]]:
+    raw_config = _load_v6_dense_supervision_config(samples_path, metadata_path)
+    if raw_config is not None:
+        contexts, targets, examples = _build_grouped_dense_supervision_from_raw(
+            raw_train_path=raw_config["raw_train_path"],
+            metadata=metadata,
+            feature_space=feature_space,
+            label_namespace=raw_config["label_namespace"],
+            relevance_markdown=raw_config["relevance_markdown"],
+            most_relevant_reward=float(raw_config["most_relevant_reward"]),
+            plausible_reward=float(raw_config["plausible_reward"]),
+            irrelevant_reward=float(raw_config["irrelevant_reward"]),
+            most_relevant_repeat=int(raw_config["most_relevant_repeat"]),
+            plausible_repeat=int(raw_config["plausible_repeat"]),
+            irrelevant_repeat=int(raw_config["irrelevant_repeat"]),
+            other_zero_mode=str(raw_config["other_zero_mode"]),
+            include_examples=True,
+        )
+        assert examples is not None
+    else:
+        contexts, targets = _build_grouped_dense_supervision(samples_path, metadata_path, metadata, feature_space)
+        examples = _build_grouped_dense_examples(samples_path, metadata, feature_space)
+    report = _pretrain_neural_module(
+        module=model.network,
+        contexts=np.matmul(contexts, model.projection_matrix).astype(np.float32),
+        targets=targets,
+        device=model.device,
+        progress_label=progress_label,
+        stage_name="neural-ucb",
+    )
+    report["projection_dim"] = int(model.projection_dim)
+    report["hidden_dim"] = int(model.hidden_dim)
+    report["parameter_dim"] = int(model.parameter_dim)
+    return report, examples
 
 
 @dataclass(frozen=True)
@@ -456,10 +847,41 @@ def train_v0(
         device=device,
     )
     neural_pretrain_report: dict[str, float | int] | None = None
+    grouped_dense_examples: list[GroupedDenseExample] | None = None
+    grouped_dense_contexts: np.ndarray | None = None
+    grouped_dense_targets: np.ndarray | None = None
     if normalized_model_type == "neural_linear":
         neural_pretrain_report = _pretrain_neural_linear_encoder(
             model=model,
             samples_path=samples_path,
+            metadata_path=metadata_path,
+            metadata=metadata,
+            feature_space=feature_space,
+            progress_label=progress_label,
+        )
+    elif normalized_model_type == "neural_scorer":
+        neural_pretrain_report, grouped_dense_contexts, grouped_dense_targets = _pretrain_neural_scorer(
+            model=model,
+            samples_path=samples_path,
+            metadata_path=metadata_path,
+            metadata=metadata,
+            feature_space=feature_space,
+            progress_label=progress_label,
+        )
+    elif normalized_model_type == "neural_ucb_lite":
+        neural_pretrain_report = _pretrain_neural_ucb_lite(
+            model=model,
+            samples_path=samples_path,
+            metadata_path=metadata_path,
+            metadata=metadata,
+            feature_space=feature_space,
+            progress_label=progress_label,
+        )
+    elif normalized_model_type == "neural_ucb":
+        neural_pretrain_report, grouped_dense_examples = _pretrain_neural_ucb(
+            model=model,
+            samples_path=samples_path,
+            metadata_path=metadata_path,
             metadata=metadata,
             feature_space=feature_space,
             progress_label=progress_label,
@@ -474,9 +896,75 @@ def train_v0(
     interval_hits = 0
     interval_defaults = 0
 
+    if normalized_model_type == "neural_scorer":
+        if grouped_dense_contexts is None or grouped_dense_targets is None:
+            raise RuntimeError("grouped_dense_contexts/targets must be populated for neural-scorer training")
+        sample_count = int(grouped_dense_contexts.shape[0])
+        total_reward = float(grouped_dense_targets.sum())
+        model.save(output_dir)
+        report = {
+            "metrics": asdict(
+                TrainingMetrics(
+                    sample_count=sample_count,
+                    mean_reward=total_reward / sample_count if sample_count else 0.0,
+                    pre_update_policy_hit_rate=0.0,
+                    default_logged_action_rate=0.0,
+                    unique_scenarios_seen=0,
+                )
+            ),
+            "feature_dim": feature_space.dimension,
+            "scenario_counts": {},
+            "hyperparameters": {
+                "alpha": alpha,
+                "default_bonus": default_bonus,
+                "l2": l2,
+                "device": model.device,
+                "track_train_hit_rate": track_train_hit_rate,
+                "epochs": epochs,
+                "model_type": model_type,
+                "neural_pretrain": neural_pretrain_report,
+            },
+        }
+        elapsed_total = time.time() - start_time
+        logger.info(
+            "%sFinished training | grouped_contexts=%d | elapsed=%s | avg %.1f grouped_contexts/s",
+            label_prefix,
+            sample_count,
+            _format_duration(elapsed_total),
+            sample_count / elapsed_total if elapsed_total > 0 else 0.0,
+        )
+        Path(output_dir, "training_report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
+        Path(output_dir, "metadata.snapshot.json").write_text(Path(metadata_path).read_text())
+        return TrainingMetrics(**report["metrics"])
+
+    if normalized_model_type == "neural_ucb":
+        if grouped_dense_examples is None:
+            raise RuntimeError("grouped_dense_examples must be populated for neural-ucb training")
+        train_items = [
+            {
+                "scenario_id": example.scenario_id,
+                "context": {},
+                "context_vector": example.x.tolist(),
+                "selected_action": example.positive_action_rewards[0][0],
+                "reward": example.positive_action_rewards[0][1],
+                "event_id": example.base_event_id,
+            }
+            for example in grouped_dense_examples
+            if example.positive_action_rewards
+        ]
+        total_samples_expected = len(train_items) * epochs
+        logger.info(
+            "%sNeural-UCB replay uses grouped positive contexts only | grouped_updates_per_epoch=%d | total_updates=%d",
+            label_prefix,
+            len(train_items),
+            total_samples_expected,
+        )
+    else:
+        train_items = load_jsonl(samples_path)
+
     for epoch_index in range(epochs):
         logger.info("%sStarting epoch %d/%d", label_prefix, epoch_index + 1, epochs)
-        for payload in load_jsonl(samples_path):
+        for payload in train_items if isinstance(train_items, list) else load_jsonl(samples_path):
             sample_count += 1
             event = TrainingEvent.from_dict(payload)
             candidate_actions = resolve_candidate_actions(event, metadata)
@@ -499,7 +987,8 @@ def train_v0(
                 logged_defaults += 1
                 interval_defaults += 1
 
-            model.partial_fit(x, selected_action, event.reward)
+            if normalized_model_type != "neural_scorer":
+                model.partial_fit(x, selected_action, event.reward)
             total_reward += event.reward
             interval_reward += event.reward
             if event.scenario_id is not None:
