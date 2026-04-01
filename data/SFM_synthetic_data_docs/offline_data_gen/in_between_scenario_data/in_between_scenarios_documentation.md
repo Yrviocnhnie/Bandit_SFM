@@ -1,12 +1,17 @@
 # In-Between Scenario Evaluation Spec
 This document defines 10 evaluation-only in-between scenarios for testing contextual-bandit generalization beyond the original 65 named scenarios.
 
+
 Design rules used here:
 - no new feature classes are introduced
 - no new global RO actions are introduced
 - each scenario is built only from existing state codes, rule fields, app categories, and profile fields
 - important features are listed explicitly, while remaining features must still be adjusted according to `state_current` and realistic context
 - `scenarioId` remains metadata only; it is not part of the model input
+
+Interpolation scenarios: between two existing scenarios with overlapping states.
+Compositional scenarios: combine two known intents that never appeared together as one named scenario.
+Boundary scenarios: same feature classes, but in a timing / transition zone where rigid rules become brittle.
 
 ## QUIET_CAFE_BEFORE_MEETING — Quiet cafe before meeting
 - **Type:** `compositional`
