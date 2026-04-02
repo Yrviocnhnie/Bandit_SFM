@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from recommendation_agents.raw_synthetic import (
 from recommendation_agents.schemas import ScoreRequest
 from recommendation_agents.trainer import choose_v0, score_v0, train_v0, train_v0_dual_from_raw, train_v0_from_raw
 from recommendation_agents.workflows import (
+    eval_soft_scenarios_both,
     eval_v0_both,
     mine_v6_hard_negative_candidates,
     prepare_v0_data,
@@ -379,6 +381,20 @@ def build_parser() -> argparse.ArgumentParser:
     eval_both_parser.add_argument("--top-k", type=int, default=3, help="Top-k used for evaluation")
     eval_both_parser.add_argument("--progress-every", type=int, default=1000, help="Evaluation log interval")
     eval_both_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
+
+    eval_soft_parser = subparsers.add_parser(
+        "eval-soft-scenarios",
+        help="Evaluate a trained dual model on evaluation-only in-between scenarios using top-3 and top-5 hit counts",
+    )
+    eval_soft_parser.add_argument("--data-dir", required=True, help="Prepared/trained data directory containing ro_model/app_model")
+    eval_soft_parser.add_argument("--input-raw", required=True, help="Raw JSONL containing in-between soft scenarios")
+    eval_soft_parser.add_argument(
+        "--spec-markdown",
+        required=True,
+        help="Markdown defining the soft scenarios and their RO top10 / App top5 recommendation lists",
+    )
+    eval_soft_parser.add_argument("--progress-every", type=int, default=1000, help="Evaluation log interval")
+    eval_soft_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
 
     plan_a_parser = subparsers.add_parser(
         "run-v6-plan-a",
@@ -829,6 +845,24 @@ def main() -> None:
             "device": summary.device,
             "ro": summary.ro.__dict__,
             "app": summary.app.__dict__,
+        }, indent=2))
+        return
+
+    if args.command == "eval-soft-scenarios":
+        summary = eval_soft_scenarios_both(
+            data_dir=args.data_dir,
+            raw_input_path=args.input_raw,
+            spec_markdown=args.spec_markdown,
+            device=args.device,
+            progress_every=args.progress_every,
+        )
+        print(json.dumps({
+            "data_dir": summary.data_dir,
+            "raw_input_path": summary.raw_input_path,
+            "spec_markdown": summary.spec_markdown,
+            "device": summary.device,
+            "ro": asdict(summary.ro),
+            "app": asdict(summary.app),
         }, indent=2))
         return
 

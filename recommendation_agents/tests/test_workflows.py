@@ -10,6 +10,7 @@ import unittest
 from recommendation_agents.trainer import train_v0
 from recommendation_agents.workflows import (
     _select_hard_negative_candidates,
+    eval_soft_scenarios_both,
     evaluate_v0_topk,
     render_hard_negative_candidates_markdown,
     run_v6_plan_a,
@@ -263,6 +264,147 @@ class WorkflowEvaluationTest(unittest.TestCase):
                 6,
             )
             self.assertLessEqual(len(summary.top6_predicted_action_distribution), 6)
+
+    def test_eval_soft_scenarios_both_reports_top3_and_top5_hits(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            data_dir = tmp_path / "prepared"
+            data_dir.mkdir()
+            metadata = {
+                "schema_version": "ro-global-catalog",
+                "global_action_ids": [
+                    "O_SHOW_SCHEDULE",
+                    "O_SHOW_TODO",
+                    "R_PLAN_DAY_OVER_COFFEE",
+                    "O_SHOW_NEARBY_OPTIONS",
+                ],
+                "actions": [
+                    {"action_id": "O_SHOW_SCHEDULE", "display_name": "Show schedule"},
+                    {"action_id": "O_SHOW_TODO", "display_name": "Show todo"},
+                    {"action_id": "R_PLAN_DAY_OVER_COFFEE", "display_name": "Plan day over coffee"},
+                    {"action_id": "O_SHOW_NEARBY_OPTIONS", "display_name": "Show nearby options"},
+                ],
+            }
+            app_metadata = {
+                "schema_version": "app-global-catalog",
+                "global_action_ids": ["productivity", "news", "music", "reading", "social"],
+                "actions": [
+                    {"action_id": action_id, "display_name": action_id}
+                    for action_id in ["productivity", "news", "music", "reading", "social"]
+                ],
+            }
+            ro_train_rows = [
+                {
+                    "event_id": "evt-001",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "context": _context(),
+                    "selected_action": "O_SHOW_SCHEDULE",
+                    "reward": 1.0,
+                    "propensity": 1.0,
+                },
+                {
+                    "event_id": "evt-002",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "context": _context(hour=8, cal_eventCount=4),
+                    "selected_action": "O_SHOW_TODO",
+                    "reward": 0.7,
+                    "propensity": 1.0,
+                },
+            ]
+            app_train_rows = [
+                {
+                    "event_id": "app-001",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "context": _context(),
+                    "selected_action": "productivity",
+                    "reward": 1.0,
+                    "propensity": 1.0,
+                },
+                {
+                    "event_id": "app-002",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "context": _context(hour=8, cal_eventCount=4),
+                    "selected_action": "news",
+                    "reward": 0.7,
+                    "propensity": 1.0,
+                },
+            ]
+            soft_raw_rows = [
+                {
+                    "scenario_id": "RETURN_OFFICE_AFTER_COFFEE",
+                    "scenario_name": "Return to office after coffee",
+                    "sample_id": "soft-001",
+                    "features": _context(precondition="at_cafe", state_current="office_arriving", ps_time="morning", hour=9),
+                    "gt_ro": "O_SHOW_SCHEDULE",
+                    "gt_app": "productivity",
+                },
+                {
+                    "scenario_id": "RETURN_OFFICE_AFTER_COFFEE",
+                    "scenario_name": "Return to office after coffee",
+                    "sample_id": "soft-002",
+                    "features": _context(precondition="at_cafe_quiet", state_current="office_working", ps_time="forenoon", hour=10),
+                    "gt_ro": "O_SHOW_TODO",
+                    "gt_app": "news",
+                },
+            ]
+            spec_path = tmp_path / "soft_scenarios.md"
+            raw_path = tmp_path / "soft.jsonl"
+
+            (data_dir / "ro_metadata.json").write_text(json.dumps(metadata, indent=2))
+            (data_dir / "app_metadata.json").write_text(json.dumps(app_metadata, indent=2))
+            (data_dir / "ro_train_samples_expanded.jsonl").write_text("".join(json.dumps(row) + "\n" for row in ro_train_rows))
+            (data_dir / "app_train_samples_expanded.jsonl").write_text("".join(json.dumps(row) + "\n" for row in app_train_rows))
+            raw_path.write_text("".join(json.dumps(row) + "\n" for row in soft_raw_rows))
+            spec_path.write_text(
+                "\n".join(
+                    [
+                        "# In-Between",
+                        "",
+                        "## RETURN_OFFICE_AFTER_COFFEE — Return to office after coffee",
+                        "- **Expanded RO ranking (top 10):** `O_SHOW_TODO`, `O_SHOW_SCHEDULE`, `R_PLAN_DAY_OVER_COFFEE`, `O_SHOW_NEARBY_OPTIONS`, `O_SHOW_TODO`, `O_SHOW_SCHEDULE`, `R_PLAN_DAY_OVER_COFFEE`, `O_SHOW_NEARBY_OPTIONS`, `O_SHOW_TODO`, `O_SHOW_SCHEDULE`",
+                        "- **Expanded App ranking (top 5):** `productivity`, `news`, `music`, `reading`, `social`",
+                    ]
+                )
+            )
+
+            train_v0(
+                metadata_path=data_dir / "ro_metadata.json",
+                samples_path=data_dir / "ro_train_samples_expanded.jsonl",
+                output_dir=data_dir / "ro_model",
+                alpha=0.05,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+            )
+            train_v0(
+                metadata_path=data_dir / "app_metadata.json",
+                samples_path=data_dir / "app_train_samples_expanded.jsonl",
+                output_dir=data_dir / "app_model",
+                alpha=0.05,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+            )
+
+            summary = eval_soft_scenarios_both(
+                data_dir=data_dir,
+                raw_input_path=raw_path,
+                spec_markdown=spec_path,
+                device="cpu",
+                progress_every=10,
+            )
+
+            self.assertEqual(summary.ro.sample_count, 2)
+            self.assertEqual(summary.app.sample_count, 2)
+            self.assertGreaterEqual(summary.ro.avg_hits_in_top3, 0.0)
+            self.assertGreaterEqual(summary.ro.avg_hits_in_top5, summary.ro.avg_hits_in_top3)
+            self.assertGreaterEqual(summary.app.avg_hits_in_top3, 0.0)
+            self.assertGreaterEqual(summary.app.avg_hits_in_top5, summary.app.avg_hits_in_top3)
+            self.assertEqual(summary.ro.scenarios_with_samples, 1)
+            self.assertEqual(summary.app.scenarios_with_samples, 1)
+            self.assertIn("RETURN_OFFICE_AFTER_COFFEE", summary.ro.per_scenario)
+            self.assertIn("RETURN_OFFICE_AFTER_COFFEE", summary.app.per_scenario)
+            self.assertTrue((data_dir / "eval_soft_scenarios.json").exists())
 
     def test_run_v6_plan_a_reuses_existing_test_split(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

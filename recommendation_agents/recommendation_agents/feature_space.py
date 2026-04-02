@@ -43,6 +43,8 @@ def _normalize_user_hash_bucket(value: Any) -> str:
     if value is None:
         return ""
     text = str(value)
+    if text.isdigit():
+        return f"b{int(text)}"
     if text.startswith("b") and text[1:].isdigit():
         return f"b{int(text[1:])}"
     return text

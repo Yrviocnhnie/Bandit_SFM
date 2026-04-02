@@ -19,6 +19,7 @@ from recommendation_agents.catalog import (
     build_ro_metadata_from_catalog_markdown,
 )
 from recommendation_agents.feature_space import V0FeatureSpace
+from recommendation_agents.in_between_relevance import parse_in_between_scenarios_markdown
 from recommendation_agents.linucb import load_bandit_model
 from recommendation_agents.metadata import BanditMetadata
 from recommendation_agents.raw_synthetic import (
@@ -93,6 +94,30 @@ class EvalBothSummary:
     device: str
     ro: EvalTopKSummary
     app: EvalTopKSummary
+
+
+@dataclass(frozen=True)
+class SoftScenarioEvalSummary:
+    sample_count: int
+    reference_size: int
+    avg_hits_in_top3: float
+    avg_hits_in_top3_ratio: float
+    avg_hits_in_top5: float
+    avg_hits_in_top5_ratio: float
+    top10_predicted_action_distribution_top5: list[dict[str, Any]]
+    scenarios_with_samples: int
+    scenarios_without_samples: list[str]
+    per_scenario: dict[str, dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class SoftScenarioEvalBothSummary:
+    data_dir: str
+    raw_input_path: str
+    spec_markdown: str
+    device: str
+    ro: SoftScenarioEvalSummary
+    app: SoftScenarioEvalSummary
 
 
 @dataclass(frozen=True)
@@ -894,6 +919,256 @@ def _select_hard_negative_candidates(
         if len(rows) >= max_candidates:
             break
     return rows
+
+
+def evaluate_soft_scenarios(
+    artifact_dir: str | Path,
+    metadata_path: str | Path,
+    raw_input_path: str | Path,
+    spec_markdown: str | Path,
+    label_namespace: str,
+    device: str = "auto",
+    progress_every: int = 1000,
+    progress_label: str | None = None,
+) -> SoftScenarioEvalSummary:
+    if progress_every <= 0:
+        raise ValueError("progress_every must be positive")
+    if label_namespace not in {"ro", "app"}:
+        raise ValueError("label_namespace must be 'ro' or 'app'")
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    label_prefix = f"[{progress_label}] " if progress_label else ""
+
+    metadata = BanditMetadata.load(metadata_path)
+    soft_catalog = parse_in_between_scenarios_markdown(spec_markdown)
+    feature_space = V0FeatureSpace()
+    model = load_bandit_model(artifact_dir, device=device)
+    rows = _load_jsonl(raw_input_path)
+    if not rows:
+        raise ValueError(f"No raw rows found in {raw_input_path}")
+
+    total_rows = len(rows)
+    start_time = time.time()
+    logger.info(
+        "%sStarting soft-scenario evaluation | rows=%d | label=%s | device=%s",
+        label_prefix,
+        total_rows,
+        label_namespace,
+        device,
+    )
+
+    pred_top5_counts: Counter[str] = Counter()
+    scenario_row_counts: Counter[str] = Counter()
+    scenario_pred_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    scenario_hits_top3: Counter[str] = Counter()
+    scenario_hits_top5: Counter[str] = Counter()
+    total_hits_top3 = 0.0
+    total_hits_top5 = 0.0
+    interval_hits_top3 = 0.0
+    interval_hits_top5 = 0.0
+    skipped_rows_missing_scenario = 0
+
+    for index, row in enumerate(rows, start=1):
+        scenario_id = _scenario_id(row)
+        if scenario_id is None or scenario_id not in soft_catalog:
+            skipped_rows_missing_scenario += 1
+            continue
+
+        event = TrainingEvent(
+            context=_build_context(row),
+            selected_action="NONE",
+            reward=0.0,
+            scenario_id=scenario_id,
+            event_id=str(row.get("sample_id") or row.get("episode_id") or index),
+        )
+        x = feature_space.encode(event.context)
+        ranked = model.rank(
+            x,
+            metadata.candidate_action_ids(scenario_id),
+            metadata.default_action_id(scenario_id),
+            top_k=5,
+        )
+        pred_top5 = tuple(item.action_id for item in ranked)
+        pred_top3 = pred_top5[:3]
+
+        if label_namespace == "ro":
+            reference_actions = tuple(
+                metadata.resolve_action_token(action_id, None)
+                for action_id in soft_catalog[scenario_id]["ro_top10"]
+            )
+            reference_size = 10
+        else:
+            reference_actions = tuple(
+                metadata.resolve_action_token(action_id, None)
+                for action_id in soft_catalog[scenario_id]["app_top5"]
+            )
+            reference_size = 5
+        reference_set = set(reference_actions)
+
+        hits_top3 = sum(1 for action_id in pred_top3 if action_id in reference_set)
+        hits_top5 = sum(1 for action_id in pred_top5 if action_id in reference_set)
+
+        total_hits_top3 += hits_top3
+        total_hits_top5 += hits_top5
+        interval_hits_top3 += hits_top3
+        interval_hits_top5 += hits_top5
+
+        scenario_row_counts[scenario_id] += 1
+        scenario_hits_top3[scenario_id] += hits_top3
+        scenario_hits_top5[scenario_id] += hits_top5
+        for action_id in pred_top5:
+            pred_top5_counts[action_id] += 1
+            scenario_pred_counts[scenario_id][action_id] += 1
+
+        if index % progress_every == 0:
+            elapsed = time.time() - start_time
+            rows_per_sec = index / elapsed if elapsed > 0 else 0.0
+            remaining = max(total_rows - index, 0)
+            eta_seconds = remaining / rows_per_sec if rows_per_sec > 0 else 0.0
+            logger.info(
+                "%sProcessed %d/%d rows | interval hits@3=%.3f/3 | cumulative hits@3=%.3f/3 | interval hits@5=%.3f/5 | cumulative hits@5=%.3f/5 | elapsed=%s | eta=%s | %.1f rows/s",
+                label_prefix,
+                index,
+                total_rows,
+                interval_hits_top3 / progress_every,
+                total_hits_top3 / max(index - skipped_rows_missing_scenario, 1),
+                interval_hits_top5 / progress_every,
+                total_hits_top5 / max(index - skipped_rows_missing_scenario, 1),
+                _format_duration(elapsed),
+                _format_duration(eta_seconds),
+                rows_per_sec,
+            )
+            interval_hits_top3 = 0.0
+            interval_hits_top5 = 0.0
+
+    remainder = total_rows % progress_every
+    evaluated_rows = total_rows - skipped_rows_missing_scenario
+    if remainder:
+        elapsed = time.time() - start_time
+        rows_per_sec = total_rows / elapsed if elapsed > 0 else 0.0
+        logger.info(
+            "%sProcessed %d/%d rows | interval hits@3=%.3f/3 | cumulative hits@3=%.3f/3 | interval hits@5=%.3f/5 | cumulative hits@5=%.3f/5 | elapsed=%s | eta=0s | %.1f rows/s",
+            label_prefix,
+            total_rows,
+            total_rows,
+            interval_hits_top3 / remainder,
+            total_hits_top3 / max(evaluated_rows, 1),
+            interval_hits_top5 / remainder,
+            total_hits_top5 / max(evaluated_rows, 1),
+            _format_duration(elapsed),
+            rows_per_sec,
+        )
+
+    per_scenario: dict[str, dict[str, Any]] = {}
+    for scenario_id in sorted(soft_catalog):
+        row_count = scenario_row_counts[scenario_id]
+        if row_count == 0:
+            continue
+        if label_namespace == "ro":
+            reference_actions = [metadata.resolve_action_token(action_id, None) for action_id in soft_catalog[scenario_id]["ro_top10"]]
+        else:
+            reference_actions = [metadata.resolve_action_token(action_id, None) for action_id in soft_catalog[scenario_id]["app_top5"]]
+        per_scenario[scenario_id] = {
+            "sample_count": row_count,
+            "reference_actions": reference_actions,
+            "avg_hits_in_top3": scenario_hits_top3[scenario_id] / row_count,
+            "avg_hits_in_top3_ratio": scenario_hits_top3[scenario_id] / (row_count * 3.0),
+            "avg_hits_in_top5": scenario_hits_top5[scenario_id] / row_count,
+            "avg_hits_in_top5_ratio": scenario_hits_top5[scenario_id] / (row_count * 5.0),
+            "predicted_top10_action_distribution_top5": _top_action_distribution(
+                scenario_pred_counts[scenario_id],
+                sample_count=row_count,
+                top_k=5,
+                limit=10,
+            ),
+        }
+
+    elapsed_total = time.time() - start_time
+    logger.info(
+        "%sFinished soft-scenario evaluation | rows=%d | evaluated=%d | avg hits@3=%.3f/3 | avg hits@5=%.3f/5 | elapsed=%s | avg %.1f rows/s",
+        label_prefix,
+        total_rows,
+        evaluated_rows,
+        total_hits_top3 / max(evaluated_rows, 1),
+        total_hits_top5 / max(evaluated_rows, 1),
+        _format_duration(elapsed_total),
+        total_rows / elapsed_total if elapsed_total > 0 else 0.0,
+    )
+
+    return SoftScenarioEvalSummary(
+        sample_count=evaluated_rows,
+        reference_size=10 if label_namespace == "ro" else 5,
+        avg_hits_in_top3=total_hits_top3 / max(evaluated_rows, 1),
+        avg_hits_in_top3_ratio=total_hits_top3 / max(evaluated_rows * 3.0, 1.0),
+        avg_hits_in_top5=total_hits_top5 / max(evaluated_rows, 1),
+        avg_hits_in_top5_ratio=total_hits_top5 / max(evaluated_rows * 5.0, 1.0),
+        top10_predicted_action_distribution_top5=_top_action_distribution(
+            pred_top5_counts,
+            sample_count=max(evaluated_rows, 1),
+            top_k=5,
+            limit=10,
+        ),
+        scenarios_with_samples=len(per_scenario),
+        scenarios_without_samples=[scenario_id for scenario_id in sorted(soft_catalog) if scenario_row_counts[scenario_id] == 0],
+        per_scenario=per_scenario,
+    )
+
+
+def eval_soft_scenarios_both(
+    data_dir: str | Path,
+    raw_input_path: str | Path,
+    spec_markdown: str | Path,
+    device: str = "auto",
+    progress_every: int = 1000,
+) -> SoftScenarioEvalBothSummary:
+    data_path = Path(data_dir)
+    logger.info(
+        "[WORKFLOW] Starting soft-scenario evaluation | data_dir=%s | raw_input=%s | device=%s",
+        data_path,
+        raw_input_path,
+        device,
+    )
+    ro = evaluate_soft_scenarios(
+        artifact_dir=data_path / "ro_model",
+        metadata_path=data_path / "ro_metadata.json",
+        raw_input_path=raw_input_path,
+        spec_markdown=spec_markdown,
+        label_namespace="ro",
+        device=device,
+        progress_every=progress_every,
+        progress_label="RO-SOFT-EVAL",
+    )
+    app = evaluate_soft_scenarios(
+        artifact_dir=data_path / "app_model",
+        metadata_path=data_path / "app_metadata.json",
+        raw_input_path=raw_input_path,
+        spec_markdown=spec_markdown,
+        label_namespace="app",
+        device=device,
+        progress_every=progress_every,
+        progress_label="APP-SOFT-EVAL",
+    )
+    summary = SoftScenarioEvalBothSummary(
+        data_dir=str(data_path),
+        raw_input_path=str(Path(raw_input_path)),
+        spec_markdown=str(Path(spec_markdown)),
+        device=device,
+        ro=ro,
+        app=app,
+    )
+    _write_json_unsorted(
+        data_path / "eval_soft_scenarios.json",
+        {
+            "data_dir": summary.data_dir,
+            "raw_input_path": summary.raw_input_path,
+            "spec_markdown": summary.spec_markdown,
+            "device": summary.device,
+            "ro": asdict(summary.ro),
+            "app": asdict(summary.app),
+        },
+    )
+    logger.info("[WORKFLOW] Finished soft-scenario evaluation")
+    return summary
 
 
 def render_hard_negative_candidates_markdown(summary: HardNegativeMiningSummary) -> str:
