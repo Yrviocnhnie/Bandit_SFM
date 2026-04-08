@@ -1,0 +1,27 @@
+{
+  "action_ids": [
+    "social",
+    "productivity",
+    "entertainment",
+    "navigation",
+    "shopping",
+    "news",
+    "health",
+    "music",
+    "reading",
+    "game"
+  ],
+  "alpha": 0.0,
+  "default_bonus": 0.0,
+  "device": "cpu",
+  "encoder_architecture": [
+    306,
+    128,
+    64
+  ],
+  "feature_dim": 306,
+  "hidden_dim": 128,
+  "l2": 1.0,
+  "latent_dim": 64,
+  "model_type": "masked_neural_linear_ucb_v0"
+}

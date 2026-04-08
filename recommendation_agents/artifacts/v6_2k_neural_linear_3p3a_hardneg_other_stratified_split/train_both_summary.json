@@ -1,0 +1,25 @@
+{
+  "alpha": 0.0,
+  "app": {
+    "default_logged_action_rate": 0.0,
+    "mean_reward": 0.3099999999988506,
+    "pre_update_policy_hit_rate": 0.0,
+    "sample_count": 1964860,
+    "unique_scenarios_seen": 65
+  },
+  "app_model_dir": "artifacts/v6_2k_neural_linear_3p3a_hardneg_other_stratified_split/app_model",
+  "data_dir": "artifacts/v6_2k_neural_linear_3p3a_hardneg_other_stratified_split",
+  "default_bonus": 0.0,
+  "device": "cpu",
+  "epochs": 1,
+  "l2": 1.0,
+  "model_type": "neural-linear",
+  "ro": {
+    "default_logged_action_rate": 0.0,
+    "mean_reward": 0.06559843405135236,
+    "pre_update_policy_hit_rate": 0.0,
+    "sample_count": 9038356,
+    "unique_scenarios_seen": 65
+  },
+  "ro_model_dir": "artifacts/v6_2k_neural_linear_3p3a_hardneg_other_stratified_split/ro_model"
+}
