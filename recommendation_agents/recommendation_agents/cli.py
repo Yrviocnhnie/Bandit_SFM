@@ -26,6 +26,7 @@ from recommendation_agents.workflows import (
     run_v6_plan_a,
     run_v6_plan_all_data,
     run_v6_plan_b,
+    simulate_feedback_propagation_on_frozen_neural_linear,
     train_v0_both,
 )
 
@@ -395,6 +396,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     eval_soft_parser.add_argument("--progress-every", type=int, default=1000, help="Evaluation log interval")
     eval_soft_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
+
+    feedback_prop_parser = subparsers.add_parser(
+        "simulate-feedback-propagation",
+        help="Simulate online like/dislike feedback propagation on a frozen neural-linear R/O model",
+    )
+    feedback_prop_parser.add_argument("--artifact-dir", required=True, help="Prepared/trained artifact directory containing ro_model, train.raw.jsonl, and test.raw.jsonl")
+    feedback_prop_parser.add_argument(
+        "--relevance-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the v6 scenario relevance catalog used for before/after evaluation",
+    )
+    feedback_prop_parser.add_argument(
+        "--n-values",
+        default="1,5,10,20,50,100",
+        help="Comma-separated N values for nearest-neighbor propagation",
+    )
+    feedback_prop_parser.add_argument(
+        "--output-dir",
+        required=False,
+        help="Optional output directory. Defaults to <artifact-dir>/feedback_propagation_ro_v1",
+    )
+    feedback_prop_parser.add_argument("--progress-every", type=int, default=25000, help="Encoding progress log interval")
+    feedback_prop_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
 
     plan_a_parser = subparsers.add_parser(
         "run-v6-plan-a",
@@ -863,6 +887,27 @@ def main() -> None:
             "device": summary.device,
             "ro": asdict(summary.ro),
             "app": asdict(summary.app),
+        }, indent=2))
+        return
+
+    if args.command == "simulate-feedback-propagation":
+        n_values = [int(value.strip()) for value in args.n_values.split(",") if value.strip()]
+        summary = simulate_feedback_propagation_on_frozen_neural_linear(
+            artifact_dir=args.artifact_dir,
+            relevance_markdown=args.relevance_markdown,
+            n_values=n_values,
+            output_dir=args.output_dir,
+            device=args.device,
+            progress_every=args.progress_every,
+        )
+        print(json.dumps({
+            "artifact_dir": summary.artifact_dir,
+            "output_dir": summary.output_dir,
+            "relevance_markdown": summary.relevance_markdown,
+            "device": summary.device,
+            "n_values": summary.n_values,
+            "feedback_items": summary.feedback_items,
+            "conditions": summary.conditions,
         }, indent=2))
         return
 

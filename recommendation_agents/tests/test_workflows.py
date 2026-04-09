@@ -16,6 +16,7 @@ from recommendation_agents.workflows import (
     run_v6_plan_a,
     run_v6_plan_all_data,
     run_v6_plan_b,
+    simulate_feedback_propagation_on_frozen_neural_linear,
     split_raw_by_scenario_episode,
     HardNegativeMiningSummary,
 )
@@ -405,6 +406,159 @@ class WorkflowEvaluationTest(unittest.TestCase):
             self.assertIn("RETURN_OFFICE_AFTER_COFFEE", summary.ro.per_scenario)
             self.assertIn("RETURN_OFFICE_AFTER_COFFEE", summary.app.per_scenario)
             self.assertTrue((data_dir / "eval_soft_scenarios.json").exists())
+
+    def test_simulate_feedback_propagation_on_frozen_neural_linear_writes_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            data_dir = tmp_path / "prepared"
+            data_dir.mkdir()
+            metadata = {
+                "schema_version": "ro-global-catalog",
+                "global_action_ids": [
+                    "O_SHOW_SCHEDULE",
+                    "O_SHOW_TODAY_TODO",
+                    "R_PLAN_DAY_OVER_COFFEE",
+                    "O_SHOW_COMMUTE_TRAFFIC",
+                ],
+                "actions": [
+                    {"action_id": "O_SHOW_SCHEDULE", "display_name": "Show schedule"},
+                    {"action_id": "O_SHOW_TODAY_TODO", "display_name": "Show todo"},
+                    {"action_id": "R_PLAN_DAY_OVER_COFFEE", "display_name": "Plan day over coffee"},
+                    {"action_id": "O_SHOW_COMMUTE_TRAFFIC", "display_name": "Show commute traffic"},
+                ],
+            }
+            scenarios = [
+                "ARRIVE_OFFICE",
+                "OFFICE_LUNCH_OUT",
+                "OFFICE_WORKING",
+                "LEAVE_OFFICE",
+            ]
+            train_rows: list[dict[str, object]] = []
+            train_raw_rows: list[dict[str, object]] = []
+            test_raw_rows: list[dict[str, object]] = []
+            for scenario_index, scenario_id in enumerate(scenarios):
+                for sample_index in range(2):
+                    context = _context(
+                        hour=9 + scenario_index + sample_index,
+                        cal_eventCount=1 + sample_index,
+                        ps_time="afternoon" if scenario_id == "OFFICE_WORKING" else "morning",
+                        precondition="office_working" if scenario_id == "LEAVE_OFFICE" else "commuting_walk_out",
+                        state_current="office_working" if scenario_id == "OFFICE_WORKING" else "office_arriving",
+                    )
+                    episode_id = f"{scenario_id.lower()}_train_{sample_index}"
+                    train_raw_rows.append(
+                        {
+                            "scenario_id": scenario_id,
+                            "scenario_name": scenario_id,
+                            "episode_id": episode_id,
+                            "features": context,
+                            "gt_ro": "O_SHOW_SCHEDULE",
+                            "gt_app": "productivity",
+                        }
+                    )
+                    train_rows.extend(
+                        [
+                            {
+                                "event_id": f"{episode_id}:0",
+                                "source_base_event_id": episode_id,
+                                "scenario_id": scenario_id,
+                                "context": context,
+                                "selected_action": "O_SHOW_SCHEDULE",
+                                "reward": 1.0,
+                                "propensity": 1.0,
+                            },
+                            {
+                                "event_id": f"{episode_id}:1",
+                                "source_base_event_id": episode_id,
+                                "scenario_id": scenario_id,
+                                "context": context,
+                                "selected_action": "O_SHOW_TODAY_TODO",
+                                "reward": 0.8,
+                                "propensity": 1.0,
+                            },
+                            {
+                                "event_id": f"{episode_id}:2",
+                                "source_base_event_id": episode_id,
+                                "scenario_id": scenario_id,
+                                "context": context,
+                                "selected_action": "R_PLAN_DAY_OVER_COFFEE",
+                                "reward": 0.5,
+                                "propensity": 1.0,
+                            },
+                        ]
+                    )
+                for sample_index in range(2):
+                    context = _context(
+                        hour=11 + scenario_index + sample_index,
+                        cal_eventCount=2 + sample_index,
+                        ps_time="afternoon" if scenario_id == "OFFICE_WORKING" else "morning",
+                        precondition="office_working" if scenario_id == "LEAVE_OFFICE" else "commuting_walk_out",
+                        state_current="office_working" if scenario_id == "OFFICE_WORKING" else "office_arriving",
+                    )
+                    test_raw_rows.append(
+                        {
+                            "scenario_id": scenario_id,
+                            "scenario_name": scenario_id,
+                            "episode_id": f"{scenario_id.lower()}_test_{sample_index}",
+                            "features": context,
+                            "gt_ro": "O_SHOW_SCHEDULE",
+                            "gt_app": "productivity",
+                        }
+                    )
+
+            (data_dir / "ro_metadata.json").write_text(json.dumps(metadata, indent=2))
+            (data_dir / "train.raw.jsonl").write_text("".join(json.dumps(row) + "\n" for row in train_raw_rows))
+            (data_dir / "test.raw.jsonl").write_text("".join(json.dumps(row) + "\n" for row in test_raw_rows))
+            (data_dir / "ro_train_samples_expanded.jsonl").write_text("".join(json.dumps(row) + "\n" for row in train_rows))
+            relevance_path = tmp_path / "relevance.md"
+            relevance_path.write_text(
+                "\n".join(
+                    [
+                        "# v6",
+                        "",
+                        "## Scenario Defaults",
+                        "",
+                        "| scenarioId | scenarioNameZh | most relevant 3 R/O actionIds | other plausible 3 R/O actionIds | irrelevant 2 R/O actionIds | extra hard negative R/O actionIds | most relevant 3 app categories | other plausible 3 app categories | irrelevant 2 app categories |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| `ARRIVE_OFFICE` | 到达办公室 | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `O_SHOW_COMMUTE_TRAFFIC`<br>`O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO` | `R_PLAN_DAY_OVER_COFFEE`<br>`O_SHOW_COMMUTE_TRAFFIC` |  | `productivity`<br>`news`<br>`music` | `reading`<br>`social`<br>`health` | `shopping`<br>`game` |",
+                        "| `OFFICE_LUNCH_OUT` | 办公室午间外出 | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `O_SHOW_COMMUTE_TRAFFIC`<br>`O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO` | `R_PLAN_DAY_OVER_COFFEE`<br>`O_SHOW_COMMUTE_TRAFFIC` |  | `productivity`<br>`news`<br>`music` | `reading`<br>`social`<br>`health` | `shopping`<br>`game` |",
+                        "| `OFFICE_WORKING` | 办公室工作 | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `O_SHOW_COMMUTE_TRAFFIC`<br>`O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO` | `R_PLAN_DAY_OVER_COFFEE`<br>`O_SHOW_COMMUTE_TRAFFIC` |  | `productivity`<br>`news`<br>`music` | `reading`<br>`social`<br>`health` | `shopping`<br>`game` |",
+                        "| `LEAVE_OFFICE` | 离开办公室 | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `O_SHOW_COMMUTE_TRAFFIC`<br>`O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO` | `R_PLAN_DAY_OVER_COFFEE`<br>`O_SHOW_COMMUTE_TRAFFIC` |  | `productivity`<br>`news`<br>`music` | `reading`<br>`social`<br>`health` | `shopping`<br>`game` |",
+                    ]
+                )
+            )
+
+            train_v0(
+                metadata_path=data_dir / "ro_metadata.json",
+                samples_path=(data_dir / "ro_train_samples_expanded.jsonl"),
+                output_dir=data_dir / "ro_model",
+                alpha=0.0,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+                model_type="neural-linear",
+            )
+
+            summary = simulate_feedback_propagation_on_frozen_neural_linear(
+                artifact_dir=data_dir,
+                relevance_markdown=relevance_path,
+                n_values=[1, 2],
+                device="cpu",
+                progress_every=10,
+            )
+
+            self.assertEqual(len(summary.feedback_items), 4)
+            self.assertEqual(len(summary.conditions), 6)
+            self.assertTrue((data_dir / "feedback_propagation_ro_v1" / "locked_feedback_spec.json").exists())
+            self.assertTrue((data_dir / "feedback_propagation_ro_v1" / "results.json").exists())
+            self.assertTrue((data_dir / "feedback_propagation_ro_v1" / "summary_table.md").exists())
+            modes = {(condition["mode"], condition["requested_n"]) for condition in summary.conditions}
+            self.assertIn(("single", 1), modes)
+            self.assertIn(("global-latent-nearest", 1), modes)
+            self.assertIn(("same-scenario-nearest", 2), modes)
+            self.assertIn(("entire-scenario-all", "all"), modes)
+            all_condition = next(condition for condition in summary.conditions if condition["mode"] == "entire-scenario-all")
+            self.assertTrue(all(feedback["effective_n"] == 2 for feedback in all_condition["feedback_results"]))
 
     def test_run_v6_plan_a_reuses_existing_test_split(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

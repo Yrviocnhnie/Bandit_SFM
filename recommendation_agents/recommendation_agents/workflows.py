@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 import hashlib
 import json
 import logging
+import math
+import numpy as np
 from pathlib import Path
 import shutil
 import time
@@ -121,6 +123,17 @@ class SoftScenarioEvalBothSummary:
 
 
 @dataclass(frozen=True)
+class FeedbackPropagationExperimentSummary:
+    artifact_dir: str
+    output_dir: str
+    relevance_markdown: str
+    device: str
+    n_values: list[int]
+    feedback_items: list[dict[str, Any]]
+    conditions: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
 class StratifiedSplitSummary:
     train_rows: int
     test_rows: int
@@ -183,6 +196,221 @@ def _copy_file(src: str | Path, dst: str | Path) -> None:
     destination = Path(dst)
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dst)
+
+
+_FEEDBACK_PROPAGATION_SCENARIOS = (
+    ("ARRIVE_OFFICE", "like", 1),
+    ("OFFICE_LUNCH_OUT", "dislike", 1),
+    ("OFFICE_WORKING", "like", 2),
+    ("LEAVE_OFFICE", "dislike", 2),
+)
+
+
+def _top_action_distribution_topk(predicted_counts: Counter[str], sample_count: int, top_k: int, limit: int = 10) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for action_id, count in predicted_counts.most_common(limit):
+        rows.append(
+            {
+                "action_id": action_id,
+                "count": count,
+                "topk_appearance_rate": count / sample_count if sample_count else 0.0,
+                "slot_share": count / (sample_count * top_k) if sample_count and top_k else 0.0,
+            }
+        )
+    return rows
+
+
+def _cosine_similarity(anchor: np.ndarray, candidates: np.ndarray) -> np.ndarray:
+    anchor_norm = float(np.linalg.norm(anchor))
+    if anchor_norm == 0.0:
+        return np.zeros((candidates.shape[0],), dtype=np.float32)
+    candidate_norms = np.linalg.norm(candidates, axis=1)
+    safe_norms = np.where(candidate_norms > 0.0, candidate_norms, 1.0)
+    scores = np.matmul(candidates, anchor) / (safe_norms * anchor_norm)
+    scores = np.where(candidate_norms > 0.0, scores, 0.0)
+    return scores.astype(np.float32, copy=False)
+
+
+def _sorted_neighbor_indices(
+    anchor_latent: np.ndarray,
+    candidate_latents: np.ndarray,
+    candidate_episode_ids: list[str],
+    top_n: int,
+) -> list[int]:
+    if top_n <= 0 or len(candidate_episode_ids) == 0:
+        return []
+    similarities = _cosine_similarity(anchor_latent, candidate_latents)
+    order = sorted(
+        range(len(candidate_episode_ids)),
+        key=lambda index: (-float(similarities[index]), candidate_episode_ids[index]),
+    )
+    return order[:top_n]
+
+
+def _rank_action_details(
+    model: Any,
+    x: np.ndarray,
+    metadata: BanditMetadata,
+    scenario_id: str,
+    action_id: str,
+) -> dict[str, Any]:
+    ranked = model.rank(
+        x,
+        metadata.candidate_action_ids(scenario_id),
+        metadata.default_action_id(scenario_id),
+        top_k=None,
+    )
+    for position, item in enumerate(ranked, start=1):
+        if item.action_id == action_id:
+            return {
+                "rank": position,
+                "score": item.score,
+                "mean_reward": item.mean_reward,
+                "uncertainty": item.uncertainty,
+                "default_bonus": item.default_bonus,
+                "in_top3": position <= 3,
+                "top3_action_ids": [ranked_item.action_id for ranked_item in ranked[:3]],
+                "top5_action_ids": [ranked_item.action_id for ranked_item in ranked[:5]],
+            }
+    raise KeyError(f"Action {action_id!r} was not returned by model.rank for scenario {scenario_id!r}")
+
+
+def _evaluate_target_action_on_rows(
+    model: Any,
+    rows: list[dict[str, Any]],
+    metadata: BanditMetadata,
+    target_action_id: str,
+) -> dict[str, Any]:
+    if not rows:
+        return {
+            "sample_count": 0,
+            "avg_rank": math.nan,
+            "top3_rate": math.nan,
+            "avg_score": math.nan,
+            "avg_mean_reward": math.nan,
+            "avg_uncertainty": math.nan,
+        }
+
+    rank_sum = 0.0
+    top3_hits = 0
+    score_sum = 0.0
+    mean_reward_sum = 0.0
+    uncertainty_sum = 0.0
+
+    for row in rows:
+        details = _rank_action_details(model, row["x"], metadata, row["scenario_id"], target_action_id)
+        rank_sum += details["rank"]
+        top3_hits += 1 if details["in_top3"] else 0
+        score_sum += details["score"]
+        mean_reward_sum += details["mean_reward"]
+        uncertainty_sum += details["uncertainty"]
+
+    sample_count = len(rows)
+    return {
+        "sample_count": sample_count,
+        "avg_rank": rank_sum / sample_count,
+        "top3_rate": top3_hits / sample_count,
+        "avg_score": score_sum / sample_count,
+        "avg_mean_reward": mean_reward_sum / sample_count,
+        "avg_uncertainty": uncertainty_sum / sample_count,
+    }
+
+
+def _evaluate_ro_quality_on_rows(
+    model: Any,
+    rows: list[dict[str, Any]],
+    metadata: BanditMetadata,
+    relevance_catalog: dict[str, Any],
+    top_k: int = 3,
+) -> dict[str, Any]:
+    if not rows:
+        return {
+            "sample_count": 0,
+            "avg_most_relevant_covered_in_topk": math.nan,
+            "avg_acceptable_covered_in_topk": math.nan,
+            "avg_irrelevant_in_topk": math.nan,
+        }
+
+    total_most = 0.0
+    total_acceptable = 0.0
+    total_irrelevant = 0.0
+    predicted_counts: Counter[str] = Counter()
+
+    for row in rows:
+        scenario_id = row["scenario_id"]
+        rel = relevance_catalog[scenario_id]
+        if isinstance(rel, dict):
+            most_relevant_ids = tuple(rel.get("most_relevant_3", ()))
+            plausible_ids = tuple(rel.get("other_plausible_3", ()))
+            irrelevant_ids = tuple(rel.get("irrelevant_2", ())) + tuple(rel.get("extra_hard_negative_ro", ()))
+        else:
+            most_relevant_ids = tuple(getattr(rel, "most_relevant", ()))
+            plausible_ids = tuple(getattr(rel, "plausible", ()))
+            irrelevant_ids = tuple(getattr(rel, "irrelevant", ())) + tuple(getattr(rel, "extra_hard_negative", ()))
+        ranked = model.rank(
+            row["x"],
+            metadata.candidate_action_ids(scenario_id),
+            metadata.default_action_id(scenario_id),
+            top_k=top_k,
+        )
+        predicted = tuple(item.action_id for item in ranked)
+        predicted_counts.update(predicted)
+        most_relevant = {metadata.resolve_action_token(action_id, scenario_id) for action_id in most_relevant_ids}
+        plausible = {metadata.resolve_action_token(action_id, scenario_id) for action_id in plausible_ids}
+        irrelevant = {metadata.resolve_action_token(action_id, scenario_id) for action_id in irrelevant_ids}
+        total_most += sum(1 for action_id in predicted if action_id in most_relevant)
+        total_acceptable += sum(1 for action_id in predicted if action_id in most_relevant or action_id in plausible)
+        total_irrelevant += sum(1 for action_id in predicted if action_id in irrelevant)
+
+    sample_count = len(rows)
+    return {
+        "sample_count": sample_count,
+        "avg_most_relevant_covered_in_topk": total_most / sample_count,
+        "avg_acceptable_covered_in_topk": total_acceptable / sample_count,
+        "avg_irrelevant_in_topk": total_irrelevant / sample_count,
+        "top10_predicted_action_distribution_top3": _top_action_distribution_topk(predicted_counts, sample_count, top_k, limit=10),
+    }
+
+
+def _render_feedback_propagation_markdown(summary: FeedbackPropagationExperimentSummary) -> str:
+    lines = [
+        "# Feedback Propagation Experiment",
+        "",
+        f"- artifact_dir: `{summary.artifact_dir}`",
+        f"- device: `{summary.device}`",
+        f"- n_values: `{','.join(str(value) for value in summary.n_values)}`",
+        "",
+        "## Locked Feedback Items",
+        "",
+        "| scenario | feedback | target_position | target_action_id | anchor_episode_id | baseline_top3 |",
+        "| --- | --- | ---: | --- | --- | --- |",
+    ]
+    for item in summary.feedback_items:
+        lines.append(
+            f"| `{item['scenario_id']}` | `{item['feedback_type']}` | {item['target_position']} | "
+            f"`{item['target_action_id']}` | `{item['anchor_episode_id']}` | "
+            f"`{' , '.join(item['baseline_top3_action_ids'])}` |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Condition Summary",
+            "",
+            "| mode | N | avg anchor rank delta | avg same-scenario rank delta | avg cross-scenario rank delta | selected-scenario most_rel before | selected-scenario most_rel after |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for condition in summary.conditions:
+        lines.append(
+            f"| `{condition['mode']}` | `{condition['requested_n']}` | "
+            f"{condition['aggregate']['avg_anchor_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_same_scenario_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_cross_scenario_rank_delta']:.3f} | "
+            f"{condition['selected_scenarios_quality_before']['avg_most_relevant_covered_in_topk']:.3f} | "
+            f"{condition['selected_scenarios_quality_after']['avg_most_relevant_covered_in_topk']:.3f} |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def split_raw_by_episode(
@@ -1168,6 +1396,287 @@ def eval_soft_scenarios_both(
         },
     )
     logger.info("[WORKFLOW] Finished soft-scenario evaluation")
+    return summary
+
+
+def simulate_feedback_propagation_on_frozen_neural_linear(
+    artifact_dir: str | Path,
+    relevance_markdown: str | Path = "docs/scenario_recommendation_actions_v6.md",
+    n_values: list[int] | None = None,
+    output_dir: str | Path | None = None,
+    device: str = "auto",
+    progress_every: int = 25000,
+) -> FeedbackPropagationExperimentSummary:
+    if progress_every <= 0:
+        raise ValueError("progress_every must be positive")
+    n_values = [1, 5, 10, 20, 50, 100] if n_values is None else sorted({int(value) for value in n_values if int(value) > 0})
+    if not n_values:
+        raise ValueError("n_values must contain at least one positive integer")
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    data_path = Path(artifact_dir)
+    output_path = Path(output_dir) if output_dir is not None else data_path / "feedback_propagation_ro_v1"
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    metadata = BanditMetadata.load(data_path / "ro_metadata.json")
+    feature_space = V0FeatureSpace()
+    base_model = load_bandit_model(data_path / "ro_model", device=device)
+    if not hasattr(base_model, "encode_context") or not hasattr(base_model, "partial_fit"):
+        raise ValueError("This workflow requires a frozen neural-linear style model with encode_context and partial_fit support")
+
+    relevance_catalog = parse_v6_relevance_markdown(relevance_markdown)["ro"]
+    train_rows_raw = _load_jsonl(data_path / "train.raw.jsonl")
+    test_rows_raw = _load_jsonl(data_path / "test.raw.jsonl")
+    if not train_rows_raw or not test_rows_raw:
+        raise ValueError("artifact_dir must contain non-empty train.raw.jsonl and test.raw.jsonl")
+
+    def _encode_raw_rows(raw_rows: list[dict[str, Any]], label: str) -> list[dict[str, Any]]:
+        encoded_rows: list[dict[str, Any]] = []
+        start = time.time()
+        for index, row in enumerate(raw_rows, start=1):
+            scenario_id = _scenario_id(row)
+            if scenario_id is None:
+                continue
+            episode_id = str(row.get("episode_id") or row.get("sample_id") or index)
+            context = _build_context(row)
+            x = feature_space.encode(context)
+            latent = base_model.encode_context(x)
+            encoded_rows.append(
+                {
+                    "scenario_id": scenario_id,
+                    "episode_id": episode_id,
+                    "context": context,
+                    "x": x,
+                    "latent": latent,
+                }
+            )
+            if index % progress_every == 0:
+                elapsed = time.time() - start
+                rows_per_sec = index / elapsed if elapsed > 0 else 0.0
+                logger.info(
+                    "[FEEDBACK-%s] Encoded %d/%d rows | elapsed=%s | %.1f rows/s",
+                    label,
+                    index,
+                    len(raw_rows),
+                    _format_duration(elapsed),
+                    rows_per_sec,
+                )
+        return encoded_rows
+
+    train_rows = _encode_raw_rows(train_rows_raw, "TRAIN")
+    test_rows = _encode_raw_rows(test_rows_raw, "TEST")
+
+    train_latents = np.stack([row["latent"] for row in train_rows]).astype(np.float32, copy=False)
+    train_episode_ids = [str(row["episode_id"]) for row in train_rows]
+    scenario_to_train_indices: dict[str, list[int]] = defaultdict(list)
+    for index, row in enumerate(train_rows):
+        scenario_to_train_indices[row["scenario_id"]].append(index)
+
+    anchor_rows: dict[str, dict[str, Any]] = {}
+    for scenario_id, _, _ in _FEEDBACK_PROPAGATION_SCENARIOS:
+        matching = [row for row in test_rows if row["scenario_id"] == scenario_id]
+        if not matching:
+            raise ValueError(f"No test.raw rows found for required feedback scenario {scenario_id!r}")
+        anchor_rows[scenario_id] = min(matching, key=lambda row: row["episode_id"])
+
+    locked_feedback_items: list[dict[str, Any]] = []
+    for scenario_id, feedback_type, target_position in _FEEDBACK_PROPAGATION_SCENARIOS:
+        anchor = anchor_rows[scenario_id]
+        anchor_ranked = base_model.rank(
+            anchor["x"],
+            metadata.candidate_action_ids(scenario_id),
+            metadata.default_action_id(scenario_id),
+            top_k=5,
+        )
+        if len(anchor_ranked) < target_position:
+            raise ValueError(f"Scenario {scenario_id!r} returned only {len(anchor_ranked)} candidates; cannot use target position {target_position}")
+        reward = 1.0 if feedback_type == "like" else -1.0
+        locked_feedback_items.append(
+            {
+                "scenario_id": scenario_id,
+                "feedback_type": feedback_type,
+                "target_position": target_position,
+                "target_action_id": anchor_ranked[target_position - 1].action_id,
+                "reward": reward,
+                "anchor_episode_id": anchor["episode_id"],
+                "anchor_context": anchor["context"],
+                "anchor_top5": [
+                    {
+                        "action_id": item.action_id,
+                        "score": item.score,
+                        "mean_reward": item.mean_reward,
+                        "uncertainty": item.uncertainty,
+                    }
+                    for item in anchor_ranked
+                ],
+                "baseline_top3_action_ids": [item.action_id for item in anchor_ranked[:3]],
+            }
+        )
+
+    _write_json_unsorted(output_path / "locked_feedback_spec.json", {"feedback_items": locked_feedback_items})
+    _write_json_unsorted(
+        output_path / "baseline_anchor_predictions.json",
+        {
+            "anchors": [
+                {
+                    "scenario_id": item["scenario_id"],
+                    "anchor_episode_id": item["anchor_episode_id"],
+                    "top5": item["anchor_top5"],
+                }
+                for item in locked_feedback_items
+            ]
+        },
+    )
+
+    def _baseline_target_stats_by_feedback() -> dict[str, dict[str, Any]]:
+        stats: dict[str, dict[str, Any]] = {}
+        for item in locked_feedback_items:
+            scenario_id = item["scenario_id"]
+            target_action_id = item["target_action_id"]
+            anchor = anchor_rows[scenario_id]
+            same_rows = [row for row in test_rows if row["scenario_id"] == scenario_id and row["episode_id"] != anchor["episode_id"]]
+            cross_rows = [row for row in test_rows if row["scenario_id"] != scenario_id]
+            stats[scenario_id] = {
+                "anchor": _rank_action_details(base_model, anchor["x"], metadata, scenario_id, target_action_id),
+                "same_scenario": _evaluate_target_action_on_rows(base_model, same_rows, metadata, target_action_id),
+                "cross_scenario": _evaluate_target_action_on_rows(base_model, cross_rows, metadata, target_action_id),
+            }
+        return stats
+
+    baseline_target_stats = _baseline_target_stats_by_feedback()
+    selected_test_rows = [row for row in test_rows if row["scenario_id"] in {scenario_id for scenario_id, _, _ in _FEEDBACK_PROPAGATION_SCENARIOS}]
+    selected_scenarios_quality_before = _evaluate_ro_quality_on_rows(
+        base_model,
+        selected_test_rows,
+        metadata,
+        relevance_catalog,
+        top_k=3,
+    )
+
+    def _propagation_rows_for_item(item: dict[str, Any], mode: str, requested_n: int | str) -> list[dict[str, Any]]:
+        if mode == "single":
+            return [anchor_rows[item["scenario_id"]]]
+        if mode == "global-latent-nearest":
+            indices = _sorted_neighbor_indices(item_anchor_latents[item["scenario_id"]], train_latents, train_episode_ids, int(requested_n))
+            return [train_rows[index] for index in indices]
+        if mode == "same-scenario-nearest":
+            same_indices = scenario_to_train_indices[item["scenario_id"]]
+            same_latents = train_latents[same_indices]
+            same_episode_ids = [train_episode_ids[index] for index in same_indices]
+            selected_local = _sorted_neighbor_indices(item_anchor_latents[item["scenario_id"]], same_latents, same_episode_ids, int(requested_n))
+            return [train_rows[same_indices[index]] for index in selected_local]
+        if mode == "entire-scenario-all":
+            return [train_rows[index] for index in scenario_to_train_indices[item["scenario_id"]]]
+        raise ValueError(f"Unknown propagation mode {mode!r}")
+
+    item_anchor_latents = {item["scenario_id"]: anchor_rows[item["scenario_id"]]["latent"] for item in locked_feedback_items}
+
+    conditions: list[dict[str, Any]] = []
+    condition_specs: list[tuple[str, int | str]] = [("single", 1)]
+    condition_specs.extend(("global-latent-nearest", value) for value in n_values)
+    condition_specs.extend(("same-scenario-nearest", value) for value in n_values)
+    condition_specs.append(("entire-scenario-all", "all"))
+
+    for mode, requested_n in condition_specs:
+        logger.info("[FEEDBACK] Running condition | mode=%s | requested_n=%s", mode, requested_n)
+        model = load_bandit_model(data_path / "ro_model", device=device)
+        feedback_results: list[dict[str, Any]] = []
+
+        for item in locked_feedback_items:
+            propagation_rows = _propagation_rows_for_item(item, mode, requested_n)
+            for row in propagation_rows:
+                model.partial_fit(row["x"], item["target_action_id"], item["reward"])
+
+            scenario_id = item["scenario_id"]
+            target_action_id = item["target_action_id"]
+            anchor = anchor_rows[scenario_id]
+            same_rows = [row for row in test_rows if row["scenario_id"] == scenario_id and row["episode_id"] != anchor["episode_id"]]
+            cross_rows = [row for row in test_rows if row["scenario_id"] != scenario_id]
+
+            anchor_before = baseline_target_stats[scenario_id]["anchor"]
+            anchor_after = _rank_action_details(model, anchor["x"], metadata, scenario_id, target_action_id)
+            same_before = baseline_target_stats[scenario_id]["same_scenario"]
+            same_after = _evaluate_target_action_on_rows(model, same_rows, metadata, target_action_id)
+            cross_before = baseline_target_stats[scenario_id]["cross_scenario"]
+            cross_after = _evaluate_target_action_on_rows(model, cross_rows, metadata, target_action_id)
+
+            feedback_results.append(
+                {
+                    "scenario_id": scenario_id,
+                    "feedback_type": item["feedback_type"],
+                    "target_action_id": target_action_id,
+                    "reward": item["reward"],
+                    "requested_n": requested_n,
+                    "effective_n": len(propagation_rows),
+                    "anchor": {
+                        "before": anchor_before,
+                        "after": anchor_after,
+                        "rank_delta": anchor_before["rank"] - anchor_after["rank"],
+                        "score_delta": anchor_after["score"] - anchor_before["score"],
+                    },
+                    "same_scenario": {
+                        "before": same_before,
+                        "after": same_after,
+                        "avg_rank_delta": same_before["avg_rank"] - same_after["avg_rank"] if not math.isnan(same_before["avg_rank"]) else math.nan,
+                        "avg_score_delta": same_after["avg_score"] - same_before["avg_score"] if not math.isnan(same_before["avg_score"]) else math.nan,
+                    },
+                    "cross_scenario": {
+                        "before": cross_before,
+                        "after": cross_after,
+                        "avg_rank_delta": cross_before["avg_rank"] - cross_after["avg_rank"] if not math.isnan(cross_before["avg_rank"]) else math.nan,
+                        "avg_score_delta": cross_after["avg_score"] - cross_before["avg_score"] if not math.isnan(cross_before["avg_score"]) else math.nan,
+                    },
+                }
+            )
+
+        selected_scenarios_quality_after = _evaluate_ro_quality_on_rows(
+            model,
+            selected_test_rows,
+            metadata,
+            relevance_catalog,
+            top_k=3,
+        )
+
+        valid_anchor_deltas = [row["anchor"]["rank_delta"] for row in feedback_results]
+        valid_same_deltas = [row["same_scenario"]["avg_rank_delta"] for row in feedback_results if not math.isnan(row["same_scenario"]["avg_rank_delta"])]
+        valid_cross_deltas = [row["cross_scenario"]["avg_rank_delta"] for row in feedback_results if not math.isnan(row["cross_scenario"]["avg_rank_delta"])]
+        condition_summary = {
+            "mode": mode,
+            "requested_n": requested_n,
+            "feedback_results": feedback_results,
+            "aggregate": {
+                "avg_anchor_rank_delta": sum(valid_anchor_deltas) / len(valid_anchor_deltas) if valid_anchor_deltas else math.nan,
+                "avg_same_scenario_rank_delta": sum(valid_same_deltas) / len(valid_same_deltas) if valid_same_deltas else math.nan,
+                "avg_cross_scenario_rank_delta": sum(valid_cross_deltas) / len(valid_cross_deltas) if valid_cross_deltas else math.nan,
+            },
+            "selected_scenarios_quality_before": selected_scenarios_quality_before,
+            "selected_scenarios_quality_after": selected_scenarios_quality_after,
+        }
+        conditions.append(condition_summary)
+
+    summary = FeedbackPropagationExperimentSummary(
+        artifact_dir=str(data_path),
+        output_dir=str(output_path),
+        relevance_markdown=str(Path(relevance_markdown)),
+        device=device,
+        n_values=n_values,
+        feedback_items=locked_feedback_items,
+        conditions=conditions,
+    )
+    _write_json_unsorted(
+        output_path / "results.json",
+        {
+            "artifact_dir": summary.artifact_dir,
+            "output_dir": summary.output_dir,
+            "relevance_markdown": summary.relevance_markdown,
+            "device": summary.device,
+            "n_values": summary.n_values,
+            "feedback_items": summary.feedback_items,
+            "conditions": summary.conditions,
+        },
+    )
+    (output_path / "summary_table.md").write_text(_render_feedback_propagation_markdown(summary))
     return summary
 
 
