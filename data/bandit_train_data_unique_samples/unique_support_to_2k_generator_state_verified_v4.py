@@ -1,3 +1,6 @@
+'''
+python unique_support_to_2k_generator_state_verified_v4.py   --rules default_rules_1_english_with_preconditions_and_state_current.json   --global-action-space global_action_space_english.json   --count-report metainfo/scenario_unique_samples_count.md   --output bandit_v0_unique_support_to_2k.jsonl   --metadata metainfo/bandit_v0_unique_support_to_2k_metadata.json   --min-rows-per-scenario 2000   --seed 7
+'''
 #!/usr/bin/env python3
 """
 Enumerate all agreed unique categorical supports per scenario, then augment scenarios
@@ -16,6 +19,7 @@ Behavior:
 - if scenario support < min_rows_per_scenario, augments by varying only non-counted fields
 - if scenario support >= min_rows_per_scenario, keeps all unique rows
 """
+
 from __future__ import annotations
 
 import argparse

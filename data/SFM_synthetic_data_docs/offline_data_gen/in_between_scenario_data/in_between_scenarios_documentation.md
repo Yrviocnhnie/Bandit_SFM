@@ -47,6 +47,41 @@ Boundary scenarios: same feature classes, but in a timing / transition zone wher
 - **Default App ranking:** `health`, `music`, `social`
 - **Remaining-feature alignment note:** The recovery intent is represented by the gym precondition, not by inventing a new recovery state. Remaining features must stay cafe-consistent, but battery and activity-duration can reflect that the person has recently been active.
 
+## HOME_DEEP_WORK_MORNING — Deep work morning at home
+- **Type:** `interpolation`
+- **Category:** `work`
+- **Parent scenarios:** `WEEKDAY_HOME_DAY`, `NO_MEETINGS`, `CAL_HAS_EVENTS`
+- **Why this is a good test:** There is no exact named scenario for a clean remote deep-work block at home in the morning. Rules can identify home-work or no-meeting day, but they do not express the combined intent as one scenario.
+- **Allowed `state_current`:** `home_morning_workday`, `home_daytime_workday`
+- **Allowed `precondition`:** `home_sleeping`, `home_sleeping_lying`, `home_morning_workday`
+- **Allowed `ps_time`:** `dawn`, `morning`, `forenoon`
+- **Allowed `ps_dayType`:** `workday`
+- **Rule-dependent fixed fields:** `{"cal_hasUpcoming": 0, "cal_eventCount": 0, "cal_inMeeting": 0, "wifiLost": 0, "wifiLostCategory": "unknown"}`
+- **Calendar mode:** `none`
+- **Allowed `cal_nextLocation`:** `unknown`
+- **SMS generation mode:** `none`
+- **Default RO ranking:** `O_SHOW_TODAY_TODO`, `R_DEEP_WORK_WINDOW`, `O_SHOW_SCHEDULE`
+- **Default App ranking:** `productivity`, `reading`, `music`
+- **Remaining-feature alignment note:** This is a home-work scenario without meeting pressure. Remaining features should stay home-work realistic: mostly stationary, quiet or normal sound, wifi-dominant network, and phone on-desk / in-use / face-up patterns rather than commute or social patterns.
+
+## LATE_OFFICE_PRE_DEPARTURE_WRAPUP — Late office pre-departure wrap-up
+- **Type:** `boundary`
+- **Category:** `work`
+- **Parent scenarios:** `OFFICE_LONG_SESSION`, `LATE_NIGHT_OVERTIME`, `LEAVE_OFFICE`
+- **Why this is a good test:** Rules often wait until the departure trigger has already happened or until a long fixed duration has elapsed. This scenario tests whether the bandit can prefer wrap-up behavior earlier from context alone.
+- **Allowed `state_current`:** `office_overtime`, `office_late_overtime`
+- **Allowed `precondition`:** `office_working`, `office_overtime`, `office_working_focused`, `office_working_noisy`
+- **Allowed `ps_time`:** `evening`, `night`, `late_night`
+- **Allowed `ps_dayType`:** `workday`
+- **Rule-dependent fixed fields:** `{"cal_hasUpcoming": 0, "cal_eventCount": 0, "cal_inMeeting": 0, "wifiLost": 0, "wifiLostCategory": "unknown"}`
+- **Calendar mode:** `none`
+- **Allowed `cal_nextLocation`:** `home`, `unknown`
+- **SMS generation mode:** `none`
+- **Default RO ranking:** `R_WRAP_UP_AND_REST_AFTER_WORK`, `O_SHOW_TODAY_TODO`, `R_CLOCK_OUT_BEFORE_LEAVING`
+- **Default App ranking:** `productivity`, `health`, `music`
+- **Remaining-feature alignment note:** Keep the user still inside the office context; the departure intent is represented by time-of-day and office-history preconditions, not by wifi-loss. Remaining features should look like late office work rather than commute.
+
+
 ## TRANSIT_WAIT_WITH_UPCOMING_MEETING — Transit wait with upcoming meeting
 - **Type:** `compositional`
 - **Category:** `commute`
@@ -64,22 +99,7 @@ Boundary scenarios: same feature classes, but in a timing / transition zone wher
 - **Default App ranking:** `navigation`, `productivity`, `news`
 - **Remaining-feature alignment note:** Keep the user stationary at the transit node. Remaining features should stay hub-realistic: cellular network, normal/noisy sound, face-up / in-use / pocket phone states, and sitting or standing activity states.
 
-## HOME_DEEP_WORK_MORNING — Deep work morning at home
-- **Type:** `interpolation`
-- **Category:** `work`
-- **Parent scenarios:** `WEEKDAY_HOME_DAY`, `NO_MEETINGS`, `CAL_HAS_EVENTS`
-- **Why this is a good test:** There is no exact named scenario for a clean remote deep-work block at home in the morning. Rules can identify home-work or no-meeting day, but they do not express the combined intent as one scenario.
-- **Allowed `state_current`:** `home_morning_workday`, `home_daytime_workday`
-- **Allowed `precondition`:** `home_sleeping`, `home_sleeping_lying`, `home_morning_workday`
-- **Allowed `ps_time`:** `dawn`, `morning`, `forenoon`
-- **Allowed `ps_dayType`:** `workday`
-- **Rule-dependent fixed fields:** `{"cal_hasUpcoming": 0, "cal_eventCount": 0, "cal_inMeeting": 0, "wifiLost": 0, "wifiLostCategory": "unknown"}`
-- **Calendar mode:** `none`
-- **Allowed `cal_nextLocation`:** `unknown`
-- **SMS generation mode:** `none`
-- **Default RO ranking:** `O_SHOW_TODAY_TODO`, `R_DEEP_WORK_WINDOW`, `O_SHOW_SCHEDULE`
-- **Default App ranking:** `productivity`, `reading`, `music`
-- **Remaining-feature alignment note:** This is a home-work scenario without meeting pressure. Remaining features should stay home-work realistic: mostly stationary, quiet or normal sound, wifi-dominant network, and phone on-desk / in-use / face-up patterns rather than commute or social patterns.
+
 
 
 ## RETURN_OFFICE_AFTER_COFFEE — Return to office after coffee
@@ -118,22 +138,7 @@ Boundary scenarios: same feature classes, but in a timing / transition zone wher
 - **Remaining-feature alignment note:** Keep the state outdoor_walking, so location must stay outdoor and motion must stay walking. The office-return intent is represented by the lunch-related precondition and work next-location rather than a new state taxonomy.
 
 
-## LATE_OFFICE_PRE_DEPARTURE_WRAPUP — Late office pre-departure wrap-up
-- **Type:** `boundary`
-- **Category:** `work`
-- **Parent scenarios:** `OFFICE_LONG_SESSION`, `LATE_NIGHT_OVERTIME`, `LEAVE_OFFICE`
-- **Why this is a good test:** Rules often wait until the departure trigger has already happened or until a long fixed duration has elapsed. This scenario tests whether the bandit can prefer wrap-up behavior earlier from context alone.
-- **Allowed `state_current`:** `office_overtime`, `office_late_overtime`
-- **Allowed `precondition`:** `office_working`, `office_overtime`, `office_working_focused`, `office_working_noisy`
-- **Allowed `ps_time`:** `evening`, `night`, `late_night`
-- **Allowed `ps_dayType`:** `workday`
-- **Rule-dependent fixed fields:** `{"cal_hasUpcoming": 0, "cal_eventCount": 0, "cal_inMeeting": 0, "wifiLost": 0, "wifiLostCategory": "unknown"}`
-- **Calendar mode:** `none`
-- **Allowed `cal_nextLocation`:** `home`, `unknown`
-- **SMS generation mode:** `none`
-- **Default RO ranking:** `R_WRAP_UP_AND_REST_AFTER_WORK`, `O_SHOW_TODAY_TODO`, `R_CLOCK_OUT_BEFORE_LEAVING`
-- **Default App ranking:** `productivity`, `health`, `music`
-- **Remaining-feature alignment note:** Keep the user still inside the office context; the departure intent is represented by time-of-day and office-history preconditions, not by wifi-loss. Remaining features should look like late office work rather than commute.
+
 
 ## UNKNOWN_LONG_STAY_WITH_BOOKING — Unknown long stay with booking signal
 - **Type:** `compositional`

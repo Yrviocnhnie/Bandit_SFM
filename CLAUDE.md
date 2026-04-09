@@ -59,6 +59,12 @@ See `recommendation_agents/run.sh` for a ready-made dual training invocation.
 
 ```bash
 cd recommendation_agents && python -m pytest tests/
+
+# Run a single test file
+cd recommendation_agents && python -m pytest tests/test_catalog.py
+
+# Run a single test by name
+cd recommendation_agents && python -m pytest tests/test_catalog.py -k "test_name"
 ```
 
 ## Architecture
@@ -81,6 +87,7 @@ cd recommendation_agents && python -m pytest tests/
 - `feature_space.py`: 314-dim V0 feature encoder
 - `linucb.py`: disjoint masked LinUCB model — one linear scorer per action, scenario-masked ranking
 - `schemas.py`: data schemas (`ScoreRequest`, etc.)
+- `metadata.py`: scenario/action metadata schemas (`ScenarioMeta`, `ActionMetadata`) loaded from catalog-built JSON
 - `taxonomies.py`: action/category taxonomy definitions
 - `cli.py`: argparse-based CLI entrypoint (subcommands: `train-v0`, `train-v0-raw`, `train-v0-raw-dual`, `score-v0`, `choose-v0`, `build-ro-metadata`, `build-app-metadata`, `convert-v0-raw`, `convert-v0-raw-app`)
 
@@ -152,6 +159,18 @@ The generated JSONL is not directly consumed by the trainer. It must be converte
 - `convert_raw_sequence_to_v0_app`: same but for app category labels (`gt_app`/`gt_app_category`)
 - Supports both older format (flat fields like `scenarioId`, `gt_ro_action_id`) and newer format (nested `features`, `scenario_id`, `gt_ro`)
 - The converter also infers bootstrap metadata (action sets per scenario) but the canonical metadata should come from `build-ro-metadata` / `build-app-metadata` parsed from the catalog markdown
+
+### In-between Scenario Data Generator (`data/in-between_scenario_data_gen/`)
+
+Generates JSONL data for transitional/in-between scenarios (states between primary scenarios, e.g., commuting between home and work). These are separate from the main V0 training data.
+
+- `generate_in_between_scenarios.py` / `generate_new_in_between_scenarios.py`: generate rows using spec files (`*_spec.json`) that define state profiles, context distributions, and time windows for each in-between scenario
+- Metadata stored in `metainfo/`
+- Output: `in_between_scenarios_1000_each.jsonl` (and `new_` variants)
+
+### Unique Sample Data Generator (`data/bandit_train_data_unique_samples/`)
+
+- `state_verified_generator.py` / `unique_support_to_2k_generator_state_verified_v0.py`: generates training data with verified unique feature combinations per scenario, ensuring diversity in the training set
 
 ### Dual UCB Prototype Data Generator (`random_training_features.py`)
 

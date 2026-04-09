@@ -1,3 +1,6 @@
+'''
+python generate_in_between_scenarios.py   --spec in_between_scenarios_spec.json   --output in_between_scenarios_1000_each.jsonl   --metadata metainfo/in_between_scenarios_1000_each_metadata.json   --samples-per-scenario 1000   --seed 7
+'''
 #!/usr/bin/env python3
 from __future__ import annotations
 import argparse, hashlib, json, random

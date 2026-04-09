@@ -1,0 +1,530 @@
+[
+  {
+    "scenario_id": "QUIET_CAFE_BEFORE_MEETING",
+    "scenario_name": "Quiet cafe before meeting",
+    "category": "work",
+    "type": "compositional",
+    "parents": [
+      "CAFE_QUIET",
+      "MEETING_UPCOMING",
+      "CAL_HAS_EVENTS"
+    ],
+    "why_rules_fail": "Rules separately recognize quiet-cafe context and meeting-prep context, but do not express the combined intent where meeting readiness should outrank normal cafe behavior.",
+    "allowed_states": [
+      "at_cafe_quiet"
+    ],
+    "allowed_preconditions": [
+      "office_working",
+      "office_working_focused",
+      "home_daytime_workday"
+    ],
+    "ps_time": [
+      "forenoon",
+      "lunch",
+      "afternoon"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "cal_hasUpcoming": 1,
+      "cal_inMeeting": 0
+    },
+    "cal_event_count": [
+      1,
+      2,
+      3
+    ],
+    "calendar_mode": "none",
+    "next_location": [
+      "work",
+      "education"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "meeting_upcoming_details",
+      "meeting_prep",
+      "meeting_upcoming_dnd"
+    ],
+    "default_app_categories": [
+      "productivity",
+      "navigation",
+      "reading"
+    ],
+    "generation_notes": "Keep state strictly at quiet cafe; sound must remain quiet. Remaining features should stay cafe-realistic: mostly stationary/light walking, wifi/cellular mix, phone on desk/face up/in use."
+  },
+  {
+    "scenario_id": "GYM_TO_CAFE_RECOVERY",
+    "scenario_name": "Gym-to-cafe recovery",
+    "category": "exercise",
+    "type": "compositional",
+    "parents": [
+      "GYM_WORKOUT",
+      "GYM_REST",
+      "CAFE_STAY"
+    ],
+    "why_rules_fail": "This is a realistic post-workout decompression state that is neither pure gym nor pure cafe. Rules usually collapse to one parent and lose the other intent.",
+    "allowed_states": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "allowed_preconditions": [
+      "at_gym",
+      "at_gym_exercising"
+    ],
+    "ps_time": [
+      "afternoon",
+      "evening"
+    ],
+    "ps_dayType": [
+      "workday",
+      "weekend",
+      "holiday"
+    ],
+    "fixed": {
+      "cal_hasUpcoming": 0,
+      "cal_eventCount": 0,
+      "cal_inMeeting": 0,
+      "wifiLost": 0,
+      "wifiLostCategory": "unknown"
+    },
+    "calendar_mode": "none",
+    "next_location": [
+      "unknown"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "gym_cooldown",
+      "cafe_relax",
+      "cafe_stay_payment"
+    ],
+    "default_app_categories": [
+      "health",
+      "music",
+      "social"
+    ],
+    "generation_notes": "Recovery intent is represented by gym precondition. Remaining features stay cafe-consistent, but battery/activity duration can reflect recent exercise."
+  },
+  {
+    "scenario_id": "HOME_DEEP_WORK_MORNING",
+    "scenario_name": "Deep work morning at home",
+    "category": "work",
+    "type": "interpolation",
+    "parents": [
+      "WEEKDAY_HOME_DAY",
+      "NO_MEETINGS",
+      "CAL_HAS_EVENTS"
+    ],
+    "why_rules_fail": "Rules can identify home-work or no-meeting context, but they do not represent a clean deep-work block at home as one combined intent.",
+    "allowed_states": [
+      "home_morning_workday",
+      "home_daytime_workday"
+    ],
+    "allowed_preconditions": [
+      "home_sleeping",
+      "home_sleeping_lying",
+      "home_morning_workday"
+    ],
+    "ps_time": [
+      "dawn",
+      "morning",
+      "forenoon"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "cal_hasUpcoming": 0,
+      "cal_eventCount": 0,
+      "cal_inMeeting": 0,
+      "wifiLost": 0,
+      "wifiLostCategory": "unknown"
+    },
+    "calendar_mode": "none",
+    "next_location": [
+      "unknown"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "weekday_home_day_todo_list",
+      "weekday_home_day_schedule",
+      "quiet_home_eye_comfort"
+    ],
+    "default_app_categories": [
+      "productivity",
+      "reading",
+      "music"
+    ],
+    "generation_notes": "Keep scenario home-work realistic: mostly stationary, quiet/normal sound, wifi-dominant network, phone on desk/in use/face up."
+  },
+  {
+    "scenario_id": "LATE_OFFICE_PRE_DEPARTURE_WRAPUP",
+    "scenario_name": "Late office pre-departure wrap-up",
+    "category": "work",
+    "type": "boundary",
+    "parents": [
+      "OFFICE_LONG_SESSION",
+      "LATE_NIGHT_OVERTIME",
+      "LEAVE_OFFICE"
+    ],
+    "why_rules_fail": "Rules often wait until departure has already happened or a fixed duration is reached. This scenario tests earlier wrap-up behavior from context.",
+    "allowed_states": [
+      "office_overtime",
+      "office_late_overtime"
+    ],
+    "allowed_preconditions": [
+      "office_working",
+      "office_overtime",
+      "office_working_focused",
+      "office_working_noisy"
+    ],
+    "ps_time": [
+      "evening",
+      "night",
+      "late_night"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "cal_hasUpcoming": 0,
+      "cal_eventCount": 0,
+      "cal_inMeeting": 0,
+      "wifiLost": 0,
+      "wifiLostCategory": "unknown"
+    },
+    "calendar_mode": "none",
+    "next_location": [
+      "home",
+      "unknown"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "late_night_overtime_rest_and_wrap_up",
+      "office_afternoon_todo_list",
+      "leave_office_clock_out"
+    ],
+    "default_app_categories": [
+      "productivity",
+      "health",
+      "music"
+    ],
+    "generation_notes": "Keep user still inside office context; departure intent represented by time-of-day and office-history preconditions, not wifiLost."
+  },
+  {
+    "scenario_id": "HOME_WORK_DELIVERY_INTERRUPT",
+    "scenario_name": "Work-from-home delivery interrupt",
+    "category": "home",
+    "type": "compositional",
+    "parents": [
+      "WEEKDAY_HOME_DAY",
+      "DELIVERY_AT_OFFICE",
+      "NO_MEETINGS"
+    ],
+    "why_rules_fail": "Rules can identify home-working and delivery independently, but not the interruption of a focused work block by a delivery event.",
+    "allowed_states": [
+      "home_daytime_workday",
+      "home_daytime_workday_dark",
+      "home_morning_workday"
+    ],
+    "allowed_preconditions": [
+      "home_morning_workday",
+      "home_daytime_workday",
+      "home_sleeping"
+    ],
+    "ps_time": [
+      "morning",
+      "forenoon",
+      "afternoon"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "cal_inMeeting": 0,
+      "wifiLost": 0,
+      "wifiLostCategory": "unknown",
+      "sms_delivery_pending": 1
+    },
+    "calendar_mode": "optional_light",
+    "next_location": [
+      "home",
+      "unknown"
+    ],
+    "sms_mode": "delivery_only",
+    "default_action_ids": [
+      "delivery_pickup",
+      "delivery_at_office_show_pickup_info",
+      "weekday_home_day_todo_list"
+    ],
+    "default_app_categories": [
+      "shopping",
+      "productivity",
+      "social"
+    ],
+    "generation_notes": "Keep state home-work aligned: home location, mostly stationary, wifi-dominant network, phone on desk/in use. Delivery interrupt carried by SMS field."
+  },
+  {
+    "scenario_id": "OFFICE_TO_GYM_TRANSITION",
+    "scenario_name": "Leaving office to go to the gym",
+    "category": "transition",
+    "type": "compositional",
+    "parents": [
+      "LEAVE_OFFICE",
+      "HOME_TO_GYM",
+      "GYM_WORKOUT"
+    ],
+    "why_rules_fail": "Very practical product case: user is leaving work, but next intent is exercise rather than going home. Rules often overcommit to home commute.",
+    "allowed_states": [
+      "commuting_walk_out",
+      "commuting_drive_out",
+      "outdoor_walking"
+    ],
+    "allowed_preconditions": [
+      "office_working",
+      "office_working_focused",
+      "office_overtime"
+    ],
+    "ps_time": [
+      "evening"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "wifiLost": 1,
+      "wifiLostCategory": "work",
+      "cal_hasUpcoming": 0,
+      "cal_eventCount": 0,
+      "cal_inMeeting": 0
+    },
+    "calendar_mode": "none",
+    "next_location": [
+      "gym"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "exercise_tracking",
+      "home_to_gym_timer",
+      "leave_office_weather"
+    ],
+    "default_app_categories": [
+      "health",
+      "music",
+      "navigation"
+    ],
+    "generation_notes": "Keep transition outdoor/commute realistic with cellular connectivity and motion-aligned transport. Gym intent represented by cal_nextLocation=gym and work-exit signal."
+  },
+  {
+    "scenario_id": "OFFICE_LUNCH_OUT_WITH_UPCOMING_MEETING",
+    "scenario_name": "Lunch out with upcoming meeting",
+    "category": "work",
+    "type": "compositional",
+    "parents": [
+      "OFFICE_LUNCH_OUT",
+      "MEETING_UPCOMING",
+      "CAL_HAS_EVENTS"
+    ],
+    "why_rules_fail": "User is out for lunch, but the next 20-30 minutes are constrained by an upcoming meeting, so the correct ranking is not just lunch and not just meeting.",
+    "allowed_states": [
+      "at_cafe",
+      "at_cafe_quiet",
+      "at_restaurant_lunch"
+    ],
+    "allowed_preconditions": [
+      "office_arriving",
+      "office_working",
+      "office_lunch_break"
+    ],
+    "ps_time": [
+      "lunch"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "cal_hasUpcoming": 1,
+      "cal_inMeeting": 0
+    },
+    "cal_event_count": [
+      1,
+      2,
+      3
+    ],
+    "calendar_mode": "none",
+    "next_location": [
+      "work"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "meeting_upcoming_details",
+      "office_lunch_out_payment",
+      "meeting_prep"
+    ],
+    "default_app_categories": [
+      "productivity",
+      "shopping",
+      "navigation"
+    ],
+    "generation_notes": "Lunch-state features must stay dining/cafe realistic. Meeting urgency carried by calendar fields and work next-location."
+  },
+  {
+    "scenario_id": "WEEKEND_CAFE_OUTING_PLANNING",
+    "scenario_name": "Weekend cafe before outing planning",
+    "category": "weekend",
+    "type": "interpolation",
+    "parents": [
+      "WEEKEND_MORNING",
+      "WEEKEND_OUTING",
+      "CAFE_STAY"
+    ],
+    "why_rules_fail": "Weekend-morning rules default to weather/greeting, while cafe rules default to leisure. This combines relaxed weekend cafe state with immediate outing-planning intent.",
+    "allowed_states": [
+      "at_cafe",
+      "at_cafe_quiet"
+    ],
+    "allowed_preconditions": [
+      "home_morning_rest",
+      "home_morning_rest_lying",
+      "home_daytime_rest"
+    ],
+    "ps_time": [
+      "morning",
+      "forenoon"
+    ],
+    "ps_dayType": [
+      "weekend",
+      "holiday"
+    ],
+    "fixed": {
+      "cal_hasUpcoming": 0,
+      "cal_eventCount": 0,
+      "cal_inMeeting": 0
+    },
+    "calendar_mode": "none",
+    "next_location": [
+      "outdoor",
+      "shopping",
+      "social",
+      "unknown"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "weekend_weather",
+      "weekend_outing_nearby_places",
+      "cafe_stay_schedule"
+    ],
+    "default_app_categories": [
+      "navigation",
+      "social",
+      "reading"
+    ],
+    "generation_notes": "Keep state cafe-consistent and relaxed. Outing-planning intent represented by weekend timing, home-rest preconditions, and forward-looking next-location."
+  },
+  {
+    "scenario_id": "ARRIVE_OFFICE_WITH_IMMINENT_MEETING",
+    "scenario_name": "Arrive office with imminent meeting",
+    "category": "work",
+    "type": "boundary",
+    "parents": [
+      "ARRIVE_OFFICE",
+      "MEETING_UPCOMING",
+      "CAL_HAS_EVENTS"
+    ],
+    "why_rules_fail": "Generic office-arrival behavior is not always right. If a meeting is very soon, the best action is meeting prep first.",
+    "allowed_states": [
+      "office_arriving",
+      "office_working"
+    ],
+    "allowed_preconditions": [
+      "commuting_walk_out",
+      "commuting_drive_out",
+      "commuting_transit_out"
+    ],
+    "ps_time": [
+      "morning",
+      "forenoon"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "cal_hasUpcoming": 1,
+      "cal_inMeeting": 0
+    },
+    "cal_event_count": [
+      1,
+      2
+    ],
+    "calendar_mode": "none",
+    "next_location": [
+      "work"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "meeting_upcoming_details",
+      "meeting_prep",
+      "arrive_office_schedule"
+    ],
+    "default_app_categories": [
+      "productivity",
+      "reading",
+      "news"
+    ],
+    "generation_notes": "Keep arrival state office-consistent with commute preconditions and work location. Meeting urgency should alter ranking, not base state encoding."
+  },
+  {
+    "scenario_id": "LEAVE_OFFICE_WITH_ERRAND_STOP",
+    "scenario_name": "Leave office with an errand stop",
+    "category": "transition",
+    "type": "compositional",
+    "parents": [
+      "LEAVE_OFFICE",
+      "SHOPPING",
+      "HEALTHCARE_VISIT",
+      "CUSTOM_PLACE_VISIT"
+    ],
+    "why_rules_fail": "Stronger than plain leave-office. The next intent is not home commute but a short errand stop, which should change the action ranking.",
+    "allowed_states": [
+      "commuting_walk_out",
+      "commuting_drive_out",
+      "outdoor_walking"
+    ],
+    "allowed_preconditions": [
+      "office_working",
+      "office_overtime",
+      "office_working_focused"
+    ],
+    "ps_time": [
+      "evening"
+    ],
+    "ps_dayType": [
+      "workday"
+    ],
+    "fixed": {
+      "wifiLost": 1,
+      "wifiLostCategory": "work",
+      "cal_hasUpcoming": 0,
+      "cal_eventCount": 0,
+      "cal_inMeeting": 0
+    },
+    "calendar_mode": "none",
+    "next_location": [
+      "shopping",
+      "health",
+      "custom"
+    ],
+    "sms_mode": "none",
+    "default_action_ids": [
+      "leave_office_weather",
+      "shopping_payment",
+      "park_walk_route"
+    ],
+    "default_app_categories": [
+      "navigation",
+      "shopping",
+      "health"
+    ],
+    "generation_notes": "Keep user in realistic post-office transition state. Errand intent represented by next-location and work-exit signal; remaining features stay commute/outdoor aligned."
+  }
+]
