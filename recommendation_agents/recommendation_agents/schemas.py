@@ -8,13 +8,14 @@ from typing import Any
 
 @dataclass(frozen=True)
 class TrainingEvent:
-    scenario_id: str
     context: dict[str, Any]
     selected_action: str
     reward: float
+    scenario_id: str | None = None
     shown_actions: tuple[str, ...] | None = None
     propensity: float | None = None
     event_id: str | None = None
+    context_vector: tuple[float, ...] | None = None
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "TrainingEvent":
@@ -32,21 +33,29 @@ class TrainingEvent:
             propensity = float(propensity)
             if not 0.0 < propensity <= 1.0:
                 raise ValueError("event.propensity must be in (0, 1]")
+        scenario_id = payload.get("scenario_id")
+        context_vector_raw = payload.get("context_vector")
+        context_vector = None
+        if context_vector_raw is not None:
+            if not isinstance(context_vector_raw, list) or not context_vector_raw:
+                raise ValueError("event.context_vector must be a non-empty list when provided")
+            context_vector = tuple(float(value) for value in context_vector_raw)
         return cls(
-            scenario_id=str(payload["scenario_id"]),
             context=context,
             selected_action=str(payload["selected_action"]),
             reward=float(payload["reward"]),
+            scenario_id=None if scenario_id is None else str(scenario_id),
             shown_actions=shown_actions,
             propensity=propensity,
             event_id=payload.get("event_id"),
+            context_vector=context_vector,
         )
 
 
 @dataclass(frozen=True)
 class ScoreRequest:
-    scenario_id: str
     context: dict[str, Any]
+    scenario_id: str | None = None
     shown_actions: tuple[str, ...] | None = None
 
     @classmethod
@@ -58,9 +67,9 @@ class ScoreRequest:
         shown_actions = None
         if shown_actions_raw is not None:
             shown_actions = tuple(dict.fromkeys(str(value) for value in shown_actions_raw))
+        scenario_id = payload.get("scenario_id")
         return cls(
-            scenario_id=str(payload["scenario_id"]),
             context=context,
+            scenario_id=None if scenario_id is None else str(scenario_id),
             shown_actions=shown_actions,
         )
-

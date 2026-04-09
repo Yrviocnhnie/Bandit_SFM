@@ -1,0 +1,345 @@
+{
+  "actions": [
+    {
+      "action_id": "entertainment",
+      "display_name": "entertainment"
+    },
+    {
+      "action_id": "health",
+      "display_name": "health"
+    },
+    {
+      "action_id": "music",
+      "display_name": "music"
+    },
+    {
+      "action_id": "navigation",
+      "display_name": "navigation"
+    },
+    {
+      "action_id": "news",
+      "display_name": "news"
+    },
+    {
+      "action_id": "productivity",
+      "display_name": "productivity"
+    },
+    {
+      "action_id": "reading",
+      "display_name": "reading"
+    },
+    {
+      "action_id": "shopping",
+      "display_name": "shopping"
+    },
+    {
+      "action_id": "social",
+      "display_name": "social"
+    }
+  ],
+  "global_action_ids": [
+    "entertainment",
+    "health",
+    "music",
+    "navigation",
+    "news",
+    "productivity",
+    "reading",
+    "shopping",
+    "social"
+  ],
+  "scenario_default_rankings": [
+    {
+      "default_action_ids": [
+        "navigation"
+      ],
+      "scenario_id": "AFTER_LUNCH_WALK"
+    },
+    {
+      "default_action_ids": [
+        "reading"
+      ],
+      "scenario_id": "CAFE_QUIET"
+    },
+    {
+      "default_action_ids": [
+        "social"
+      ],
+      "scenario_id": "CAFE_STAY"
+    },
+    {
+      "default_action_ids": [
+        "productivity"
+      ],
+      "scenario_id": "CAL_HAS_EVENTS"
+    },
+    {
+      "default_action_ids": [
+        "music",
+        "social"
+      ],
+      "scenario_id": "COMMUTE_EVENING"
+    },
+    {
+      "default_action_ids": [
+        "health"
+      ],
+      "scenario_id": "CYCLING"
+    },
+    {
+      "default_action_ids": [
+        "shopping"
+      ],
+      "scenario_id": "DELIVERY_AT_OFFICE"
+    },
+    {
+      "default_action_ids": [
+        "reading",
+        "health"
+      ],
+      "scenario_id": "EDUCATION_LONG_SIT"
+    },
+    {
+      "default_action_ids": [
+        "health"
+      ],
+      "scenario_id": "GYM_LONG_STAY"
+    },
+    {
+      "default_action_ids": [
+        "entertainment",
+        "music"
+      ],
+      "scenario_id": "HOME_AFTERNOON"
+    },
+    {
+      "default_action_ids": [
+        "entertainment"
+      ],
+      "scenario_id": "HOME_AFTER_GYM"
+    },
+    {
+      "default_action_ids": [
+        "health",
+        "reading"
+      ],
+      "scenario_id": "HOME_DARK_LONG"
+    },
+    {
+      "default_action_ids": [
+        "music"
+      ],
+      "scenario_id": "HOME_EVENING"
+    },
+    {
+      "default_action_ids": [
+        "music"
+      ],
+      "scenario_id": "HOME_EVENING_NOISY"
+    },
+    {
+      "default_action_ids": [
+        "reading"
+      ],
+      "scenario_id": "HOME_LATE_NIGHT"
+    },
+    {
+      "default_action_ids": [
+        "health"
+      ],
+      "scenario_id": "HOME_TO_GYM"
+    },
+    {
+      "default_action_ids": [
+        "health"
+      ],
+      "scenario_id": "HOSPITAL_APPOINTMENT"
+    },
+    {
+      "default_action_ids": [
+        "navigation",
+        "social"
+      ],
+      "scenario_id": "HOTEL_CHECKIN"
+    },
+    {
+      "default_action_ids": [
+        "reading"
+      ],
+      "scenario_id": "IN_MEETING"
+    },
+    {
+      "default_action_ids": [
+        "navigation",
+        "social"
+      ],
+      "scenario_id": "LATE_NIGHT_NOISY"
+    },
+    {
+      "default_action_ids": [
+        "navigation",
+        "music"
+      ],
+      "scenario_id": "LATE_NIGHT_OVERTIME"
+    },
+    {
+      "default_action_ids": [
+        "health"
+      ],
+      "scenario_id": "LATE_NIGHT_PHONE"
+    },
+    {
+      "default_action_ids": [
+        "music"
+      ],
+      "scenario_id": "LATE_RETURN_HOME"
+    },
+    {
+      "default_action_ids": [
+        "news"
+      ],
+      "scenario_id": "LONG_DRIVE"
+    },
+    {
+      "default_action_ids": [
+        "health"
+      ],
+      "scenario_id": "LONG_OUTDOOR_WALK"
+    },
+    {
+      "default_action_ids": [
+        "productivity",
+        "navigation"
+      ],
+      "scenario_id": "MEETING_UPCOMING"
+    },
+    {
+      "default_action_ids": [
+        "productivity"
+      ],
+      "scenario_id": "MORNING_COFFEE"
+    },
+    {
+      "default_action_ids": [
+        "entertainment"
+      ],
+      "scenario_id": "MOVIE_TICKET"
+    },
+    {
+      "default_action_ids": [
+        "navigation"
+      ],
+      "scenario_id": "NOISY_GATHERING"
+    },
+    {
+      "default_action_ids": [
+        "productivity"
+      ],
+      "scenario_id": "OFFICE_FOCUS_LONG"
+    },
+    {
+      "default_action_ids": [
+        "productivity",
+        "health"
+      ],
+      "scenario_id": "OFFICE_LONG_SESSION"
+    },
+    {
+      "default_action_ids": [
+        "shopping",
+        "social"
+      ],
+      "scenario_id": "OFFICE_LUNCH_OUT"
+    },
+    {
+      "default_action_ids": [
+        "reading"
+      ],
+      "scenario_id": "OFFICE_TO_CAFE"
+    },
+    {
+      "default_action_ids": [
+        "productivity",
+        "news"
+      ],
+      "scenario_id": "OFFICE_WORKING"
+    },
+    {
+      "default_action_ids": [
+        "health"
+      ],
+      "scenario_id": "OUTDOOR_RUNNING"
+    },
+    {
+      "default_action_ids": [
+        "navigation",
+        "health"
+      ],
+      "scenario_id": "PARK_WALK"
+    },
+    {
+      "default_action_ids": [
+        "productivity"
+      ],
+      "scenario_id": "RETURN_OFFICE_AFTER_LUNCH"
+    },
+    {
+      "default_action_ids": [
+        "navigation"
+      ],
+      "scenario_id": "RIDESHARE_PICKUP"
+    },
+    {
+      "default_action_ids": [
+        "shopping"
+      ],
+      "scenario_id": "SHOPPING"
+    },
+    {
+      "default_action_ids": [
+        "news"
+      ],
+      "scenario_id": "TRAIN_DEPARTURE"
+    },
+    {
+      "default_action_ids": [
+        "navigation",
+        "social",
+        "shopping"
+      ],
+      "scenario_id": "UNKNOWN_LONG_STAY"
+    },
+    {
+      "default_action_ids": [
+        "news"
+      ],
+      "scenario_id": "WAKE_UP"
+    },
+    {
+      "default_action_ids": [
+        "entertainment"
+      ],
+      "scenario_id": "WEEKEND_MORNING"
+    },
+    {
+      "default_action_ids": [
+        "navigation",
+        "health"
+      ],
+      "scenario_id": "WEEKEND_OUTDOOR_WALK"
+    },
+    {
+      "default_action_ids": [
+        "social"
+      ],
+      "scenario_id": "WEEKEND_OUTING"
+    },
+    {
+      "default_action_ids": [
+        "music"
+      ],
+      "scenario_id": "WEEKEND_OVERTIME"
+    }
+  ],
+  "schema_version": "v0-app-inferred-global"
+}

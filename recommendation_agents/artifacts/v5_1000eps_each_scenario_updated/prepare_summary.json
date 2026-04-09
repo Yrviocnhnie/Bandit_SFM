@@ -1,0 +1,48 @@
+{
+  "app_metadata": {
+    "total_actions": 10,
+    "total_scenarios": 65
+  },
+  "app_test_conversion": {
+    "input_rows": 12309,
+    "kept_rows": 12309,
+    "skipped_none_rows": 0,
+    "unique_actions": 10,
+    "unique_scenarios": 61
+  },
+  "app_train_conversion": {
+    "input_rows": 48691,
+    "kept_rows": 48691,
+    "skipped_none_rows": 0,
+    "unique_actions": 10,
+    "unique_scenarios": 61
+  },
+  "input_path": "/data00/liyao/projects/sfm/Bandit_SFM/data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl",
+  "output_dir": "artifacts/v5_1000eps_each_scenario_updated",
+  "reward": 1.0,
+  "ro_metadata": {
+    "max_actions_per_scenario": 3,
+    "min_actions_per_scenario": 2,
+    "total_actions": 46,
+    "total_scenarios": 65
+  },
+  "ro_test_conversion": {
+    "input_rows": 12309,
+    "kept_rows": 12309,
+    "skipped_none_rows": 0,
+    "unique_actions": 46,
+    "unique_scenarios": 61
+  },
+  "ro_train_conversion": {
+    "input_rows": 48691,
+    "kept_rows": 48691,
+    "skipped_none_rows": 0,
+    "test_rows": 12309,
+    "train_rows": 48691,
+    "unique_actions": 46,
+    "unique_scenarios": 61
+  },
+  "test_ratio": 0.2,
+  "test_raw_path": "artifacts/v5_1000eps_each_scenario_updated/test.raw.jsonl",
+  "train_raw_path": "artifacts/v5_1000eps_each_scenario_updated/train.raw.jsonl"
+}

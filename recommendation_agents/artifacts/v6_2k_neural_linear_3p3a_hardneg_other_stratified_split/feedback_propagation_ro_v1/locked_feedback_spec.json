@@ -1,0 +1,324 @@
+{
+  "feedback_items": [
+    {
+      "scenario_id": "ARRIVE_OFFICE",
+      "feedback_type": "like",
+      "target_position": 1,
+      "target_action_id": "O_SHOW_SCHEDULE",
+      "reward": 1.0,
+      "anchor_episode_id": "arrive_office_u000002",
+      "anchor_context": {
+        "state_current": "office_arriving",
+        "precondition": "commuting_walk_out",
+        "state_duration_sec": 381,
+        "ps_time": "dawn",
+        "hour": 5,
+        "cal_hasUpcoming": 1,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 1,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "noisy",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 20660,
+        "ps_location": "work",
+        "ps_phone": "face_down",
+        "batteryLevel": 91,
+        "isCharging": 0,
+        "networkType": "wifi",
+        "activityState": "active",
+        "activityDuration": 505,
+        "user_id_hash_bucket": "b31",
+        "age_bucket": "35_44",
+        "sex": "female",
+        "has_kids": 1
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_SCHEDULE",
+          "score": 1.1454461812973022,
+          "mean_reward": 1.1454461812973022,
+          "uncertainty": 0.01652549020946026
+        },
+        {
+          "action_id": "O_SHOW_TODAY_TODO",
+          "score": 1.1373400688171387,
+          "mean_reward": 1.1373400688171387,
+          "uncertainty": 0.01652549020946026
+        },
+        {
+          "action_id": "R_PLAN_DAY_OVER_COFFEE",
+          "score": 0.5734175443649292,
+          "mean_reward": 0.5734175443649292,
+          "uncertainty": 0.01652548834681511
+        },
+        {
+          "action_id": "R_WORK_START_SETTLE_IN",
+          "score": 0.5468872785568237,
+          "mean_reward": 0.5468872785568237,
+          "uncertainty": 0.01652549020946026
+        },
+        {
+          "action_id": "O_TURN_ON_EYE_COMFORT_MODE",
+          "score": 0.13513824343681335,
+          "mean_reward": 0.13513824343681335,
+          "uncertainty": 0.01652549020946026
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_PLAN_DAY_OVER_COFFEE"
+      ]
+    },
+    {
+      "scenario_id": "OFFICE_LUNCH_OUT",
+      "feedback_type": "dislike",
+      "target_position": 1,
+      "target_action_id": "O_SHOW_NEARBY_OPTIONS",
+      "reward": -1.0,
+      "anchor_episode_id": "office_lunch_out_a000002",
+      "anchor_context": {
+        "state_current": "outdoor_walking",
+        "precondition": "office_arriving",
+        "state_duration_sec": 1683,
+        "ps_time": "forenoon",
+        "hour": 11,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 1,
+        "wifiLostCategory": "work",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "quiet",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 40340,
+        "ps_location": "outdoor",
+        "ps_phone": "face_up",
+        "batteryLevel": 90,
+        "isCharging": 0,
+        "networkType": "cellular",
+        "activityState": "active",
+        "activityDuration": 5215,
+        "user_id_hash_bucket": "b29",
+        "age_bucket": "55_64",
+        "sex": "female",
+        "has_kids": 0
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 1.0106052160263062,
+          "mean_reward": 1.0106052160263062,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "R_MEAL_BREAK",
+          "score": 0.98951655626297,
+          "mean_reward": 0.98951655626297,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 0.9769112467765808,
+          "mean_reward": 0.9769112467765808,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "O_SHOW_WEATHER",
+          "score": 0.1277378499507904,
+          "mean_reward": 0.1277378499507904,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "O_SHOW_BOOKING_DETAILS",
+          "score": 0.10822997987270355,
+          "mean_reward": 0.10822997987270355,
+          "uncertainty": 0.026799818500876427
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_NEARBY_OPTIONS",
+        "R_MEAL_BREAK",
+        "O_SHOW_PAYMENT_QR"
+      ]
+    },
+    {
+      "scenario_id": "OFFICE_WORKING",
+      "feedback_type": "like",
+      "target_position": 2,
+      "target_action_id": "O_SHOW_SCHEDULE",
+      "reward": 1.0,
+      "anchor_episode_id": "office_afternoon_u000008",
+      "anchor_context": {
+        "state_current": "office_working",
+        "precondition": "office_arriving",
+        "state_duration_sec": 8530,
+        "ps_time": "afternoon",
+        "hour": 16,
+        "cal_hasUpcoming": 1,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 2,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "noisy",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 57955,
+        "ps_location": "work",
+        "ps_phone": "face_down",
+        "batteryLevel": 57,
+        "isCharging": 0,
+        "networkType": "wifi",
+        "activityState": "active",
+        "activityDuration": 4326,
+        "user_id_hash_bucket": "b27",
+        "age_bucket": "35_44",
+        "sex": "male",
+        "has_kids": 1
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_TODAY_TODO",
+          "score": 1.0194802284240723,
+          "mean_reward": 1.0194802284240723,
+          "uncertainty": 0.015725767239928246
+        },
+        {
+          "action_id": "O_SHOW_SCHEDULE",
+          "score": 1.0188640356063843,
+          "mean_reward": 1.0188640356063843,
+          "uncertainty": 0.015725767239928246
+        },
+        {
+          "action_id": "R_WORK_BREAK_AND_STRETCH",
+          "score": 0.9881627559661865,
+          "mean_reward": 0.9881627559661865,
+          "uncertainty": 0.015725769102573395
+        },
+        {
+          "action_id": "O_TURN_ON_EYE_COMFORT_MODE",
+          "score": 0.1225186288356781,
+          "mean_reward": 0.1225186288356781,
+          "uncertainty": 0.015725767239928246
+        },
+        {
+          "action_id": "R_DEEP_WORK_WINDOW",
+          "score": 0.10681548714637756,
+          "mean_reward": 0.10681548714637756,
+          "uncertainty": 0.015725767239928246
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_BREAK_AND_STRETCH"
+      ]
+    },
+    {
+      "scenario_id": "LEAVE_OFFICE",
+      "feedback_type": "dislike",
+      "target_position": 2,
+      "target_action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+      "reward": -1.0,
+      "anchor_episode_id": "leave_office_a000009",
+      "anchor_context": {
+        "state_current": "commuting_walk_home",
+        "precondition": "office_working",
+        "state_duration_sec": 3885,
+        "ps_time": "evening",
+        "hour": 17,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 1,
+        "wifiLostCategory": "work",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "normal",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 64160,
+        "ps_location": "en_route",
+        "ps_phone": "in_use",
+        "batteryLevel": 55,
+        "isCharging": 0,
+        "networkType": "cellular",
+        "activityState": "active",
+        "activityDuration": 1060,
+        "user_id_hash_bucket": "b24",
+        "age_bucket": "25_34",
+        "sex": "male",
+        "has_kids": 0
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_WEATHER",
+          "score": 1.0127253532409668,
+          "mean_reward": 1.0127253532409668,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+          "score": 1.0077685117721558,
+          "mean_reward": 1.0077685117721558,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "O_SHOW_COMMUTE_TRAFFIC",
+          "score": 0.9998623728752136,
+          "mean_reward": 0.9998623728752136,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "R_CHECK_TRIP_OR_BOOKING_INFO",
+          "score": 0.10531393438577652,
+          "mean_reward": 0.10531393438577652,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "O_SHOW_TRAVEL_INFO",
+          "score": 0.09915409982204437,
+          "mean_reward": 0.09915409982204437,
+          "uncertainty": 0.025463085621595383
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_WEATHER",
+        "R_CLOCK_OUT_BEFORE_LEAVING",
+        "O_SHOW_COMMUTE_TRAFFIC"
+      ]
+    }
+  ]
+}

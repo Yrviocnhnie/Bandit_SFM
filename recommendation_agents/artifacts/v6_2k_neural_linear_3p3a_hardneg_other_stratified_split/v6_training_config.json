@@ -1,0 +1,10 @@
+{
+  "irrelevant_repeat": 1,
+  "irrelevant_reward": -0.1,
+  "most_relevant_repeat": 1,
+  "most_relevant_reward": 1.0,
+  "other_zero_mode": "exclude-all-labeled",
+  "plausible_repeat": 1,
+  "plausible_reward": 0.1,
+  "relevance_markdown": "docs/scenario_recommendation_actions_v6.md"
+}

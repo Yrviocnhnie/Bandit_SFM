@@ -1,0 +1,359 @@
+{
+  "app": {
+    "label_rate_by_action": {
+      "entertainment": 0.06060606060606061,
+      "health": 0.19696969696969696,
+      "music": 0.10606060606060606,
+      "navigation": 0.16666666666666666,
+      "news": 0.07575757575757576,
+      "productivity": 0.12121212121212122,
+      "reading": 0.10606060606060606,
+      "shopping": 0.06060606060606061,
+      "social": 0.10606060606060606
+    },
+    "pred_topk_rate_by_action": {
+      "health": 0.30303030303030304,
+      "music": 0.48484848484848486,
+      "navigation": 0.8636363636363636,
+      "news": 0.24242424242424243,
+      "productivity": 0.5151515151515151,
+      "reading": 0.12121212121212122,
+      "shopping": 0.18181818181818182,
+      "social": 0.2878787878787879
+    },
+    "row_hit_at_k": 0.5,
+    "sample_count": 66,
+    "scenario_topk_examples": {
+      "AFTER_LUNCH_WALK": {
+        "gt_topk": [
+          "health",
+          "navigation",
+          "music"
+        ],
+        "pred_topk": [
+          "health",
+          "music",
+          "navigation"
+        ],
+        "set_match": true
+      },
+      "CAFE_QUIET": {
+        "gt_topk": [
+          "reading",
+          "productivity",
+          "music"
+        ],
+        "pred_topk": [
+          "shopping",
+          "navigation",
+          "social"
+        ],
+        "set_match": false
+      },
+      "CAFE_STAY": {
+        "gt_topk": [
+          "reading",
+          "productivity",
+          "social"
+        ],
+        "pred_topk": [
+          "navigation",
+          "productivity",
+          "news"
+        ],
+        "set_match": false
+      },
+      "CAL_HAS_EVENTS": {
+        "gt_topk": [
+          "productivity",
+          "navigation",
+          "news"
+        ],
+        "pred_topk": [
+          "navigation",
+          "shopping",
+          "productivity"
+        ],
+        "set_match": false
+      },
+      "COMMUTE_EVENING": {
+        "gt_topk": [
+          "music",
+          "social",
+          "entertainment"
+        ],
+        "pred_topk": [
+          "social",
+          "navigation",
+          "music"
+        ],
+        "set_match": false
+      },
+      "CYCLING": {
+        "gt_topk": [
+          "health",
+          "navigation",
+          "music"
+        ],
+        "pred_topk": [
+          "health",
+          "navigation",
+          "music"
+        ],
+        "set_match": true
+      },
+      "DELIVERY_AT_OFFICE": {
+        "gt_topk": [
+          "shopping",
+          "productivity",
+          "social"
+        ],
+        "pred_topk": [
+          "navigation",
+          "music",
+          "news"
+        ],
+        "set_match": false
+      },
+      "EDUCATION_LONG_SIT": {
+        "gt_topk": [
+          "reading",
+          "productivity",
+          "health"
+        ],
+        "pred_topk": [
+          "navigation",
+          "music",
+          "health"
+        ],
+        "set_match": false
+      },
+      "GYM_LONG_STAY": {
+        "gt_topk": [
+          "health",
+          "music",
+          "productivity"
+        ],
+        "pred_topk": [
+          "music",
+          "health",
+          "navigation"
+        ],
+        "set_match": false
+      },
+      "HOME_AFTERNOON": {
+        "gt_topk": [
+          "reading",
+          "entertainment",
+          "music"
+        ],
+        "pred_topk": [
+          "productivity",
+          "navigation",
+          "news"
+        ],
+        "set_match": false
+      }
+    },
+    "scenario_topk_majority_set_match_rate": 0.17391304347826086,
+    "top_k": 3
+  },
+  "data_dir": "artifacts/v5_synthetic_all_scenarios_prepared",
+  "device": "auto",
+  "ro": {
+    "label_rate_by_action": {
+      "O_ENABLE_VIBRATION": 0.030303030303030304,
+      "O_INCREASE_NOTIFICATION_VOLUME": 0.015151515151515152,
+      "O_PROMPT_ADD_FREQUENT_PLACE": 0.015151515151515152,
+      "O_SHOW_BOOKING_DETAILS": 0.045454545454545456,
+      "O_SHOW_MEETING_DETAILS": 0.015151515151515152,
+      "O_SHOW_NEARBY_OPTIONS": 0.06060606060606061,
+      "O_SHOW_PAYMENT_QR": 0.030303030303030304,
+      "O_SHOW_PICKUP_DETAILS": 0.015151515151515152,
+      "O_SHOW_SCHEDULE": 0.10606060606060606,
+      "O_SHOW_TODAY_TODO": 0.10606060606060606,
+      "O_SHOW_TRAVEL_INFO": 0.015151515151515152,
+      "O_SHOW_WALKING_ROUTE": 0.045454545454545456,
+      "O_SHOW_WEATHER": 0.015151515151515152,
+      "O_START_ACTIVITY_TRACKING": 0.06060606060606061,
+      "O_START_CONTEXT_TIMER": 0.015151515151515152,
+      "O_TURN_ON_DND": 0.015151515151515152,
+      "O_TURN_ON_EYE_COMFORT_MODE": 0.045454545454545456,
+      "O_TURN_ON_SILENT_MODE": 0.015151515151515152,
+      "R_CAPTURE_MEETING_FOLLOW_UPS": 0.015151515151515152,
+      "R_CHECK_TRIP_OR_BOOKING_INFO": 0.030303030303030304,
+      "R_ENJOY_LEISURE_MOMENT": 0.045454545454545456,
+      "R_HOME_RELAX_AND_RESET": 0.015151515151515152,
+      "R_MEAL_BREAK": 0.015151515151515152,
+      "R_NOISY_ENV_STAY_SAFE": 0.015151515151515152,
+      "R_OPEN_CURTAINS_OR_LIGHT": 0.015151515151515152,
+      "R_OUTDOOR_HYDRATE_AND_REST": 0.015151515151515152,
+      "R_POST_WORKOUT_RECOVERY": 0.015151515151515152,
+      "R_SLEEP_SOON_AND_CHARGE": 0.045454545454545456,
+      "R_WORK_BREAK_AND_STRETCH": 0.07575757575757576,
+      "R_WRAP_UP_AND_REST_AFTER_WORK": 0.030303030303030304
+    },
+    "pred_topk_rate_by_action": {
+      "O_ENABLE_VIBRATION": 0.045454545454545456,
+      "O_INCREASE_NOTIFICATION_VOLUME": 0.045454545454545456,
+      "O_SHOW_BOOKING_DETAILS": 0.015151515151515152,
+      "O_SHOW_COMMUTE_TRAFFIC": 0.09090909090909091,
+      "O_SHOW_NEARBY_OPTIONS": 0.07575757575757576,
+      "O_SHOW_PAYMENT_QR": 0.2878787878787879,
+      "O_SHOW_SCHEDULE": 0.696969696969697,
+      "O_SHOW_TODAY_TODO": 0.2878787878787879,
+      "O_SHOW_TRAVEL_INFO": 0.06060606060606061,
+      "O_SHOW_WEATHER": 0.3939393939393939,
+      "O_START_ACTIVITY_TRACKING": 0.16666666666666666,
+      "O_START_CONTEXT_TIMER": 0.06060606060606061,
+      "O_TURN_ON_DND": 0.015151515151515152,
+      "O_TURN_ON_EYE_COMFORT_MODE": 0.15151515151515152,
+      "O_TURN_ON_SILENT_MODE": 0.045454545454545456,
+      "R_CHECK_TRIP_OR_BOOKING_INFO": 0.10606060606060606,
+      "R_COMMUTE_STEADY_AND_SAFE": 0.015151515151515152,
+      "R_DEEP_WORK_WINDOW": 0.10606060606060606,
+      "R_ENJOY_LEISURE_MOMENT": 0.07575757575757576,
+      "R_HOME_RELAX_AND_RESET": 0.045454545454545456,
+      "R_LONG_DRIVE_REST": 0.015151515151515152,
+      "R_OUTDOOR_HYDRATE_AND_REST": 0.030303030303030304,
+      "R_POST_WORKOUT_RECOVERY": 0.030303030303030304,
+      "R_SLEEP_SOON_AND_CHARGE": 0.030303030303030304,
+      "R_WORKOUT_PREP": 0.015151515151515152,
+      "R_WORK_BREAK_AND_STRETCH": 0.09090909090909091
+    },
+    "row_hit_at_k": 0.45454545454545453,
+    "sample_count": 66,
+    "scenario_topk_examples": {
+      "AFTER_LUNCH_WALK": {
+        "gt_topk": [
+          "O_START_ACTIVITY_TRACKING",
+          "O_SHOW_WALKING_ROUTE",
+          "R_AFTER_MEAL_WALK"
+        ],
+        "pred_topk": [
+          "R_ENJOY_LEISURE_MOMENT",
+          "O_START_ACTIVITY_TRACKING",
+          "O_SHOW_WEATHER"
+        ],
+        "set_match": false
+      },
+      "CAFE_QUIET": {
+        "gt_topk": [
+          "O_TURN_ON_SILENT_MODE",
+          "O_SHOW_SCHEDULE",
+          "R_DEEP_WORK_WINDOW"
+        ],
+        "pred_topk": [
+          "O_SHOW_PAYMENT_QR",
+          "O_SHOW_SCHEDULE",
+          "O_SHOW_TODAY_TODO"
+        ],
+        "set_match": false
+      },
+      "CAFE_STAY": {
+        "gt_topk": [
+          "O_SHOW_PAYMENT_QR",
+          "O_SHOW_SCHEDULE",
+          "R_ENJOY_LEISURE_MOMENT"
+        ],
+        "pred_topk": [
+          "O_SHOW_SCHEDULE",
+          "O_SHOW_PAYMENT_QR",
+          "R_ENJOY_LEISURE_MOMENT"
+        ],
+        "set_match": true
+      },
+      "CAL_HAS_EVENTS": {
+        "gt_topk": [
+          "O_SHOW_SCHEDULE",
+          "R_CALENDAR_QUICK_LOOK"
+        ],
+        "pred_topk": [
+          "O_SHOW_PAYMENT_QR",
+          "O_SHOW_COMMUTE_TRAFFIC",
+          "O_SHOW_SCHEDULE"
+        ],
+        "set_match": false
+      },
+      "COMMUTE_EVENING": {
+        "gt_topk": [
+          "O_SHOW_SCHEDULE",
+          "O_SHOW_TODAY_TODO",
+          "R_HOME_RELAX_AND_RESET"
+        ],
+        "pred_topk": [
+          "O_SHOW_COMMUTE_TRAFFIC",
+          "O_SHOW_SCHEDULE",
+          "R_HOME_RELAX_AND_RESET"
+        ],
+        "set_match": false
+      },
+      "CYCLING": {
+        "gt_topk": [
+          "O_START_ACTIVITY_TRACKING",
+          "O_SHOW_WEATHER",
+          "R_COMMUTE_STEADY_AND_SAFE"
+        ],
+        "pred_topk": [
+          "O_START_ACTIVITY_TRACKING",
+          "O_SHOW_WEATHER",
+          "R_COMMUTE_STEADY_AND_SAFE"
+        ],
+        "set_match": true
+      },
+      "DELIVERY_AT_OFFICE": {
+        "gt_topk": [
+          "O_SHOW_PICKUP_DETAILS",
+          "R_DELIVERY_PICKUP_REMINDER"
+        ],
+        "pred_topk": [
+          "O_SHOW_SCHEDULE",
+          "O_SHOW_TODAY_TODO",
+          "O_SHOW_PAYMENT_QR"
+        ],
+        "set_match": false
+      },
+      "EDUCATION_LONG_SIT": {
+        "gt_topk": [
+          "R_WORK_BREAK_AND_STRETCH",
+          "O_SHOW_SCHEDULE",
+          "O_SHOW_TODAY_TODO"
+        ],
+        "pred_topk": [
+          "O_SHOW_SCHEDULE",
+          "O_TURN_ON_SILENT_MODE",
+          "R_DEEP_WORK_WINDOW"
+        ],
+        "set_match": false
+      },
+      "GYM_LONG_STAY": {
+        "gt_topk": [
+          "R_POST_WORKOUT_RECOVERY",
+          "O_START_CONTEXT_TIMER"
+        ],
+        "pred_topk": [
+          "O_START_ACTIVITY_TRACKING",
+          "O_START_CONTEXT_TIMER",
+          "R_WORKOUT_PREP"
+        ],
+        "set_match": false
+      },
+      "HOME_AFTERNOON": {
+        "gt_topk": [
+          "O_SHOW_TODAY_TODO",
+          "O_SHOW_SCHEDULE",
+          "R_HOME_RELAX_AND_RESET"
+        ],
+        "pred_topk": [
+          "O_SHOW_TODAY_TODO",
+          "O_SHOW_WEATHER",
+          "O_SHOW_SCHEDULE"
+        ],
+        "set_match": false
+      }
+    },
+    "scenario_topk_majority_set_match_rate": 0.043478260869565216,
+    "top_k": 3
+  },
+  "top_k": 3
+}

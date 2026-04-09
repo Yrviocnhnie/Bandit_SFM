@@ -1,0 +1,1614 @@
+{
+  "version": "v5_global_shared_ro",
+  "summary": {
+    "totalScenarios": 65,
+    "legacyRoActionCount": 167,
+    "globalRoActionCount": 46,
+    "globalReminderCount": 26,
+    "globalOperationCount": 20,
+    "globalReduction": "167 -> 46"
+  },
+  "mergePrinciples": [
+    "O 优先按 operation 合并；如果需要参数，则这些参数必须能由当前已有 feature 直接解析，RL/UCB 只负责推荐 action。",
+    "R 优先按用户意图合并；如果只是文案、场景措辞不同，则收敛到统一提醒语义。",
+    "scenario 层只保留 action 引用、触发条件和默认顺序，不携带 action 参数；参数在执行层由 feature resolver 决定。",
+    "每个 scenario 至少保留 2 个默认 R/O action，并为 app category 给出至少 3 个按 common sense 排序的默认项。"
+  ],
+  "globalActions": [
+    {
+      "actionId": "R_PLAN_DAY_OVER_COFFEE",
+      "actionType": "R",
+      "nameZh": "借咖啡进入规划状态",
+      "nameEn": "Plan the day over coffee",
+      "description": "把“喝咖啡”“开始一天”“顺手想清重点”收敛为同一个轻量启动提醒。",
+      "payloadTemplate": {
+        "message": "借这几分钟想一下今天最重要的事，慢慢进入节奏。"
+      }
+    },
+    {
+      "actionId": "R_WORK_START_SETTLE_IN",
+      "actionType": "R",
+      "nameZh": "重新进入工作节奏",
+      "nameEn": "Settle back into work",
+      "description": "覆盖到公司后、午饭回办公室后等“重新进入工作状态”的提醒。",
+      "payloadTemplate": {
+        "message": "先稳一下节奏，再开始接下来的工作会更顺。"
+      }
+    },
+    {
+      "actionId": "R_WORK_BREAK_AND_STRETCH",
+      "actionType": "R",
+      "nameZh": "工作中记得休息活动",
+      "nameEn": "Take a break and stretch during work",
+      "description": "合并办公室、居家办公、长时间坐着、长时间专注等场景下的休息、喝水、活动提醒。",
+      "payloadTemplate": {
+        "message": "已经持续一段时间了，起来活动一下，也别忘了补水和放松眼睛。"
+      }
+    },
+    {
+      "actionId": "R_WRAP_UP_AND_REST_AFTER_WORK",
+      "actionType": "R",
+      "nameZh": "适时收尾并休息",
+      "nameEn": "Wrap up and rest",
+      "description": "合并傍晚留守办公室、深夜加班等“该收尾了”的提醒。",
+      "payloadTemplate": {
+        "message": "时间已经不早了，尽量收尾当前事情，给自己留一点休息空间。"
+      }
+    },
+    {
+      "actionId": "R_CLOCK_OUT_BEFORE_LEAVING",
+      "actionType": "R",
+      "nameZh": "离开前别忘记打卡",
+      "nameEn": "Clock out before leaving",
+      "description": "保留离开办公室前的明确动作提醒。",
+      "payloadTemplate": {
+        "message": "离开前别忘了把该处理的离场动作做完，比如打卡。"
+      }
+    },
+    {
+      "actionId": "R_CHECK_TRIP_OR_BOOKING_INFO",
+      "actionType": "R",
+      "nameZh": "查看行程或预约信息",
+      "nameEn": "Check trip or booking details",
+      "description": "把交通出发、酒店、电影、医院、网约车等“先确认关键信息”的提醒合并。",
+      "payloadTemplate": {
+        "message": "建议先确认这次行程或预约的关键信息，避免临近时手忙脚乱。"
+      }
+    },
+    {
+      "actionId": "R_MEAL_BREAK",
+      "actionType": "R",
+      "nameZh": "按时吃饭或出去吃点东西",
+      "nameEn": "Take a meal break",
+      "description": "合并午餐时间、办公室午间外出等用餐提醒。",
+      "payloadTemplate": {
+        "message": "差不多该吃点东西了，顺便休息一下会更舒服。"
+      }
+    },
+    {
+      "actionId": "R_HOME_RELAX_AND_RESET",
+      "actionType": "R",
+      "nameZh": "在家放松并重置节奏",
+      "nameEn": "Relax and reset at home",
+      "description": "合并回家后、居家下午、居家傍晚、安静在家等放松类提醒。",
+      "payloadTemplate": {
+        "message": "可以让自己慢下来，补点水、放松一下，再决定接下来的安排。"
+      }
+    },
+    {
+      "actionId": "R_SLEEP_SOON_AND_CHARGE",
+      "actionType": "R",
+      "nameZh": "准备休息并减少深夜刷屏",
+      "nameEn": "Get ready for rest",
+      "description": "合并深夜在家、晚归到家、深夜躺着玩手机等“该休息了”的提醒。",
+      "payloadTemplate": {
+        "message": "时间已经比较晚了，尽量准备休息，也别忘了把手机和自己都安顿好。"
+      }
+    },
+    {
+      "actionId": "R_WEEKEND_OR_MORNING_GREETING",
+      "actionType": "R",
+      "nameZh": "早晨或周末轻启动",
+      "nameEn": "Ease into the morning or weekend",
+      "description": "合并起床、周末早晨等“慢慢进入状态”的轻提醒。",
+      "payloadTemplate": {
+        "message": "今天可以舒服一点进入状态，不用太赶。"
+      }
+    },
+    {
+      "actionId": "R_ENJOY_LEISURE_MOMENT",
+      "actionType": "R",
+      "nameZh": "享受当下这段轻松时间",
+      "nameEn": "Enjoy the current leisure moment",
+      "description": "合并购物、餐饮、咖啡、散步、周末外出等“享受过程”的轻量提醒。",
+      "payloadTemplate": {
+        "message": "这段时间适合放松一点，享受当下就好。"
+      }
+    },
+    {
+      "actionId": "R_OUTDOOR_HYDRATE_AND_REST",
+      "actionType": "R",
+      "nameZh": "户外活动时补水并适时休息",
+      "nameEn": "Hydrate and rest outdoors",
+      "description": "合并户外跑步、久走等场景里的补水与休息提醒。",
+      "payloadTemplate": {
+        "message": "户外活动别忘了补水，累了就找个地方稍微歇一会儿。"
+      }
+    },
+    {
+      "actionId": "R_WORKOUT_PREP",
+      "actionType": "R",
+      "nameZh": "开始锻炼前先做好准备",
+      "nameEn": "Prepare before workout",
+      "description": "合并晨练热身、组间休息后准备继续训练、去健身前补水等准备动作。",
+      "payloadTemplate": {
+        "message": "开始训练前先热热身、补点水，会更稳一些。"
+      }
+    },
+    {
+      "actionId": "R_POST_WORKOUT_RECOVERY",
+      "actionType": "R",
+      "nameZh": "运动后做恢复",
+      "nameEn": "Recover after workout",
+      "description": "合并健身后拉伸、长时间训练后恢复、运动后补水等恢复提醒。",
+      "payloadTemplate": {
+        "message": "运动后记得拉伸、补水，给身体一点恢复时间。"
+      }
+    },
+    {
+      "actionId": "R_COMMUTE_STEADY_AND_SAFE",
+      "actionType": "R",
+      "nameZh": "通勤或骑行时稳一点更安全",
+      "nameEn": "Commute steadily and safely",
+      "description": "合并通勤中、骑行中等“注意节奏和安全”的提醒。",
+      "payloadTemplate": {
+        "message": "路上稳一点，不用太赶，安全最重要。"
+      }
+    },
+    {
+      "actionId": "R_LONG_DRIVE_REST",
+      "actionType": "R",
+      "nameZh": "长时间驾驶后休息一下",
+      "nameEn": "Rest during a long drive",
+      "description": "保留连续驾驶后需要休息的强提醒。",
+      "payloadTemplate": {
+        "message": "连续驾驶已经有一段时间了，找个合适的地方休息一下。"
+      }
+    },
+    {
+      "actionId": "R_NOISY_ENV_STAY_SAFE",
+      "actionType": "R",
+      "nameZh": "嘈杂环境里注意安全和随身物品",
+      "nameEn": "Stay safe in a noisy environment",
+      "description": "合并人多嘈杂、深夜嘈杂等安全提醒。",
+      "payloadTemplate": {
+        "message": "周围有点嘈杂，记得留意安全和重要物品。"
+      }
+    },
+    {
+      "actionId": "R_DELIVERY_PICKUP_REMINDER",
+      "actionType": "R",
+      "nameZh": "有件待取",
+      "nameEn": "Pick up the delivery",
+      "description": "保留快递/取件的明确提醒。",
+      "payloadTemplate": {
+        "message": "有一件东西待处理，方便的话顺手去取一下。"
+      }
+    },
+    {
+      "actionId": "R_WAITING_TIME_USEFUL",
+      "actionType": "R",
+      "nameZh": "把等待时间利用起来",
+      "nameEn": "Use the waiting time well",
+      "description": "合并教育场景里等待时可看看安排/处理待办的提醒。",
+      "payloadTemplate": {
+        "message": "这段等待时间可以利用起来，看看安排或处理一点小事。"
+      }
+    },
+    {
+      "actionId": "R_AFTER_MEAL_WALK",
+      "actionType": "R",
+      "nameZh": "饭后走一走",
+      "nameEn": "Take a walk after the meal",
+      "description": "保留饭后散步的独立提醒。",
+      "payloadTemplate": {
+        "message": "饭后出去走一走，会比较舒服。"
+      }
+    },
+    {
+      "actionId": "R_PREPARE_FOR_MEETING",
+      "actionType": "R",
+      "nameZh": "会议开始前先准备一下",
+      "nameEn": "Prepare for the meeting",
+      "description": "保留会议即将开始前的准备提醒。",
+      "payloadTemplate": {
+        "message": "会议快开始了，先简单准备一下会更从容。"
+      }
+    },
+    {
+      "actionId": "R_CAPTURE_MEETING_FOLLOW_UPS",
+      "actionType": "R",
+      "nameZh": "记下会议中的待跟进事项",
+      "nameEn": "Capture meeting follow-ups",
+      "description": "保留会议中记录 follow-up 的提醒。",
+      "payloadTemplate": {
+        "message": "一边专注讨论，一边把后续要跟进的点顺手记下来。"
+      }
+    },
+    {
+      "actionId": "R_DEPART_EARLY_FOR_OFFSITE",
+      "actionType": "R",
+      "nameZh": "异地事项提前出发",
+      "nameEn": "Leave a bit early for the offsite event",
+      "description": "保留需要出行去开会/赴约时的提前出发提醒。",
+      "payloadTemplate": {
+        "message": "这次需要出行，提前一点出发会更从容。"
+      }
+    },
+    {
+      "actionId": "R_DEEP_WORK_WINDOW",
+      "actionType": "R",
+      "nameZh": "这是一个适合专注的时间窗",
+      "nameEn": "This is a good window for focused work",
+      "description": "合并无会议、安静学校、安静咖啡馆等“适合专注”的提醒。",
+      "payloadTemplate": {
+        "message": "现在这段时间挺适合专注做点重要的事。"
+      }
+    },
+    {
+      "actionId": "R_CALENDAR_QUICK_LOOK",
+      "actionType": "R",
+      "nameZh": "快速看一眼日程",
+      "nameEn": "Take a quick look at the calendar",
+      "description": "保留“今天有安排，先快速看一眼”的轻提醒。",
+      "payloadTemplate": {
+        "message": "今天看起来有安排，快速看一眼会更有数。"
+      }
+    },
+    {
+      "actionId": "R_OPEN_CURTAINS_OR_LIGHT",
+      "actionType": "R",
+      "nameZh": "环境太暗时调整一下光线",
+      "nameEn": "Brighten the environment",
+      "description": "保留暗环境持续过久时的环境调整提醒。",
+      "payloadTemplate": {
+        "message": "环境已经暗了挺久了，可以考虑开灯、拉窗帘，调整一下状态。"
+      }
+    },
+    {
+      "actionId": "O_SHOW_SCHEDULE",
+      "actionType": "O",
+      "nameZh": "查看日程安排",
+      "nameEn": "Show schedule",
+      "description": "合并查看今日日程和明日安排；日期和视图由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "查看日程安排。",
+        "operation": "show_schedule"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "day",
+            "values": [
+              "today",
+              "tomorrow"
+            ]
+          },
+          {
+            "name": "view",
+            "values": [
+              "default",
+              "overview"
+            ]
+          }
+        ],
+        "features": [
+          "ps_time",
+          "cal_hasUpcoming",
+          "cal_eventCount",
+          "cal_nextMinutes",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_TODAY_TODO",
+      "actionType": "O",
+      "nameZh": "查看今日待办",
+      "nameEn": "Show today to-do list",
+      "description": "把所有 show_today_todo_list 场景合并成一个共享操作。",
+      "payloadTemplate": {
+        "message": "查看今天的待办事项。",
+        "operation": "show_today_todo_list"
+      }
+    },
+    {
+      "actionId": "O_SHOW_WEATHER",
+      "actionType": "O",
+      "nameZh": "查看天气",
+      "nameEn": "Show weather",
+      "description": "查看天气；展示当前天气还是今天天气由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "查看天气情况。",
+        "operation": "show_weather"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "scope",
+            "values": [
+              "current",
+              "today"
+            ]
+          }
+        ],
+        "features": [
+          "ps_time",
+          "ps_motion",
+          "ps_location",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_PAYMENT_QR",
+      "actionType": "O",
+      "nameZh": "展示付款码",
+      "nameEn": "Show payment QR",
+      "description": "合并餐饮、购物、咖啡、电影等付款码相关操作。",
+      "payloadTemplate": {
+        "message": "先把付款码准备好。",
+        "operation": "show_payment_qr"
+      }
+    },
+    {
+      "actionId": "O_SHOW_COMMUTE_TRAFFIC",
+      "actionType": "O",
+      "nameZh": "查看通勤路况",
+      "nameEn": "Show commute traffic",
+      "description": "查看通勤路况；目的地由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "查看路况和预计到达时间。",
+        "operation": "show_commute_traffic"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "destination",
+            "values": [
+              "home",
+              "work"
+            ]
+          }
+        ],
+        "features": [
+          "state_current",
+          "state_prev",
+          "wifiLostCategory",
+          "ps_motion"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_TRAVEL_INFO",
+      "actionType": "O",
+      "nameZh": "查看行程信息",
+      "nameEn": "Show travel information",
+      "description": "共享的查看行程信息操作；行程类型由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "查看当前行程的关键信息。",
+        "operation": "show_travel_information"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "travelType",
+            "values": [
+              "train",
+              "flight",
+              "ride"
+            ]
+          }
+        ],
+        "features": [
+          "flightNumber",
+          "flightCountdownMin",
+          "sms_train_count",
+          "sms_flight_count",
+          "sms_ride_count"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_BOOKING_DETAILS",
+      "actionType": "O",
+      "nameZh": "查看预约或订单详情",
+      "nameEn": "Show booking details",
+      "description": "共享的查看预约或订单详情操作；预约类型由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "查看这次预约或订单的详情。",
+        "operation": "show_booking_details"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "bookingType",
+            "values": [
+              "hotel",
+              "movie",
+              "hospital"
+            ]
+          }
+        ],
+        "features": [
+          "sms_hotel_count",
+          "sms_movie_count",
+          "sms_hospital_count"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_MEETING_DETAILS",
+      "actionType": "O",
+      "nameZh": "查看会议信息",
+      "nameEn": "Show meeting details",
+      "description": "合并会议即将开始、异地会议中的会议信息查看操作。",
+      "payloadTemplate": {
+        "message": "查看会议的时间、地点和相关信息。",
+        "operation": "show_meeting_details"
+      }
+    },
+    {
+      "actionId": "O_SHOW_NEARBY_OPTIONS",
+      "actionType": "O",
+      "nameZh": "查看附近可选地点",
+      "nameEn": "Show nearby options",
+      "description": "查看附近可选地点；地点类型由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "查看附近有哪些合适的去处。",
+        "operation": "show_nearby_places"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "placeType",
+            "values": [
+              "general",
+              "restaurant",
+              "service_area"
+            ]
+          }
+        ],
+        "features": [
+          "ps_motion",
+          "ps_time",
+          "ps_location",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_SHOW_WALKING_ROUTE",
+      "actionType": "O",
+      "nameZh": "查看步行路线",
+      "nameEn": "Show walking route",
+      "description": "合并公园散步、饭后散步、周末散步的路线查看操作。",
+      "payloadTemplate": {
+        "message": "查看附近的步行路线或返程路线。",
+        "operation": "show_walking_route"
+      }
+    },
+    {
+      "actionId": "O_SHOW_PICKUP_DETAILS",
+      "actionType": "O",
+      "nameZh": "查看取件信息",
+      "nameEn": "Show pickup details",
+      "description": "保留取件类信息查看操作。",
+      "payloadTemplate": {
+        "message": "查看取件相关信息。",
+        "operation": "show_pickup_details"
+      }
+    },
+    {
+      "actionId": "O_PROMPT_ADD_FREQUENT_PLACE",
+      "actionType": "O",
+      "nameZh": "提示添加常用地点",
+      "nameEn": "Prompt to add frequent place",
+      "description": "保留未知地点停留过久时的建点操作。",
+      "payloadTemplate": {
+        "message": "提示把当前地点添加为常用地点。",
+        "operation": "prompt_add_frequent_place"
+      }
+    },
+    {
+      "actionId": "O_OPEN_NOTES_QUICK_ENTRY",
+      "actionType": "O",
+      "nameZh": "打开快捷记录入口",
+      "nameEn": "Open notes quick entry",
+      "description": "保留会议中打开快捷记录入口的操作。",
+      "payloadTemplate": {
+        "message": "打开快速记录入口。",
+        "operation": "open_notes_quick_entry"
+      }
+    },
+    {
+      "actionId": "O_TURN_ON_EYE_COMFORT_MODE",
+      "actionType": "O",
+      "nameZh": "开启护眼模式",
+      "nameEn": "Turn on eye comfort mode",
+      "description": "把所有护眼模式相关操作合并为一个共享 action。",
+      "payloadTemplate": {
+        "message": "开启护眼模式。",
+        "operation": "turn_on_eye_comfort_mode"
+      }
+    },
+    {
+      "actionId": "O_TURN_ON_DND",
+      "actionType": "O",
+      "nameZh": "开启勿扰模式",
+      "nameEn": "Turn on Do Not Disturb",
+      "description": "合并会议、睡前等场景中的勿扰模式操作。",
+      "payloadTemplate": {
+        "message": "开启勿扰模式。",
+        "operation": "turn_on_dnd"
+      }
+    },
+    {
+      "actionId": "O_TURN_ON_SILENT_MODE",
+      "actionType": "O",
+      "nameZh": "开启静音",
+      "nameEn": "Turn on silent mode",
+      "description": "合并学校、安静咖啡馆中的静音操作。",
+      "payloadTemplate": {
+        "message": "开启静音模式。",
+        "operation": "turn_on_silent_mode"
+      }
+    },
+    {
+      "actionId": "O_ENABLE_VIBRATION",
+      "actionType": "O",
+      "nameZh": "开启振动提醒",
+      "nameEn": "Enable vibration",
+      "description": "合并嘈杂环境下的振动提醒操作。",
+      "payloadTemplate": {
+        "message": "开启振动提醒。",
+        "operation": "enable_vibration"
+      }
+    },
+    {
+      "actionId": "O_INCREASE_NOTIFICATION_VOLUME",
+      "actionType": "O",
+      "nameZh": "调高通知音量",
+      "nameEn": "Increase notification volume",
+      "description": "调高通知音量；具体强度由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "调高通知音量。",
+        "operation": "increase_volume"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "level",
+            "values": [
+              "high",
+              "max"
+            ]
+          }
+        ],
+        "features": [
+          "ps_sound",
+          "ps_time",
+          "state_current"
+        ]
+      }
+    },
+    {
+      "actionId": "O_START_ACTIVITY_TRACKING",
+      "actionType": "O",
+      "nameZh": "开始记录活动",
+      "nameEn": "Start activity tracking",
+      "description": "开始记录活动；具体活动类型由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "开始记录这次活动。",
+        "operation": "start_activity_tracking"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "activityType",
+            "values": [
+              "walking",
+              "running",
+              "cycling",
+              "gym_workout",
+              "general_workout"
+            ]
+          }
+        ],
+        "features": [
+          "ps_motion",
+          "ps_location",
+          "ps_time",
+          "state_current",
+          "state_prev"
+        ]
+      }
+    },
+    {
+      "actionId": "O_START_CONTEXT_TIMER",
+      "actionType": "O",
+      "nameZh": "开启情境计时",
+      "nameEn": "Start context timer",
+      "description": "开启计时；具体模式由执行层基于当前特征决定。",
+      "payloadTemplate": {
+        "message": "开启一个合适的计时器。",
+        "operation": "start_context_timer"
+      },
+      "resolver": {
+        "params": [
+          {
+            "name": "timerMode",
+            "values": [
+              "general",
+              "rest",
+              "recovery"
+            ]
+          }
+        ],
+        "features": [
+          "state_current",
+          "state_prev",
+          "ps_location",
+          "ps_motion"
+        ]
+      }
+    }
+  ],
+  "scenarioDefaults": [
+    {
+      "scenarioId": "ARRIVE_OFFICE",
+      "scenarioName": "到达办公室",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_PLAN_DAY_OVER_COFFEE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "news",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_LUNCH_OUT",
+      "scenarioName": "办公室午间外出",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_MEAL_BREAK"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_WORKING",
+      "scenarioName": "办公室工作",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_BREAK_AND_STRETCH"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "LEAVE_OFFICE",
+      "scenarioName": "离开办公室",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "O_SHOW_WEATHER",
+        "R_CLOCK_OUT_BEFORE_LEAVING"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "WEEKDAY_HOME_DAY",
+      "scenarioName": "工作日居家白天",
+      "category": "home",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WORK_BREAK_AND_STRETCH"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "reading",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "ARRIVE_TRANSIT_HUB",
+      "scenarioName": "到达交通枢纽",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "productivity",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "LATE_NIGHT_OVERTIME",
+      "scenarioName": "深夜加班",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WRAP_UP_AND_REST_AFTER_WORK",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_OVERTIME",
+      "scenarioName": "周末加班",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "EVENING_AT_OFFICE",
+      "scenarioName": "傍晚留守办公室",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "O_SHOW_TODAY_TODO",
+        "R_WRAP_UP_AND_REST_AFTER_WORK"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "navigation",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "MORNING_EXERCISE",
+      "scenarioName": "晨练",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "SHOPPING",
+      "scenarioName": "购物",
+      "category": "shopping",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "HOME_EVENING",
+      "scenarioName": "居家傍晚",
+      "category": "home",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "entertainment",
+        "music",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "ARRIVE_DINING",
+      "scenarioName": "到达餐厅/咖啡厅",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "HOME_LATE_NIGHT",
+      "scenarioName": "居家深夜",
+      "category": "sleep",
+      "defaultActionIds": [
+        "R_SLEEP_SOON_AND_CHARGE",
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "O_SHOW_SCHEDULE"
+      ],
+      "defaultAppCategories": [
+        "music",
+        "reading",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_MORNING",
+      "scenarioName": "周末早晨",
+      "category": "morning",
+      "defaultActionIds": [
+        "O_SHOW_WEATHER",
+        "O_SHOW_SCHEDULE",
+        "R_WEEKEND_OR_MORNING_GREETING"
+      ],
+      "defaultAppCategories": [
+        "news",
+        "entertainment",
+        "game"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_OUTING",
+      "scenarioName": "周末外出",
+      "category": "shopping",
+      "defaultActionIds": [
+        "O_SHOW_WEATHER",
+        "O_SHOW_NEARBY_OPTIONS",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "LATE_RETURN_HOME",
+      "scenarioName": "深夜回家",
+      "category": "home",
+      "defaultActionIds": [
+        "R_SLEEP_SOON_AND_CHARGE",
+        "O_TURN_ON_DND"
+      ],
+      "defaultAppCategories": [
+        "music",
+        "health",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "HOME_AFTERNOON",
+      "scenarioName": "居家午后",
+      "category": "home",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "entertainment",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "MORNING_COFFEE",
+      "scenarioName": "早晨咖啡",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_PLAN_DAY_OVER_COFFEE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "news",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "GYM_WORKOUT",
+      "scenarioName": "健身房锻炼",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_POST_WORKOUT_RECOVERY"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "GYM_REST",
+      "scenarioName": "健身房休息",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "GYM_LONG_STAY",
+      "scenarioName": "健身房长时间停留",
+      "category": "exercise",
+      "defaultActionIds": [
+        "R_POST_WORKOUT_RECOVERY",
+        "O_START_CONTEXT_TIMER"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "OUTDOOR_RUNNING",
+      "scenarioName": "户外跑步",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_OUTDOOR_HYDRATE_AND_REST"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "WEEKEND_OUTDOOR_WALK",
+      "scenarioName": "周末户外步行",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_SHOW_WALKING_ROUTE",
+        "O_SHOW_WEATHER",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "CYCLING",
+      "scenarioName": "骑行",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WEATHER",
+        "R_COMMUTE_STEADY_AND_SAFE"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "COMMUTE_MORNING",
+      "scenarioName": "早晨通勤到达公司",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WORK_START_SETTLE_IN"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "COMMUTE_EVENING",
+      "scenarioName": "下班到家",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "music",
+        "social",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "HOME_TO_GYM",
+      "scenarioName": "从家到达健身房",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_START_CONTEXT_TIMER",
+        "R_WORKOUT_PREP"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "WAKE_UP",
+      "scenarioName": "家中起床",
+      "category": "morning",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_WEATHER",
+        "R_WEEKEND_OR_MORNING_GREETING"
+      ],
+      "defaultAppCategories": [
+        "news",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "PARK_WALK",
+      "scenarioName": "公园短暂步行",
+      "category": "exercise",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WALKING_ROUTE",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "health",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "LONG_DRIVE",
+      "scenarioName": "长距离驾驶",
+      "category": "commute",
+      "defaultActionIds": [
+        "R_LONG_DRIVE_REST",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "CAFE_STAY",
+      "scenarioName": "咖啡厅逗留",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "O_SHOW_SCHEDULE",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "QUIET_HOME",
+      "scenarioName": "居家安静时段",
+      "category": "home",
+      "defaultActionIds": [
+        "R_HOME_RELAX_AND_RESET",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "music",
+        "game"
+      ]
+    },
+    {
+      "scenarioId": "NOISY_GATHERING",
+      "scenarioName": "嘈杂环境聚集",
+      "category": "social",
+      "defaultActionIds": [
+        "O_ENABLE_VIBRATION",
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "R_NOISY_ENV_STAY_SAFE"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "music",
+        "navigation"
+      ]
+    },
+    {
+      "scenarioId": "LONG_OUTDOOR_WALK",
+      "scenarioName": "长时间户外步行",
+      "category": "exercise",
+      "defaultActionIds": [
+        "R_OUTDOOR_HYDRATE_AND_REST",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "LATE_NIGHT_NOISY",
+      "scenarioName": "深夜嘈杂场所",
+      "category": "social",
+      "defaultActionIds": [
+        "O_ENABLE_VIBRATION",
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "R_NOISY_ENV_STAY_SAFE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "DELIVERY_AT_OFFICE",
+      "scenarioName": "公司收到快递",
+      "category": "delivery",
+      "defaultActionIds": [
+        "O_SHOW_PICKUP_DETAILS",
+        "R_DELIVERY_PICKUP_REMINDER"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "productivity",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "EDUCATION_WAITING",
+      "scenarioName": "辅导班等待",
+      "category": "education",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_WAITING_TIME_USEFUL"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "game"
+      ]
+    },
+    {
+      "scenarioId": "EDUCATION_LONG_SIT",
+      "scenarioName": "辅导班久坐",
+      "category": "education",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "HOME_LUNCH",
+      "scenarioName": "居家午餐",
+      "category": "dining",
+      "defaultActionIds": [
+        "R_MEAL_BREAK",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "shopping",
+        "social",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "AFTER_LUNCH_WALK",
+      "scenarioName": "饭后散步",
+      "category": "health",
+      "defaultActionIds": [
+        "O_START_ACTIVITY_TRACKING",
+        "O_SHOW_WALKING_ROUTE",
+        "R_AFTER_MEAL_WALK"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "MEETING_UPCOMING",
+      "scenarioName": "会议即将开始",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_MEETING_DETAILS",
+        "O_TURN_ON_DND",
+        "R_PREPARE_FOR_MEETING"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "navigation",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "IN_MEETING",
+      "scenarioName": "会议进行中",
+      "category": "work",
+      "defaultActionIds": [
+        "O_TURN_ON_DND",
+        "O_OPEN_NOTES_QUICK_ENTRY",
+        "R_CAPTURE_MEETING_FOLLOW_UPS"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "social",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "REMOTE_MEETING",
+      "scenarioName": "异地会议出发",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "O_SHOW_MEETING_DETAILS",
+        "R_DEPART_EARLY_FOR_OFFSITE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "productivity",
+        "social"
+      ]
+    },
+    {
+      "scenarioId": "NO_MEETINGS",
+      "scenarioName": "今日无会议",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "R_DEEP_WORK_WINDOW"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "CAL_HAS_EVENTS",
+      "scenarioName": "今日日程提醒",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_SCHEDULE",
+        "R_CALENDAR_QUICK_LOOK"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "navigation",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "RETURN_OFFICE_AFTER_LUNCH",
+      "scenarioName": "午餐后回到办公室",
+      "category": "work",
+      "defaultActionIds": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_START_SETTLE_IN"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "HOME_AFTER_GYM",
+      "scenarioName": "健身后回家",
+      "category": "exercise",
+      "defaultActionIds": [
+        "R_POST_WORKOUT_RECOVERY",
+        "O_START_CONTEXT_TIMER"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "music",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "COMMUTE_FROM_HOME",
+      "scenarioName": "从家出发通勤中",
+      "category": "commute",
+      "defaultActionIds": [
+        "O_SHOW_COMMUTE_TRAFFIC",
+        "R_COMMUTE_STEADY_AND_SAFE"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "music",
+        "news"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_TO_CAFE",
+      "scenarioName": "从办公室到咖啡馆",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_SHOW_PAYMENT_QR",
+        "R_ENJOY_LEISURE_MOMENT"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "shopping",
+        "reading"
+      ]
+    },
+    {
+      "scenarioId": "LATE_NIGHT_PHONE",
+      "scenarioName": "深夜躺姿过长",
+      "category": "sleep",
+      "defaultActionIds": [
+        "R_SLEEP_SOON_AND_CHARGE",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "reading",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_FOCUS_LONG",
+      "scenarioName": "办公手机扣放久坐",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "music",
+        "health"
+      ]
+    },
+    {
+      "scenarioId": "HOME_DARK_LONG",
+      "scenarioName": "居家白天暗环境过长",
+      "category": "health",
+      "defaultActionIds": [
+        "R_OPEN_CURTAINS_OR_LIGHT",
+        "O_SHOW_WEATHER",
+        "O_TURN_ON_EYE_COMFORT_MODE"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "reading",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "UNKNOWN_LONG_STAY",
+      "scenarioName": "未知地点久留",
+      "category": "other",
+      "defaultActionIds": [
+        "O_PROMPT_ADD_FREQUENT_PLACE",
+        "O_SHOW_NEARBY_OPTIONS"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "shopping"
+      ]
+    },
+    {
+      "scenarioId": "OFFICE_LONG_SESSION",
+      "scenarioName": "办公超长连续",
+      "category": "work",
+      "defaultActionIds": [
+        "R_WORK_BREAK_AND_STRETCH",
+        "O_SHOW_TODAY_TODO"
+      ],
+      "defaultAppCategories": [
+        "productivity",
+        "health",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "HOME_EVENING_DARK",
+      "scenarioName": "居家傍晚暗环境",
+      "category": "home",
+      "defaultActionIds": [
+        "O_TURN_ON_EYE_COMFORT_MODE",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "entertainment",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "HOME_EVENING_NOISY",
+      "scenarioName": "居家傍晚嘈杂",
+      "category": "home",
+      "defaultActionIds": [
+        "O_INCREASE_NOTIFICATION_VOLUME",
+        "O_ENABLE_VIBRATION",
+        "R_HOME_RELAX_AND_RESET"
+      ],
+      "defaultAppCategories": [
+        "social",
+        "music",
+        "entertainment"
+      ]
+    },
+    {
+      "scenarioId": "SCHOOL_QUIET",
+      "scenarioName": "学校安静时段",
+      "category": "education",
+      "defaultActionIds": [
+        "O_TURN_ON_SILENT_MODE",
+        "R_DEEP_WORK_WINDOW"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "CAFE_QUIET",
+      "scenarioName": "咖啡馆安静",
+      "category": "dining",
+      "defaultActionIds": [
+        "O_TURN_ON_SILENT_MODE",
+        "O_SHOW_SCHEDULE",
+        "R_DEEP_WORK_WINDOW"
+      ],
+      "defaultAppCategories": [
+        "reading",
+        "productivity",
+        "music"
+      ]
+    },
+    {
+      "scenarioId": "TRAIN_DEPARTURE",
+      "scenarioName": "高铁出行提醒",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "news",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "FLIGHT_BOARDING",
+      "scenarioName": "航班登机提醒",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "news",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "HOTEL_CHECKIN",
+      "scenarioName": "酒店入住提醒",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_BOOKING_DETAILS",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "MOVIE_TICKET",
+      "scenarioName": "电影取票提醒",
+      "category": "entertainment",
+      "defaultActionIds": [
+        "O_SHOW_BOOKING_DETAILS",
+        "O_SHOW_PAYMENT_QR",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "entertainment",
+        "social",
+        "shopping"
+      ]
+    },
+    {
+      "scenarioId": "HOSPITAL_APPOINTMENT",
+      "scenarioName": "就诊提醒",
+      "category": "health",
+      "defaultActionIds": [
+        "O_SHOW_BOOKING_DETAILS",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "health",
+        "navigation",
+        "productivity"
+      ]
+    },
+    {
+      "scenarioId": "RIDESHARE_PICKUP",
+      "scenarioName": "网约车接驾提醒",
+      "category": "travel",
+      "defaultActionIds": [
+        "O_SHOW_TRAVEL_INFO",
+        "R_CHECK_TRIP_OR_BOOKING_INFO"
+      ],
+      "defaultAppCategories": [
+        "navigation",
+        "social",
+        "music"
+      ]
+    }
+  ]
+}

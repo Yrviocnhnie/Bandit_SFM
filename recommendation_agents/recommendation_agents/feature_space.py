@@ -1,4 +1,4 @@
-"""V0 feature encoding for the masked LinUCB model."""
+"""V0 feature encoding for the shared-action LinUCB model."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import numpy as np
 from recommendation_agents.taxonomies import (
     ACTIVITY_STATES,
     AGE_BUCKETS,
-    CANONICAL_SCENARIO_IDS,
     CANONICAL_STATE_CODES,
     DAY_TYPES,
     LOCATION_CATEGORIES,
@@ -20,7 +19,6 @@ from recommendation_agents.taxonomies import (
     SEX_VALUES,
     SOUND_CATEGORIES,
     TIME_SLOTS,
-    TRANSPORT_MODES,
     USER_HASH_BUCKETS,
 )
 
@@ -45,9 +43,18 @@ def _normalize_user_hash_bucket(value: Any) -> str:
     if value is None:
         return ""
     text = str(value)
+    if text.isdigit():
+        return f"b{int(text)}"
     if text.startswith("b") and text[1:].isdigit():
         return f"b{int(text[1:])}"
     return text
+
+
+def _resolve_state_previous(context: dict[str, Any]) -> Any:
+    for key in ("precondition", "state_prev", "previous_state_current", "prev_state_current", "state_previous"):
+        if key in context:
+            return context.get(key)
+    return None
 
 
 @dataclass(frozen=True)
@@ -67,12 +74,12 @@ class FeatureDef:
 
 
 class V0FeatureSpace:
-    """Encodes the V0 context vector described in the feature-space report."""
+    """Encodes the V0 context vector without explicit scenarioId input."""
 
     def __init__(self) -> None:
         self.feature_defs = (
-            FeatureDef("scenarioId", "categorical", CANONICAL_SCENARIO_IDS, unknown_token="unknown"),
             FeatureDef("state_current", "categorical", CANONICAL_STATE_CODES, unknown_token="unknown"),
+            FeatureDef("precondition", "categorical", CANONICAL_STATE_CODES, unknown_token="unknown"),
             FeatureDef("state_duration_sec", "numeric", scale="log", maximum=86400.0),
             FeatureDef("ps_time", "categorical", TIME_SLOTS),
             FeatureDef("hour", "categorical", tuple(str(i) for i in range(24))),
@@ -98,7 +105,6 @@ class V0FeatureSpace:
             FeatureDef("batteryLevel", "numeric", scale="linear", maximum=100.0),
             FeatureDef("isCharging", "binary"),
             FeatureDef("networkType", "categorical", NETWORK_TYPES),
-            FeatureDef("transportMode", "categorical", TRANSPORT_MODES, unknown_token="unknown"),
             FeatureDef("activityState", "categorical", ACTIVITY_STATES, unknown_token="unknown"),
             FeatureDef("activityDuration", "numeric", scale="log", maximum=86400.0),
             FeatureDef("user_id_hash_bucket", "categorical", USER_HASH_BUCKETS),
@@ -125,17 +131,17 @@ class V0FeatureSpace:
                 names.append(feature.name)
         return names
 
-    def encode(self, scenario_id: str, context: dict[str, Any]) -> np.ndarray:
-        vector = np.zeros(self.dimension, dtype=np.float64)
+    def encode(self, context: dict[str, Any]) -> np.ndarray:
+        vector = np.zeros(self.dimension, dtype=np.float32)
         cursor = 0
         for feature in self.feature_defs:
-            raw_value = scenario_id if feature.name == "scenarioId" else context.get(feature.name)
+            raw_value = _resolve_state_previous(context) if feature.name == "precondition" else context.get(feature.name)
             if feature.kind == "categorical":
                 encoded = self._encode_categorical(feature, raw_value)
             elif feature.kind == "binary":
-                encoded = np.array([self._encode_binary(raw_value)], dtype=np.float64)
+                encoded = np.array([self._encode_binary(raw_value)], dtype=np.float32)
             else:
-                encoded = np.array([self._encode_numeric(feature, raw_value)], dtype=np.float64)
+                encoded = np.array([self._encode_numeric(feature, raw_value)], dtype=np.float32)
             width = encoded.shape[0]
             vector[cursor : cursor + width] = encoded
             cursor += width
@@ -151,7 +157,7 @@ class V0FeatureSpace:
             if feature.unknown_token is None:
                 raise ValueError(f"Unknown value for {feature.name}: {value!r}")
             category = feature.unknown_token
-        encoded = np.zeros(feature.dimension, dtype=np.float64)
+        encoded = np.zeros(feature.dimension, dtype=np.float32)
         encoded[index_map[category]] = 1.0
         return encoded
 

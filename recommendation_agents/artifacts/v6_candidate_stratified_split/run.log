@@ -1,0 +1,493 @@
+[WORKFLOW] Starting joint training | data_dir=artifacts/v6_candidate_stratified_split | device=cuda | epochs=1 | track_train_hit_rate=False
+[WORKFLOW] R/O train rows=390400 | App train rows=390400
+[WORKFLOW] Starting R/O model training...
+[RO] Starting training | samples_per_epoch=390400 | epochs=1 | total_samples=390400 | actions=46 | feature_dim=306 | device=cuda
+[RO] Starting epoch 1/1
+[RO] Processed 10000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=4s | eta=3m07s | 2026.4 samples/s
+[RO] Processed 20000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=8s | eta=2m33s | 2412.8 samples/s
+[RO] Processed 30000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=11s | eta=2m19s | 2576.9 samples/s
+[RO] Processed 40000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=14s | eta=2m11s | 2668.0 samples/s
+[RO] Processed 50000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=18s | eta=2m04s | 2725.4 samples/s
+[RO] Processed 60000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=21s | eta=1m59s | 2764.0 samples/s
+[RO] Processed 70000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=25s | eta=1m54s | 2793.2 samples/s
+[RO] Processed 80000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=28s | eta=1m50s | 2815.5 samples/s
+[RO] Processed 90000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=31s | eta=1m46s | 2833.2 samples/s
+[RO] Processed 100000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=35s | eta=1m41s | 2847.5 samples/s
+[RO] Processed 110000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=38s | eta=1m38s | 2859.3 samples/s
+[RO] Processed 120000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=41s | eta=1m34s | 2869.2 samples/s
+[RO] Processed 130000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=45s | eta=1m30s | 2877.6 samples/s
+[RO] Processed 140000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=48s | eta=1m26s | 2884.8 samples/s
+[RO] Processed 150000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=51s | eta=1m23s | 2891.1 samples/s
+[RO] Processed 160000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=55s | eta=1m19s | 2896.7 samples/s
+[RO] Processed 170000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=58s | eta=1m15s | 2901.7 samples/s
+[RO] Processed 180000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m01s | eta=1m12s | 2906.1 samples/s
+[RO] Processed 190000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m05s | eta=1m08s | 2909.8 samples/s
+[RO] Processed 200000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m08s | eta=1m05s | 2913.1 samples/s
+[RO] Processed 210000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m12s | eta=1m01s | 2916.0 samples/s
+[RO] Processed 220000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m15s | eta=58s | 2918.8 samples/s
+[RO] Processed 230000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m18s | eta=54s | 2921.3 samples/s
+[RO] Processed 240000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m22s | eta=51s | 2923.7 samples/s
+[RO] Processed 250000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m25s | eta=47s | 2925.8 samples/s
+[RO] Processed 260000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m28s | eta=44s | 2927.8 samples/s
+[RO] Processed 270000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m32s | eta=41s | 2929.6 samples/s
+[RO] Processed 280000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m35s | eta=37s | 2931.3 samples/s
+[RO] Processed 290000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m38s | eta=34s | 2933.0 samples/s
+[RO] Processed 300000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m42s | eta=30s | 2934.5 samples/s
+[RO] Processed 310000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m45s | eta=27s | 2935.9 samples/s
+[RO] Processed 320000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m48s | eta=23s | 2937.2 samples/s
+[RO] Processed 330000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m52s | eta=20s | 2938.4 samples/s
+[RO] Processed 340000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m55s | eta=17s | 2939.6 samples/s
+[RO] Processed 350000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m59s | eta=13s | 2940.7 samples/s
+[RO] Processed 360000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m02s | eta=10s | 2941.7 samples/s
+[RO] Processed 370000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m05s | eta=6s | 2942.7 samples/s
+[RO] Processed 380000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m08s | eta=3s | 2955.5 samples/s
+[RO] Processed 390000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m11s | eta=0s | 2956.2 samples/s
+[RO] Processed 390400/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m12s | eta=0s | 2956.2 samples/s
+[RO] Finished training | samples=390400 | elapsed=2m12s | avg 2950.2 samples/s
+[WORKFLOW] Finished R/O model training in 133.0s
+[WORKFLOW] Starting App model training...
+[APP] Starting training | samples_per_epoch=390400 | epochs=1 | total_samples=390400 | actions=10 | feature_dim=306 | device=cuda
+[APP] Starting epoch 1/1
+[APP] Processed 10000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=3s | eta=2m07s | 2979.3 samples/s
+[APP] Processed 20000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=6s | eta=2m04s | 2980.5 samples/s
+[APP] Processed 30000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=10s | eta=2m00s | 2980.6 samples/s
+[APP] Processed 40000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=13s | eta=1m57s | 2981.1 samples/s
+[APP] Processed 50000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=16s | eta=1m54s | 2981.4 samples/s
+[APP] Processed 60000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=20s | eta=1m50s | 2981.4 samples/s
+[APP] Processed 70000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=23s | eta=1m47s | 2981.6 samples/s
+[APP] Processed 80000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=26s | eta=1m44s | 2981.4 samples/s
+[APP] Processed 90000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=30s | eta=1m40s | 2980.7 samples/s
+[APP] Processed 100000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=33s | eta=1m37s | 2980.7 samples/s
+[APP] Processed 110000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=36s | eta=1m34s | 2980.8 samples/s
+[APP] Processed 120000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=40s | eta=1m30s | 2980.8 samples/s
+[APP] Processed 130000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=43s | eta=1m27s | 2981.0 samples/s
+[APP] Processed 140000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=46s | eta=1m23s | 2981.0 samples/s
+[APP] Processed 150000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=50s | eta=1m20s | 2980.9 samples/s
+[APP] Processed 160000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=53s | eta=1m17s | 2980.9 samples/s
+[APP] Processed 170000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=57s | eta=1m13s | 2980.4 samples/s
+[APP] Processed 180000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m00s | eta=1m10s | 2980.3 samples/s
+[APP] Processed 190000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m03s | eta=1m07s | 2980.3 samples/s
+[APP] Processed 200000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m07s | eta=1m03s | 2980.4 samples/s
+[APP] Processed 210000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m10s | eta=1m00s | 2980.3 samples/s
+[APP] Processed 220000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m13s | eta=57s | 2980.4 samples/s
+[APP] Processed 230000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m17s | eta=53s | 2980.3 samples/s
+[APP] Processed 240000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m20s | eta=50s | 2980.4 samples/s
+[APP] Processed 250000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m23s | eta=47s | 2980.4 samples/s
+[APP] Processed 260000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m27s | eta=43s | 2980.4 samples/s
+[APP] Processed 270000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m30s | eta=40s | 2980.3 samples/s
+[APP] Processed 280000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m33s | eta=37s | 2980.3 samples/s
+[APP] Processed 290000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m37s | eta=33s | 2980.3 samples/s
+[APP] Processed 300000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m40s | eta=30s | 2980.5 samples/s
+[APP] Processed 310000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m44s | eta=26s | 2980.7 samples/s
+[APP] Processed 320000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m47s | eta=23s | 2980.8 samples/s
+[APP] Processed 330000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m50s | eta=20s | 2980.9 samples/s
+[APP] Processed 340000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m54s | eta=16s | 2981.1 samples/s
+[APP] Processed 350000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=1m57s | eta=13s | 2981.2 samples/s
+[APP] Processed 360000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m00s | eta=10s | 2981.0 samples/s
+[APP] Processed 370000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m04s | eta=6s | 2983.0 samples/s
+[APP] Processed 380000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m06s | eta=3s | 3004.3 samples/s
+[APP] Processed 390000/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m08s | eta=0s | 3023.6 samples/s
+[APP] Processed 390400/390400 samples | interval avg reward=0.4125 | cumulative avg reward=0.4125 | elapsed=2m09s | eta=0s | 3024.3 samples/s
+[APP] Finished training | samples=390400 | elapsed=2m09s | avg 3021.3 samples/s
+[WORKFLOW] Finished App model training in 129.9s
+[WORKFLOW] Finished joint training in 262.8s
+[WORKFLOW] Starting joint evaluation | data_dir=artifacts/v6_candidate_stratified_split | top_k=3 | device=cuda
+[RO-EVAL] Starting evaluation | rows=12200 | top_k=3 | device=cuda
+[RO-EVAL] Processed 10000/12200 rows | interval most=1.349/3 | cumulative most=1.349/3 | interval acceptable=1.639/3 | cumulative acceptable=1.639/3 | interval irrelevant=0.317/3 | cumulative irrelevant=0.317/3 | elapsed=37s | eta=8s | 267.8 rows/s
+[RO-EVAL] Processed 12200/12200 rows | interval most=1.508/3 | cumulative most=1.378/3 | interval acceptable=1.566/3 | cumulative acceptable=1.626/3 | interval irrelevant=0.006/3 | cumulative irrelevant=0.261/3 | elapsed=45s | eta=0s | 269.5 rows/s
+[RO-EVAL] Finished evaluation | rows=12200 | evaluated=12200 | avg most=1.378/3 | avg acceptable=1.626/3 | avg irrelevant=0.261/3 | elapsed=45s | avg 269.5 rows/s
+[APP-EVAL] Starting evaluation | rows=12200 | top_k=3 | device=cuda
+[APP-EVAL] Processed 10000/12200 rows | interval most=2.065/3 | cumulative most=2.065/3 | interval acceptable=2.644/3 | cumulative acceptable=2.644/3 | interval irrelevant=0.110/3 | cumulative irrelevant=0.110/3 | elapsed=15s | eta=3s | 661.6 rows/s
+[APP-EVAL] Processed 12200/12200 rows | interval most=2.220/3 | cumulative most=2.093/3 | interval acceptable=2.431/3 | cumulative acceptable=2.606/3 | interval irrelevant=0.037/3 | cumulative irrelevant=0.097/3 | elapsed=16s | eta=0s | 740.6 rows/s
+[APP-EVAL] Finished evaluation | rows=12200 | evaluated=12200 | avg most=2.093/3 | avg acceptable=2.606/3 | avg irrelevant=0.097/3 | elapsed=16s | avg 740.6 rows/s
+[WORKFLOW] Finished joint evaluation
+{
+  "workflow_name": "run_v6_plan_b",
+  "output_dir": "artifacts/v6_candidate_stratified_split",
+  "top_k": 3,
+  "relevance_markdown": "docs/scenario_recommendation_actions_v6.md",
+  "train_raw_path": "artifacts/v6_candidate_stratified_split/train.raw.jsonl",
+  "test_raw_path": "artifacts/v6_candidate_stratified_split/test.raw.jsonl",
+  "ro_train_samples_path": "artifacts/v6_candidate_stratified_split/ro_train_samples_expanded.jsonl",
+  "app_train_samples_path": "artifacts/v6_candidate_stratified_split/app_train_samples_expanded.jsonl",
+  "ro_expansion": {
+    "input_rows": 48800,
+    "kept_rows": 48800,
+    "skipped_none_rows": 0,
+    "unique_scenarios": 61,
+    "unique_actions": 46,
+    "emitted_samples": 390400,
+    "tier_counts": {
+      "most_relevant": 146400,
+      "plausible": 146400,
+      "irrelevant": 97600
+    }
+  },
+  "app_expansion": {
+    "input_rows": 48800,
+    "kept_rows": 48800,
+    "skipped_none_rows": 0,
+    "unique_scenarios": 61,
+    "unique_actions": 10,
+    "emitted_samples": 390400,
+    "tier_counts": {
+      "most_relevant": 146400,
+      "plausible": 146400,
+      "irrelevant": 97600
+    }
+  },
+  "ro_training": {
+    "sample_count": 390400,
+    "mean_reward": 0.4125000000011378,
+    "pre_update_policy_hit_rate": 0.0,
+    "default_logged_action_rate": 0.0,
+    "unique_scenarios_seen": 61
+  },
+  "app_training": {
+    "sample_count": 390400,
+    "mean_reward": 0.4125000000011378,
+    "pre_update_policy_hit_rate": 0.0,
+    "default_logged_action_rate": 0.0,
+    "unique_scenarios_seen": 61
+  },
+  "evaluation_report_path": "artifacts/v6_candidate_stratified_split/eval_both_top3.json",
+  "extra_summary": {
+    "input_path": "../data/bandit_v0_v5_1000eps_each_scenario_updated_preconditions_and_updated_state_current.jsonl",
+    "catalog_markdown": "docs/scenario_recommendation_actions_v5.md",
+    "test_ratio": 0.2,
+    "reward_config": {
+      "most_relevant_reward": 1.0,
+      "plausible_reward": 0.1,
+      "irrelevant_reward": 0.0
+    },
+    "repeat_config": {
+      "most_relevant_repeat": 1,
+      "plausible_repeat": 1,
+      "irrelevant_repeat": 1
+    },
+    "epochs": 1,
+    "split_summary": {
+      "train_rows": 48800,
+      "test_rows": 12200,
+      "train_scenarios": 61,
+      "test_scenarios": 61,
+      "per_scenario": {
+        "AFTER_LUNCH_WALK": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "ARRIVE_DINING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "ARRIVE_OFFICE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "ARRIVE_TRANSIT_HUB": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "CAFE_QUIET": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "CAFE_STAY": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "CAL_HAS_EVENTS": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "COMMUTE_EVENING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "COMMUTE_FROM_HOME": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "COMMUTE_MORNING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "CYCLING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "DELIVERY_AT_OFFICE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "EDUCATION_LONG_SIT": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "EDUCATION_WAITING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "EVENING_AT_OFFICE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "FLIGHT_BOARDING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "GYM_LONG_STAY": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "GYM_REST": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_AFTERNOON": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_AFTER_GYM": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_DARK_LONG": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_EVENING_DARK": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_EVENING_NOISY": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_LATE_NIGHT": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_LUNCH": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOME_TO_GYM": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOSPITAL_APPOINTMENT": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "HOTEL_CHECKIN": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "IN_MEETING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "LATE_NIGHT_NOISY": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "LATE_NIGHT_OVERTIME": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "LATE_NIGHT_PHONE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "LATE_RETURN_HOME": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "LEAVE_OFFICE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "LONG_DRIVE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "LONG_OUTDOOR_WALK": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "MEETING_UPCOMING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "MORNING_COFFEE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "MORNING_EXERCISE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "MOVIE_TICKET": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "NOISY_GATHERING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "NO_MEETINGS": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "OFFICE_FOCUS_LONG": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "OFFICE_LONG_SESSION": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "OFFICE_LUNCH_OUT": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "OFFICE_TO_CAFE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "OUTDOOR_RUNNING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "PARK_WALK": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "QUIET_HOME": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "REMOTE_MEETING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "RETURN_OFFICE_AFTER_LUNCH": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "RIDESHARE_PICKUP": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "SCHOOL_QUIET": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "SHOPPING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "TRAIN_DEPARTURE": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "UNKNOWN_LONG_STAY": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "WAKE_UP": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "WEEKDAY_HOME_DAY": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "WEEKEND_MORNING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "WEEKEND_OUTDOOR_WALK": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        },
+        "WEEKEND_OUTING": {
+          "train_rows": 800,
+          "test_rows": 200,
+          "episode_groups": 1000
+        }
+      }
+    },
+    "ro_metadata": {
+      "total_scenarios": 65,
+      "total_actions": 46,
+      "min_actions_per_scenario": 2,
+      "max_actions_per_scenario": 3
+    },
+    "app_metadata": {
+      "total_scenarios": 65,
+      "total_actions": 10
+    }
+  }
+}
