@@ -27,6 +27,7 @@ from recommendation_agents.workflows import (
     run_v6_plan_all_data,
     run_v6_plan_b,
     simulate_feedback_propagation_on_frozen_neural_linear,
+    simulate_feedback_propagation_phase2_on_frozen_neural_linear,
     train_v0_both,
 )
 
@@ -419,6 +420,46 @@ def build_parser() -> argparse.ArgumentParser:
     )
     feedback_prop_parser.add_argument("--progress-every", type=int, default=25000, help="Encoding progress log interval")
     feedback_prop_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
+
+    feedback_prop_p2_parser = subparsers.add_parser(
+        "simulate-feedback-propagation-phase2",
+        help="Phase-2: like-only feedback propagation using phase2_gt_ro as the target action across phase-2 contexts",
+    )
+    feedback_prop_p2_parser.add_argument("--artifact-dir", required=True, help="Trained artifact dir with ro_model/ and ro_metadata.json")
+    feedback_prop_p2_parser.add_argument("--train-raw", required=True, help="Phase-2 propagation pool JSONL (e.g. artifacts/phase2/train_phase2.raw.jsonl)")
+    feedback_prop_p2_parser.add_argument("--test-raw", required=True, help="Phase-2 test JSONL with phase2_context_id/phase2_gt_ro/phase2_label tags")
+    feedback_prop_p2_parser.add_argument(
+        "--relevance-markdown",
+        default="docs/scenario_recommendation_actions_v6.md",
+        help="Path to the v6 scenario relevance catalog used for before/after evaluation",
+    )
+    feedback_prop_p2_parser.add_argument(
+        "--n-values",
+        default="1,5,10,20,50,100",
+        help="Comma-separated N values for nearest-neighbor propagation",
+    )
+    feedback_prop_p2_parser.add_argument(
+        "--output-dir",
+        required=False,
+        help="Optional output directory. Defaults to <test-raw parent>/feedback_propagation_phase2_v1",
+    )
+    feedback_prop_p2_parser.add_argument("--progress-every", type=int, default=25000, help="Encoding progress log interval")
+    feedback_prop_p2_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
+    # Ablation knobs
+    feedback_prop_p2_parser.add_argument("--reward-scale", type=float, default=1.0, help="Multiplier on the +1.0 positive reward (ablation A)")
+    feedback_prop_p2_parser.add_argument("--repeat-k", type=int, default=1, help="Number of partial_fit repetitions per propagation row (ablation B)")
+    feedback_prop_p2_parser.add_argument("--contrast-mode", default="none", choices=("none", "top1", "top3"), help="Apply negative feedback to current rank-1 or top-3 competitors (ablation C)")
+    feedback_prop_p2_parser.add_argument("--contrast-reward-scale", type=float, default=1.0, help="Multiplier on the negative feedback magnitude (ablation C)")
+    feedback_prop_p2_parser.add_argument("--serving-alpha", type=float, default=None, help="Override model.alpha at ranking time (ablation E)")
+    feedback_prop_p2_parser.add_argument("--anchor-only", action="store_true", help="Apply updates only to the anchor (no propagation) — used with --anchor-repeat-k (ablation F)")
+    feedback_prop_p2_parser.add_argument("--anchor-repeat-k", type=int, default=1, help="Repeat count for anchor-only mode")
+    feedback_prop_p2_parser.add_argument("--target-mode", default="phase2_gt", choices=("phase2_gt", "model_top1", "random"), help="Which action to use as the 'liked' target (baseline comparison)")
+    feedback_prop_p2_parser.add_argument("--random-target-seed", type=int, default=42)
+    feedback_prop_p2_parser.add_argument(
+        "--use-all-test-samples",
+        action="store_true",
+        help="Use every test row as a separate feedback anchor (3-per-context). Default: only the first sample per context (9 anchors).",
+    )
 
     plan_a_parser = subparsers.add_parser(
         "run-v6-plan-a",
@@ -908,6 +949,57 @@ def main() -> None:
             "n_values": summary.n_values,
             "feedback_items": summary.feedback_items,
             "conditions": summary.conditions,
+        }, indent=2))
+        return
+
+    if args.command == "simulate-feedback-propagation-phase2":
+        n_values = [int(value.strip()) for value in args.n_values.split(",") if value.strip()]
+        summary = simulate_feedback_propagation_phase2_on_frozen_neural_linear(
+            artifact_dir=args.artifact_dir,
+            train_raw_path=args.train_raw,
+            test_raw_path=args.test_raw,
+            relevance_markdown=args.relevance_markdown,
+            n_values=n_values,
+            output_dir=args.output_dir,
+            device=args.device,
+            progress_every=args.progress_every,
+            reward_scale=args.reward_scale,
+            repeat_k=args.repeat_k,
+            contrast_mode=args.contrast_mode,
+            contrast_reward_scale=args.contrast_reward_scale,
+            serving_alpha=args.serving_alpha,
+            anchor_only=args.anchor_only,
+            anchor_repeat_k=args.anchor_repeat_k,
+            target_mode=args.target_mode,
+            random_target_seed=args.random_target_seed,
+            use_all_test_samples=args.use_all_test_samples,
+        )
+        print(json.dumps({
+            "artifact_dir": summary.artifact_dir,
+            "train_raw_path": summary.train_raw_path,
+            "test_raw_path": summary.test_raw_path,
+            "output_dir": summary.output_dir,
+            "n_values": summary.n_values,
+            "feedback_items": [
+                {
+                    "phase2_context_id": item["phase2_context_id"],
+                    "scenario_id": item["scenario_id"],
+                    "target_action_id": item["target_action_id"],
+                    "anchor_episode_id": item["anchor_episode_id"],
+                    "baseline_anchor_gt_rank": item["baseline_anchor_gt_rank"],
+                }
+                for item in summary.feedback_items
+            ],
+            "conditions": [
+                {
+                    "mode": condition["mode"],
+                    "requested_n": condition["requested_n"],
+                    "aggregate": condition["aggregate"],
+                    "selected_scenarios_quality_before": condition["selected_scenarios_quality_before"],
+                    "selected_scenarios_quality_after": condition["selected_scenarios_quality_after"],
+                }
+                for condition in summary.conditions
+            ],
         }, indent=2))
         return
 

@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import numpy as np
+import random
 from pathlib import Path
 import shutil
 import time
@@ -130,6 +131,20 @@ class FeedbackPropagationExperimentSummary:
     device: str
     n_values: list[int]
     feedback_items: list[dict[str, Any]]
+    conditions: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class FeedbackPropagationPhase2ExperimentSummary:
+    artifact_dir: str
+    train_raw_path: str
+    test_raw_path: str
+    output_dir: str
+    relevance_markdown: str
+    device: str
+    n_values: list[int]
+    feedback_items: list[dict[str, Any]]
+    baseline_quality: dict[str, Any]
     conditions: list[dict[str, Any]]
 
 
@@ -1677,6 +1692,601 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         },
     )
     (output_path / "summary_table.md").write_text(_render_feedback_propagation_markdown(summary))
+    return summary
+
+
+def _render_feedback_propagation_phase2_markdown(summary: FeedbackPropagationPhase2ExperimentSummary) -> str:
+    lines = [
+        "# Phase-2 Feedback Propagation Experiment",
+        "",
+        f"- artifact_dir: `{summary.artifact_dir}`",
+        f"- train_raw_path: `{summary.train_raw_path}`",
+        f"- test_raw_path: `{summary.test_raw_path}`",
+        f"- device: `{summary.device}`",
+        f"- n_values: `{','.join(str(value) for value in summary.n_values)}`",
+        "",
+        "All phase-2 feedback is `like` (reward = +1.0). Each anchor uses `phase2_gt_ro` as the target action.",
+        "",
+        "## Locked Feedback Items",
+        "",
+        "| phase2_context_id | label | scenario | target_action_id | anchor_episode_id | baseline gt rank | baseline_top3 |",
+        "| --- | --- | --- | --- | --- | ---: | --- |",
+    ]
+    for item in summary.feedback_items:
+        lines.append(
+            f"| `{item['phase2_context_id']}` | {item['phase2_label']} | `{item['scenario_id']}` | "
+            f"`{item['target_action_id']}` | `{item['anchor_episode_id']}` | "
+            f"{item['baseline_anchor_gt_rank']} | "
+            f"`{' , '.join(item['baseline_top3_action_ids'])}` |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Condition Summary",
+            "",
+            "| mode | N | avg anchor rank delta | avg same-scenario rank delta | avg cross-scenario rank delta | selected most_rel before | selected most_rel after |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for condition in summary.conditions:
+        lines.append(
+            f"| `{condition['mode']}` | `{condition['requested_n']}` | "
+            f"{condition['aggregate']['avg_anchor_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_same_scenario_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_cross_scenario_rank_delta']:.3f} | "
+            f"{condition['selected_scenarios_quality_before']['avg_most_relevant_covered_in_topk']:.3f} | "
+            f"{condition['selected_scenarios_quality_after']['avg_most_relevant_covered_in_topk']:.3f} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _render_feedback_propagation_phase2_per_item_tables(
+    summary: FeedbackPropagationPhase2ExperimentSummary,
+) -> str:
+    lines = [
+        "# Phase-2 Feedback Propagation Summary",
+        "",
+        f"- source: `{Path(summary.output_dir) / 'results_phase2.json'}`",
+        "",
+        "All phase-2 feedback is `like` (reward = +1.0), so aligned delta = `before_rank - after_rank` (positive = GT moved up = good).",
+        "",
+        "## Per-Feedback-Item Table",
+        "",
+    ]
+
+    # Build a per-feedback-item view of conditions (unique by anchor_key, so when
+    # use_all_test_samples is True we render one section per anchor row instead of
+    # collapsing them by context).
+    for item in summary.feedback_items:
+        ctx_id = item["phase2_context_id"]
+        anchor_key = item.get("anchor_key", item["anchor_episode_id"])
+        lines.extend(
+            [
+                f"### `{ctx_id}` ({item['phase2_label']}) — anchor `{item['anchor_episode_id']}`",
+                "",
+                f"- scenario: `{item['scenario_id']}`",
+                f"- feedback: `{item['feedback_type']}`",
+                f"- target_action_id: `{item['target_action_id']}`",
+                f"- anchor_episode_id: `{item['anchor_episode_id']}`",
+                f"- baseline anchor gt rank: `{item['baseline_anchor_gt_rank']}`",
+                "",
+                "| mode | N | eff N | anchor rank before | anchor rank after | anchor aligned delta | same-scenario aligned delta | cross-scenario aligned delta |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for condition in summary.conditions:
+            row = next(
+                (fr for fr in condition["feedback_results"]
+                 if fr.get("anchor_key", fr.get("anchor_episode_id")) == item.get("anchor_key", item["anchor_episode_id"])),
+                None,
+            )
+            if row is None:
+                continue
+            anchor_before_rank = row["anchor"]["before"]["rank"]
+            anchor_after_rank = row["anchor"]["after"]["rank"]
+            anchor_aligned = row["anchor"]["rank_delta"]
+            same_aligned = row["same_scenario"]["avg_rank_delta"]
+            cross_aligned = row["cross_scenario"]["avg_rank_delta"]
+            same_str = "nan" if isinstance(same_aligned, float) and math.isnan(same_aligned) else f"{same_aligned:.3f}"
+            cross_str = "nan" if isinstance(cross_aligned, float) and math.isnan(cross_aligned) else f"{cross_aligned:.3f}"
+            lines.append(
+                f"| `{condition['mode']}` | `{condition['requested_n']}` | {row['effective_n']} | "
+                f"{anchor_before_rank} | {anchor_after_rank} | {anchor_aligned:.3f} | "
+                f"{same_str} | {cross_str} |"
+            )
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Aligned Aggregate Table",
+            "",
+            "Positive values = GT moved in the user-preferred direction (up, since all phase-2 feedback is `like`).",
+            "",
+            "| mode | N | avg aligned anchor delta | avg aligned same-scenario delta | avg aligned cross-scenario delta | selected most_rel before | selected most_rel after |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for condition in summary.conditions:
+        agg = condition["aggregate"]
+        lines.append(
+            f"| `{condition['mode']}` | `{condition['requested_n']}` | "
+            f"{agg['avg_anchor_rank_delta']:.3f} | "
+            f"{agg['avg_same_scenario_rank_delta']:.3f} | "
+            f"{agg['avg_cross_scenario_rank_delta']:.3f} | "
+            f"{condition['selected_scenarios_quality_before']['avg_most_relevant_covered_in_topk']:.3f} | "
+            f"{condition['selected_scenarios_quality_after']['avg_most_relevant_covered_in_topk']:.3f} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def simulate_feedback_propagation_phase2_on_frozen_neural_linear(
+    artifact_dir: str | Path,
+    train_raw_path: str | Path,
+    test_raw_path: str | Path,
+    relevance_markdown: str | Path = "docs/scenario_recommendation_actions_v6.md",
+    n_values: list[int] | None = None,
+    output_dir: str | Path | None = None,
+    device: str = "auto",
+    progress_every: int = 25000,
+    # --- Ablation knobs ---
+    reward_scale: float = 1.0,
+    repeat_k: int = 1,
+    contrast_mode: str = "none",           # "none" | "top1" | "top3"
+    contrast_reward_scale: float = 1.0,
+    serving_alpha: float | None = None,
+    anchor_only: bool = False,
+    anchor_repeat_k: int = 1,
+    target_mode: str = "phase2_gt",        # "phase2_gt" | "model_top1" | "random"
+    random_target_seed: int = 42,
+    use_all_test_samples: bool = False,    # When True, every test row is its own feedback item (instead of just the first per context).
+) -> FeedbackPropagationPhase2ExperimentSummary:
+    if progress_every <= 0:
+        raise ValueError("progress_every must be positive")
+    if contrast_mode not in {"none", "top1", "top3"}:
+        raise ValueError(f"Unknown contrast_mode {contrast_mode!r}; must be 'none', 'top1', or 'top3'")
+    if target_mode not in {"phase2_gt", "model_top1", "random"}:
+        raise ValueError(f"Unknown target_mode {target_mode!r}; must be 'phase2_gt', 'model_top1', or 'random'")
+    if repeat_k <= 0:
+        raise ValueError("repeat_k must be >= 1")
+    if anchor_repeat_k <= 0:
+        raise ValueError("anchor_repeat_k must be >= 1")
+    n_values = [1, 5, 10, 20, 50, 100] if n_values is None else sorted({int(value) for value in n_values if int(value) > 0})
+    if not n_values:
+        raise ValueError("n_values must contain at least one positive integer")
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    artifact_path = Path(artifact_dir)
+    train_raw_path = Path(train_raw_path)
+    test_raw_path = Path(test_raw_path)
+    output_path = Path(output_dir) if output_dir is not None else test_raw_path.parent / "feedback_propagation_phase2_v1"
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    metadata = BanditMetadata.load(artifact_path / "ro_metadata.json")
+    feature_space = V0FeatureSpace()
+    base_model = load_bandit_model(artifact_path / "ro_model", device=device)
+    if not hasattr(base_model, "encode_context") or not hasattr(base_model, "partial_fit"):
+        raise ValueError("This workflow requires a frozen neural-linear style model with encode_context and partial_fit support")
+
+    relevance_catalog = parse_v6_relevance_markdown(relevance_markdown)["ro"]
+    train_rows_raw = _load_jsonl(train_raw_path)
+    test_rows_raw = _load_jsonl(test_raw_path)
+    if not train_rows_raw or not test_rows_raw:
+        raise ValueError("train_raw_path and test_raw_path must both be non-empty JSONL files")
+
+    # Validate that every distinct phase2_gt_ro is in the model's action space
+    valid_action_ids = set(metadata.global_action_ids)
+    distinct_gts = {str(row.get("phase2_gt_ro")) for row in test_rows_raw if row.get("phase2_gt_ro")}
+    if not distinct_gts:
+        raise ValueError(f"No phase2_gt_ro tags found in {test_raw_path}; was the file produced by phase2_split.py?")
+    unknown_gts = sorted(distinct_gts - valid_action_ids)
+    if unknown_gts:
+        raise ValueError(f"phase2_gt_ro values not in model action space: {unknown_gts}")
+
+    def _encode_test_rows(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        encoded_rows: list[dict[str, Any]] = []
+        for index, row in enumerate(raw_rows, start=1):
+            scenario_id = _scenario_id(row)
+            if scenario_id is None:
+                continue
+            phase2_context_id = row.get("phase2_context_id")
+            phase2_gt_ro = row.get("phase2_gt_ro")
+            phase2_label = row.get("phase2_label", "")
+            if not phase2_context_id or not phase2_gt_ro:
+                raise ValueError(f"Test row {row.get('episode_id', index)} is missing phase2_context_id or phase2_gt_ro")
+            episode_id = str(row.get("episode_id") or row.get("sample_id") or index)
+            context = _build_context(row)
+            x = feature_space.encode(context)
+            latent = base_model.encode_context(x)
+            encoded_rows.append(
+                {
+                    "scenario_id": scenario_id,
+                    "episode_id": episode_id,
+                    "context": context,
+                    "x": x,
+                    "latent": latent,
+                    "phase2_context_id": phase2_context_id,
+                    "phase2_gt_ro": phase2_gt_ro,
+                    "phase2_label": phase2_label,
+                }
+            )
+        return encoded_rows
+
+    def _encode_train_rows(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        encoded_rows: list[dict[str, Any]] = []
+        start = time.time()
+        for index, row in enumerate(raw_rows, start=1):
+            scenario_id = _scenario_id(row)
+            if scenario_id is None:
+                continue
+            episode_id = str(row.get("episode_id") or row.get("sample_id") or index)
+            context = _build_context(row)
+            x = feature_space.encode(context)
+            latent = base_model.encode_context(x)
+            encoded_rows.append(
+                {
+                    "scenario_id": scenario_id,
+                    "episode_id": episode_id,
+                    "x": x,
+                    "latent": latent,
+                }
+            )
+            if index % progress_every == 0:
+                elapsed = time.time() - start
+                rows_per_sec = index / elapsed if elapsed > 0 else 0.0
+                logger.info(
+                    "[FEEDBACK-P2-TRAIN] Encoded %d/%d rows | elapsed=%s | %.1f rows/s",
+                    index,
+                    len(raw_rows),
+                    _format_duration(elapsed),
+                    rows_per_sec,
+                )
+        return encoded_rows
+
+    test_rows = _encode_test_rows(test_rows_raw)
+    if len(test_rows) == 0:
+        raise ValueError("No usable test rows after encoding")
+    train_rows = _encode_train_rows(train_rows_raw)
+    if len(train_rows) == 0:
+        raise ValueError("No usable train rows after encoding")
+
+    train_latents = np.stack([row["latent"] for row in train_rows]).astype(np.float32, copy=False)
+    train_episode_ids = [str(row["episode_id"]) for row in train_rows]
+    scenario_to_train_indices: dict[str, list[int]] = defaultdict(list)
+    for index, row in enumerate(train_rows):
+        scenario_to_train_indices[row["scenario_id"]].append(index)
+
+    # Group test rows by phase2_context_id and pick the first sample (sorted by episode_id) as the anchor.
+    rows_by_context: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in test_rows:
+        rows_by_context[row["phase2_context_id"]].append(row)
+
+    locked_feedback_items: list[dict[str, Any]] = []
+    anchor_rows_by_key: dict[str, dict[str, Any]] = {}
+    target_rng = random.Random(random_target_seed) if target_mode == "random" else None
+    reward_effective = 1.0 * reward_scale
+    for phase2_context_id in sorted(rows_by_context):
+        context_rows = sorted(rows_by_context[phase2_context_id], key=lambda r: r["episode_id"])
+        # If use_all_test_samples is True, use every sample of this context as its own feedback item.
+        # Otherwise pick only the first sample (deterministic, sorted by episode_id) — original behavior.
+        anchors_for_this_context = context_rows if use_all_test_samples else [context_rows[0]]
+        for anchor in anchors_for_this_context:
+            anchor_key = anchor["episode_id"]
+            anchor_rows_by_key[anchor_key] = anchor
+            scenario_id = anchor["scenario_id"]
+            anchor_ranked = base_model.rank(
+                anchor["x"],
+                metadata.candidate_action_ids(scenario_id),
+                metadata.default_action_id(scenario_id),
+                top_k=5,
+            )
+            # Pick the target action based on target_mode
+            if target_mode == "phase2_gt":
+                target_action_id = anchor["phase2_gt_ro"]
+            elif target_mode == "model_top1":
+                target_action_id = anchor_ranked[0].action_id
+            else:  # random
+                candidates = list(metadata.candidate_action_ids(scenario_id))
+                target_action_id = target_rng.choice(candidates)
+            baseline_anchor = _rank_action_details(base_model, anchor["x"], metadata, scenario_id, target_action_id)
+            locked_feedback_items.append(
+                {
+                    "anchor_key": anchor_key,
+                    "phase2_context_id": phase2_context_id,
+                    "phase2_label": anchor["phase2_label"],
+                    "scenario_id": scenario_id,
+                    "feedback_type": "like",
+                    "target_action_id": target_action_id,
+                    "target_mode": target_mode,
+                    "reward": reward_effective,
+                    "reward_scale": reward_scale,
+                    "anchor_episode_id": anchor["episode_id"],
+                    "anchor_context": anchor["context"],
+                    "anchor_top5": [
+                        {
+                            "action_id": item.action_id,
+                            "score": item.score,
+                            "mean_reward": item.mean_reward,
+                            "uncertainty": item.uncertainty,
+                        }
+                        for item in anchor_ranked
+                    ],
+                    "baseline_top3_action_ids": [item.action_id for item in anchor_ranked[:3]],
+                    "baseline_anchor_gt_rank": baseline_anchor["rank"],
+                    "baseline_anchor_gt_score": baseline_anchor["score"],
+                }
+            )
+
+    # Precompute baseline target stats per feedback item over the 3 eval pools.
+    def _baseline_target_stats_by_item() -> dict[str, dict[str, Any]]:
+        stats: dict[str, dict[str, Any]] = {}
+        for item in locked_feedback_items:
+            anchor_key = item["anchor_key"]
+            scenario_id = item["scenario_id"]
+            target_action_id = item["target_action_id"]
+            anchor = anchor_rows_by_key[anchor_key]
+            same_rows = [row for row in test_rows if row["scenario_id"] == scenario_id and row["episode_id"] != anchor["episode_id"]]
+            cross_rows = [row for row in test_rows if row["scenario_id"] != scenario_id]
+            stats[anchor_key] = {
+                "anchor": _rank_action_details(base_model, anchor["x"], metadata, scenario_id, target_action_id),
+                "same_scenario": _evaluate_target_action_on_rows(base_model, same_rows, metadata, target_action_id),
+                "cross_scenario": _evaluate_target_action_on_rows(base_model, cross_rows, metadata, target_action_id),
+            }
+        return stats
+
+    baseline_target_stats = _baseline_target_stats_by_item()
+    baseline_quality = _evaluate_ro_quality_on_rows(
+        base_model,
+        test_rows,
+        metadata,
+        relevance_catalog,
+        top_k=3,
+    )
+
+    _write_json_unsorted(output_path / "locked_feedback_spec_phase2.json", {"feedback_items": locked_feedback_items})
+    _write_json_unsorted(
+        output_path / "baseline_anchor_predictions_phase2.json",
+        {
+            "anchors": [
+                {
+                    "phase2_context_id": item["phase2_context_id"],
+                    "phase2_label": item["phase2_label"],
+                    "scenario_id": item["scenario_id"],
+                    "target_action_id": item["target_action_id"],
+                    "anchor_episode_id": item["anchor_episode_id"],
+                    "baseline_anchor_gt_rank": item["baseline_anchor_gt_rank"],
+                    "baseline_anchor_gt_score": item["baseline_anchor_gt_score"],
+                    "top5": item["anchor_top5"],
+                }
+                for item in locked_feedback_items
+            ]
+        },
+    )
+
+    item_anchor_latents = {
+        item["anchor_key"]: anchor_rows_by_key[item["anchor_key"]]["latent"]
+        for item in locked_feedback_items
+    }
+
+    def _propagation_rows_for_item(item: dict[str, Any], mode: str, requested_n: int | str) -> list[dict[str, Any]]:
+        anchor_key = item["anchor_key"]
+        scenario_id = item["scenario_id"]
+        if mode == "single":
+            return [anchor_rows_by_key[anchor_key]]
+        if mode == "global-latent-nearest":
+            indices = _sorted_neighbor_indices(
+                item_anchor_latents[anchor_key], train_latents, train_episode_ids, int(requested_n)
+            )
+            return [train_rows[index] for index in indices]
+        if mode == "same-scenario-nearest":
+            same_indices = scenario_to_train_indices[scenario_id]
+            same_latents = train_latents[same_indices]
+            same_episode_ids = [train_episode_ids[index] for index in same_indices]
+            selected_local = _sorted_neighbor_indices(
+                item_anchor_latents[anchor_key], same_latents, same_episode_ids, int(requested_n)
+            )
+            return [train_rows[same_indices[index]] for index in selected_local]
+        if mode == "entire-scenario-all":
+            return [train_rows[index] for index in scenario_to_train_indices[scenario_id]]
+        raise ValueError(f"Unknown propagation mode {mode!r}")
+
+    conditions: list[dict[str, Any]] = []
+    if anchor_only:
+        # When anchor_only is set, we skip propagation entirely and only test the "anchor-only warmup" mode.
+        condition_specs: list[tuple[str, int | str]] = [("anchor-only", anchor_repeat_k)]
+    else:
+        condition_specs = [("single", 1)]
+        condition_specs.extend(("global-latent-nearest", value) for value in n_values)
+        condition_specs.extend(("same-scenario-nearest", value) for value in n_values)
+        condition_specs.append(("entire-scenario-all", "all"))
+
+    def _compute_contrast_targets_for_item(model: Any, item: dict[str, Any]) -> list[tuple[str, float]]:
+        """Compute the contrast competitor action IDs once per feedback item
+        (based on the anchor context), not per propagation row, to keep
+        propagation over large N tractable."""
+        if contrast_mode == "none":
+            return []
+        anchor_key = item["anchor_key"]
+        anchor = anchor_rows_by_key[anchor_key]
+        scenario_id = item["scenario_id"]
+        target_action_id = item["target_action_id"]
+        positive_reward = item["reward"]
+        ranked_now = model.rank(
+            anchor["x"],
+            metadata.candidate_action_ids(scenario_id),
+            metadata.default_action_id(scenario_id),
+            top_k=3,
+        )
+        negative_magnitude = positive_reward * contrast_reward_scale
+        if contrast_mode == "top1":
+            if ranked_now and ranked_now[0].action_id != target_action_id:
+                return [(ranked_now[0].action_id, -negative_magnitude)]
+            if len(ranked_now) >= 2:
+                return [(ranked_now[1].action_id, -negative_magnitude)]
+            return []
+        if contrast_mode == "top3":
+            competitors = [r.action_id for r in ranked_now[:3] if r.action_id != target_action_id]
+            if not competitors:
+                return []
+            per_competitor = -negative_magnitude / len(competitors)
+            return [(cid, per_competitor) for cid in competitors]
+        return []
+
+    def _apply_update(model: Any, row: dict[str, Any], item: dict[str, Any],
+                      contrast_targets: list[tuple[str, float]]) -> None:
+        """Apply partial_fit honoring repeat_k and reward_scale (positive update)
+        and precomputed contrast_targets (negative updates)."""
+        target_action_id = item["target_action_id"]
+        positive_reward = item["reward"]
+        for _ in range(repeat_k):
+            model.partial_fit(row["x"], target_action_id, positive_reward)
+            for cid, c_reward in contrast_targets:
+                model.partial_fit(row["x"], cid, c_reward)
+
+    class _AlphaOverride:
+        """Context manager that temporarily sets model.alpha for serving-time exploration."""
+        def __init__(self, target_model: Any) -> None:
+            self.target_model = target_model
+            self.original_alpha = None
+
+        def __enter__(self) -> Any:
+            if serving_alpha is not None and hasattr(self.target_model, "alpha"):
+                self.original_alpha = self.target_model.alpha
+                self.target_model.alpha = float(serving_alpha)
+            return self.target_model
+
+        def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+            if self.original_alpha is not None:
+                self.target_model.alpha = self.original_alpha
+
+    for mode, requested_n in condition_specs:
+        logger.info("[FEEDBACK-P2] Running condition | mode=%s | requested_n=%s", mode, requested_n)
+        model = load_bandit_model(artifact_path / "ro_model", device=device)
+        feedback_results: list[dict[str, Any]] = []
+
+        for item in locked_feedback_items:
+            if anchor_only or mode == "anchor-only":
+                propagation_rows = [anchor_rows_by_key[item["anchor_key"]]] * anchor_repeat_k
+            else:
+                propagation_rows = _propagation_rows_for_item(item, mode, requested_n)
+            # Compute contrast targets once per feedback item (based on pre-update model state)
+            contrast_targets = _compute_contrast_targets_for_item(model, item)
+            for row in propagation_rows:
+                _apply_update(model, row, item, contrast_targets)
+
+            anchor_key = item["anchor_key"]
+            phase2_context_id = item["phase2_context_id"]
+            scenario_id = item["scenario_id"]
+            target_action_id = item["target_action_id"]
+            anchor = anchor_rows_by_key[anchor_key]
+            same_rows = [row for row in test_rows if row["scenario_id"] == scenario_id and row["episode_id"] != anchor["episode_id"]]
+            cross_rows = [row for row in test_rows if row["scenario_id"] != scenario_id]
+
+            anchor_before = baseline_target_stats[anchor_key]["anchor"]
+            same_before = baseline_target_stats[anchor_key]["same_scenario"]
+            cross_before = baseline_target_stats[anchor_key]["cross_scenario"]
+            with _AlphaOverride(model):
+                anchor_after = _rank_action_details(model, anchor["x"], metadata, scenario_id, target_action_id)
+                same_after = _evaluate_target_action_on_rows(model, same_rows, metadata, target_action_id)
+                cross_after = _evaluate_target_action_on_rows(model, cross_rows, metadata, target_action_id)
+
+            feedback_results.append(
+                {
+                    "anchor_key": anchor_key,
+                    "anchor_episode_id": item["anchor_episode_id"],
+                    "phase2_context_id": phase2_context_id,
+                    "phase2_label": item["phase2_label"],
+                    "scenario_id": scenario_id,
+                    "feedback_type": item["feedback_type"],
+                    "target_action_id": target_action_id,
+                    "reward": item["reward"],
+                    "requested_n": requested_n,
+                    "effective_n": len(propagation_rows),
+                    "anchor": {
+                        "before": anchor_before,
+                        "after": anchor_after,
+                        "rank_delta": anchor_before["rank"] - anchor_after["rank"],
+                        "score_delta": anchor_after["score"] - anchor_before["score"],
+                    },
+                    "same_scenario": {
+                        "before": same_before,
+                        "after": same_after,
+                        "avg_rank_delta": same_before["avg_rank"] - same_after["avg_rank"] if not math.isnan(same_before["avg_rank"]) else math.nan,
+                        "avg_score_delta": same_after["avg_score"] - same_before["avg_score"] if not math.isnan(same_before["avg_score"]) else math.nan,
+                    },
+                    "cross_scenario": {
+                        "before": cross_before,
+                        "after": cross_after,
+                        "avg_rank_delta": cross_before["avg_rank"] - cross_after["avg_rank"] if not math.isnan(cross_before["avg_rank"]) else math.nan,
+                        "avg_score_delta": cross_after["avg_score"] - cross_before["avg_score"] if not math.isnan(cross_before["avg_score"]) else math.nan,
+                    },
+                }
+            )
+
+        with _AlphaOverride(model):
+            selected_scenarios_quality_after = _evaluate_ro_quality_on_rows(
+                model,
+                test_rows,
+                metadata,
+                relevance_catalog,
+                top_k=3,
+            )
+
+        valid_anchor_deltas = [row["anchor"]["rank_delta"] for row in feedback_results]
+        valid_same_deltas = [row["same_scenario"]["avg_rank_delta"] for row in feedback_results if not math.isnan(row["same_scenario"]["avg_rank_delta"])]
+        valid_cross_deltas = [row["cross_scenario"]["avg_rank_delta"] for row in feedback_results if not math.isnan(row["cross_scenario"]["avg_rank_delta"])]
+        num_improved = sum(1 for d in valid_anchor_deltas if d > 0)
+        num_regressed = sum(1 for d in valid_anchor_deltas if d < 0)
+        num_to_top3 = sum(1 for row in feedback_results if row["anchor"]["after"]["rank"] <= 3)
+        max_regression = min(valid_anchor_deltas) if valid_anchor_deltas else 0
+        condition_summary = {
+            "mode": mode,
+            "requested_n": requested_n,
+            "feedback_results": feedback_results,
+            "aggregate": {
+                "avg_anchor_rank_delta": sum(valid_anchor_deltas) / len(valid_anchor_deltas) if valid_anchor_deltas else math.nan,
+                "avg_same_scenario_rank_delta": sum(valid_same_deltas) / len(valid_same_deltas) if valid_same_deltas else math.nan,
+                "avg_cross_scenario_rank_delta": sum(valid_cross_deltas) / len(valid_cross_deltas) if valid_cross_deltas else math.nan,
+                "num_anchors_improved": num_improved,
+                "num_anchors_regressed": num_regressed,
+                "num_anchors_in_top3_after": num_to_top3,
+                "max_anchor_regression": max_regression,
+            },
+            "selected_scenarios_quality_before": baseline_quality,
+            "selected_scenarios_quality_after": selected_scenarios_quality_after,
+        }
+        conditions.append(condition_summary)
+
+    summary = FeedbackPropagationPhase2ExperimentSummary(
+        artifact_dir=str(artifact_path),
+        train_raw_path=str(train_raw_path),
+        test_raw_path=str(test_raw_path),
+        output_dir=str(output_path),
+        relevance_markdown=str(Path(relevance_markdown)),
+        device=device,
+        n_values=n_values,
+        feedback_items=locked_feedback_items,
+        baseline_quality=baseline_quality,
+        conditions=conditions,
+    )
+    _write_json_unsorted(
+        output_path / "results_phase2.json",
+        {
+            "artifact_dir": summary.artifact_dir,
+            "train_raw_path": summary.train_raw_path,
+            "test_raw_path": summary.test_raw_path,
+            "output_dir": summary.output_dir,
+            "relevance_markdown": summary.relevance_markdown,
+            "device": summary.device,
+            "n_values": summary.n_values,
+            "feedback_items": summary.feedback_items,
+            "baseline_quality": summary.baseline_quality,
+            "conditions": summary.conditions,
+        },
+    )
+    (output_path / "summary_table_phase2.md").write_text(_render_feedback_propagation_phase2_markdown(summary))
+    (output_path / "propagation_summary_tables_phase2.md").write_text(_render_feedback_propagation_phase2_per_item_tables(summary))
     return summary
 
 
