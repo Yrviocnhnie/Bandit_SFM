@@ -1,0 +1,38 @@
+[
+  {
+    "feedback_id": "arrive_office_like_rank1",
+    "scenario_id": "ARRIVE_OFFICE",
+    "feedback_type": "like",
+    "target_position": 1
+  },
+  {
+    "feedback_id": "office_lunch_out_dislike_rank1",
+    "scenario_id": "OFFICE_LUNCH_OUT",
+    "feedback_type": "dislike",
+    "target_position": 1
+  },
+  {
+    "feedback_id": "office_working_like_rank2",
+    "scenario_id": "OFFICE_WORKING",
+    "feedback_type": "like",
+    "target_position": 2
+  },
+  {
+    "feedback_id": "leave_office_dislike_rank2",
+    "scenario_id": "LEAVE_OFFICE",
+    "feedback_type": "dislike",
+    "target_position": 2
+  },
+  {
+    "feedback_id": "cafe_stay_like_rank3",
+    "scenario_id": "CAFE_STAY",
+    "feedback_type": "like",
+    "target_position": 3
+  },
+  {
+    "feedback_id": "office_to_cafe_dislike_rank3",
+    "scenario_id": "OFFICE_TO_CAFE",
+    "feedback_type": "dislike",
+    "target_position": 3
+  }
+]

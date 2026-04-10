@@ -413,9 +413,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated N values for nearest-neighbor propagation",
     )
     feedback_prop_parser.add_argument(
+        "--similarity-thresholds",
+        default="0.0",
+        help="Comma-separated cosine similarity thresholds used by hard-assigned-local-cutoff propagation",
+    )
+    feedback_prop_parser.add_argument(
         "--output-dir",
         required=False,
         help="Optional output directory. Defaults to <artifact-dir>/feedback_propagation_ro_v1",
+    )
+    feedback_prop_parser.add_argument(
+        "--feedback-spec-json",
+        required=False,
+        help="Optional JSON file containing a list of feedback items with scenario_id, feedback_type, and target_position",
+    )
+    feedback_prop_parser.add_argument(
+        "--propagation-modes",
+        default="single,global-latent-nearest,same-scenario-nearest,entire-scenario-all",
+        help="Comma-separated propagation modes to run",
+    )
+    feedback_prop_parser.add_argument("--like-reward", type=float, default=1.0, help="Reward used for like feedback items")
+    feedback_prop_parser.add_argument("--dislike-reward", type=float, default=-1.0, help="Reward used for dislike feedback items")
+    feedback_prop_parser.add_argument(
+        "--feedback-reward-policy",
+        choices=("fixed", "margin-aware-fixed-radius-v1"),
+        default="fixed",
+        help="Reward assignment policy. fixed uses --like-reward/--dislike-reward; margin-aware-fixed-radius-v1 chooses per-feedback rewards from the anchor score margin.",
+    )
+    feedback_prop_parser.add_argument(
+        "--cross-scenario-sample-size",
+        type=int,
+        default=2000,
+        help="Sample size for cross-scenario evaluation rows per feedback item. Use 0 to disable sampling and evaluate all rows.",
     )
     feedback_prop_parser.add_argument("--progress-every", type=int, default=25000, help="Encoding progress log interval")
     feedback_prop_parser.add_argument("--device", default="auto", help="Execution device. Examples: auto, cpu, cuda")
@@ -892,13 +921,25 @@ def main() -> None:
 
     if args.command == "simulate-feedback-propagation":
         n_values = [int(value.strip()) for value in args.n_values.split(",") if value.strip()]
+        similarity_thresholds = [float(value.strip()) for value in args.similarity_thresholds.split(",") if value.strip()]
+        propagation_modes = [value.strip() for value in args.propagation_modes.split(",") if value.strip()]
+        feedback_specs = None
+        if args.feedback_spec_json:
+            feedback_specs = json.loads(Path(args.feedback_spec_json).read_text())
         summary = simulate_feedback_propagation_on_frozen_neural_linear(
             artifact_dir=args.artifact_dir,
             relevance_markdown=args.relevance_markdown,
             n_values=n_values,
+            similarity_thresholds=similarity_thresholds,
             output_dir=args.output_dir,
+            feedback_specs=feedback_specs,
+            propagation_modes=propagation_modes,
+            like_reward=args.like_reward,
+            dislike_reward=args.dislike_reward,
+            feedback_reward_policy=args.feedback_reward_policy,
             device=args.device,
             progress_every=args.progress_every,
+            cross_scenario_sample_size=None if args.cross_scenario_sample_size == 0 else args.cross_scenario_sample_size,
         )
         print(json.dumps({
             "artifact_dir": summary.artifact_dir,
@@ -906,6 +947,7 @@ def main() -> None:
             "relevance_markdown": summary.relevance_markdown,
             "device": summary.device,
             "n_values": summary.n_values,
+            "similarity_thresholds": summary.similarity_thresholds,
             "feedback_items": summary.feedback_items,
             "conditions": summary.conditions,
         }, indent=2))

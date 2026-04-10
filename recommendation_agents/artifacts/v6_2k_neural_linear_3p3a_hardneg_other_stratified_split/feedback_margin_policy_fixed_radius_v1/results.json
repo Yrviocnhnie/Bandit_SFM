@@ -1,0 +1,1539 @@
+{
+  "artifact_dir": "artifacts/v6_2k_neural_linear_3p3a_hardneg_other_stratified_split",
+  "output_dir": "artifacts/v6_2k_neural_linear_3p3a_hardneg_other_stratified_split/feedback_margin_policy_fixed_radius_v1",
+  "relevance_markdown": "docs/scenario_recommendation_actions_v6.md",
+  "device": "cpu",
+  "n_values": [
+    2000
+  ],
+  "similarity_thresholds": [
+    0.8
+  ],
+  "timing": {
+    "preparation_seconds": 2.0222649574279785,
+    "total_seconds": 12.75556230545044,
+    "train_cache_hit": true,
+    "test_cache_hit": true,
+    "neighbor_cache_hit": true,
+    "baseline_cache_hit": true,
+    "cross_scenario_sample_size": 2000
+  },
+  "feedback_items": [
+    {
+      "feedback_id": "arrive_office_like_rank1",
+      "scenario_id": "ARRIVE_OFFICE",
+      "feedback_type": "like",
+      "target_position": 1,
+      "target_action_id": "O_SHOW_SCHEDULE",
+      "reward": 2.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.0,
+      "margin_policy_bin": "boundary",
+      "margin_policy_reason": "like rank1: conservative score/margin nudge",
+      "anchor_episode_id": "arrive_office_u000002",
+      "anchor_context": {
+        "state_current": "office_arriving",
+        "precondition": "commuting_walk_out",
+        "state_duration_sec": 381,
+        "ps_time": "dawn",
+        "hour": 5,
+        "cal_hasUpcoming": 1,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 1,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "noisy",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 20660,
+        "ps_location": "work",
+        "ps_phone": "face_down",
+        "batteryLevel": 91,
+        "isCharging": 0,
+        "networkType": "wifi",
+        "activityState": "active",
+        "activityDuration": 505,
+        "user_id_hash_bucket": "b31",
+        "age_bucket": "35_44",
+        "sex": "female",
+        "has_kids": 1
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_SCHEDULE",
+          "score": 1.1454461812973022,
+          "mean_reward": 1.1454461812973022,
+          "uncertainty": 0.01652549020946026
+        },
+        {
+          "action_id": "O_SHOW_TODAY_TODO",
+          "score": 1.1373400688171387,
+          "mean_reward": 1.1373400688171387,
+          "uncertainty": 0.01652549020946026
+        },
+        {
+          "action_id": "R_PLAN_DAY_OVER_COFFEE",
+          "score": 0.5734175443649292,
+          "mean_reward": 0.5734175443649292,
+          "uncertainty": 0.01652548834681511
+        },
+        {
+          "action_id": "R_WORK_START_SETTLE_IN",
+          "score": 0.5468872785568237,
+          "mean_reward": 0.5468872785568237,
+          "uncertainty": 0.01652549020946026
+        },
+        {
+          "action_id": "O_TURN_ON_EYE_COMFORT_MODE",
+          "score": 0.13513824343681335,
+          "mean_reward": 0.13513824343681335,
+          "uncertainty": 0.01652549020946026
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "O_SHOW_TODAY_TODO",
+        "R_PLAN_DAY_OVER_COFFEE"
+      ]
+    },
+    {
+      "feedback_id": "office_lunch_out_dislike_rank1",
+      "scenario_id": "OFFICE_LUNCH_OUT",
+      "feedback_type": "dislike",
+      "target_position": 1,
+      "target_action_id": "O_SHOW_NEARBY_OPTIONS",
+      "reward": -0.1,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.02108865976333618,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small down-gap: break tie / light personalization",
+      "anchor_episode_id": "office_lunch_out_a000002",
+      "anchor_context": {
+        "state_current": "outdoor_walking",
+        "precondition": "office_arriving",
+        "state_duration_sec": 1683,
+        "ps_time": "forenoon",
+        "hour": 11,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 1,
+        "wifiLostCategory": "work",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "quiet",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 40340,
+        "ps_location": "outdoor",
+        "ps_phone": "face_up",
+        "batteryLevel": 90,
+        "isCharging": 0,
+        "networkType": "cellular",
+        "activityState": "active",
+        "activityDuration": 5215,
+        "user_id_hash_bucket": "b29",
+        "age_bucket": "55_64",
+        "sex": "female",
+        "has_kids": 0
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 1.0106052160263062,
+          "mean_reward": 1.0106052160263062,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "R_MEAL_BREAK",
+          "score": 0.98951655626297,
+          "mean_reward": 0.98951655626297,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 0.9769112467765808,
+          "mean_reward": 0.9769112467765808,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "O_SHOW_WEATHER",
+          "score": 0.1277378499507904,
+          "mean_reward": 0.1277378499507904,
+          "uncertainty": 0.026799818500876427
+        },
+        {
+          "action_id": "O_SHOW_BOOKING_DETAILS",
+          "score": 0.10822997987270355,
+          "mean_reward": 0.10822997987270355,
+          "uncertainty": 0.026799818500876427
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_NEARBY_OPTIONS",
+        "R_MEAL_BREAK",
+        "O_SHOW_PAYMENT_QR"
+      ]
+    },
+    {
+      "feedback_id": "office_working_like_rank2",
+      "scenario_id": "OFFICE_WORKING",
+      "feedback_type": "like",
+      "target_position": 2,
+      "target_action_id": "O_SHOW_SCHEDULE",
+      "reward": 2.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.0006161928176879883,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small up-gap: break tie / light personalization",
+      "anchor_episode_id": "office_afternoon_u000008",
+      "anchor_context": {
+        "state_current": "office_working",
+        "precondition": "office_arriving",
+        "state_duration_sec": 8530,
+        "ps_time": "afternoon",
+        "hour": 16,
+        "cal_hasUpcoming": 1,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 2,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "noisy",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 57955,
+        "ps_location": "work",
+        "ps_phone": "face_down",
+        "batteryLevel": 57,
+        "isCharging": 0,
+        "networkType": "wifi",
+        "activityState": "active",
+        "activityDuration": 4326,
+        "user_id_hash_bucket": "b27",
+        "age_bucket": "35_44",
+        "sex": "male",
+        "has_kids": 1
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_TODAY_TODO",
+          "score": 1.0194802284240723,
+          "mean_reward": 1.0194802284240723,
+          "uncertainty": 0.015725767239928246
+        },
+        {
+          "action_id": "O_SHOW_SCHEDULE",
+          "score": 1.0188640356063843,
+          "mean_reward": 1.0188640356063843,
+          "uncertainty": 0.015725767239928246
+        },
+        {
+          "action_id": "R_WORK_BREAK_AND_STRETCH",
+          "score": 0.9881627559661865,
+          "mean_reward": 0.9881627559661865,
+          "uncertainty": 0.015725769102573395
+        },
+        {
+          "action_id": "O_TURN_ON_EYE_COMFORT_MODE",
+          "score": 0.1225186288356781,
+          "mean_reward": 0.1225186288356781,
+          "uncertainty": 0.015725767239928246
+        },
+        {
+          "action_id": "R_DEEP_WORK_WINDOW",
+          "score": 0.10681548714637756,
+          "mean_reward": 0.10681548714637756,
+          "uncertainty": 0.015725767239928246
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_TODAY_TODO",
+        "O_SHOW_SCHEDULE",
+        "R_WORK_BREAK_AND_STRETCH"
+      ]
+    },
+    {
+      "feedback_id": "leave_office_dislike_rank2",
+      "scenario_id": "LEAVE_OFFICE",
+      "feedback_type": "dislike",
+      "target_position": 2,
+      "target_action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+      "reward": -0.1,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.007906138896942139,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small down-gap: break tie / light personalization",
+      "anchor_episode_id": "leave_office_a000009",
+      "anchor_context": {
+        "state_current": "commuting_walk_home",
+        "precondition": "office_working",
+        "state_duration_sec": 3885,
+        "ps_time": "evening",
+        "hour": 17,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "workday",
+        "ps_motion": "walking",
+        "wifiLost": 1,
+        "wifiLostCategory": "work",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "normal",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 64160,
+        "ps_location": "en_route",
+        "ps_phone": "in_use",
+        "batteryLevel": 55,
+        "isCharging": 0,
+        "networkType": "cellular",
+        "activityState": "active",
+        "activityDuration": 1060,
+        "user_id_hash_bucket": "b24",
+        "age_bucket": "25_34",
+        "sex": "male",
+        "has_kids": 0
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_WEATHER",
+          "score": 1.0127253532409668,
+          "mean_reward": 1.0127253532409668,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+          "score": 1.0077685117721558,
+          "mean_reward": 1.0077685117721558,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "O_SHOW_COMMUTE_TRAFFIC",
+          "score": 0.9998623728752136,
+          "mean_reward": 0.9998623728752136,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "R_CHECK_TRIP_OR_BOOKING_INFO",
+          "score": 0.10531393438577652,
+          "mean_reward": 0.10531393438577652,
+          "uncertainty": 0.025463085621595383
+        },
+        {
+          "action_id": "O_SHOW_TRAVEL_INFO",
+          "score": 0.09915409982204437,
+          "mean_reward": 0.09915409982204437,
+          "uncertainty": 0.025463085621595383
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_WEATHER",
+        "R_CLOCK_OUT_BEFORE_LEAVING",
+        "O_SHOW_COMMUTE_TRAFFIC"
+      ]
+    },
+    {
+      "feedback_id": "cafe_stay_like_rank3",
+      "scenario_id": "CAFE_STAY",
+      "feedback_type": "like",
+      "target_position": 3,
+      "target_action_id": "O_SHOW_PAYMENT_QR",
+      "reward": 2.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.022393345832824707,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small up-gap: break tie / light personalization",
+      "anchor_episode_id": "cafe_stay_u000004",
+      "anchor_context": {
+        "state_current": "at_cafe",
+        "precondition": "at_cafe",
+        "state_duration_sec": 4423,
+        "ps_time": "afternoon",
+        "hour": 16,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "holiday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "quiet",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 58265,
+        "ps_location": "cafe",
+        "ps_phone": "face_up",
+        "batteryLevel": 92,
+        "isCharging": 0,
+        "networkType": "wifi",
+        "activityState": "active",
+        "activityDuration": 5272,
+        "user_id_hash_bucket": "b02",
+        "age_bucket": "55_64",
+        "sex": "male",
+        "has_kids": 1
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_SCHEDULE",
+          "score": 1.125586986541748,
+          "mean_reward": 1.125586986541748,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "R_ENJOY_LEISURE_MOMENT",
+          "score": 1.1013625860214233,
+          "mean_reward": 1.1013625860214233,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 1.0789692401885986,
+          "mean_reward": 1.0789692401885986,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 0.1836315095424652,
+          "mean_reward": 0.1836315095424652,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "R_MEAL_BREAK",
+          "score": 0.11851923167705536,
+          "mean_reward": 0.11851923167705536,
+          "uncertainty": 0.018328599631786346
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_PAYMENT_QR"
+      ]
+    },
+    {
+      "feedback_id": "office_to_cafe_dislike_rank3",
+      "scenario_id": "OFFICE_TO_CAFE",
+      "feedback_type": "dislike",
+      "target_position": 3,
+      "target_action_id": "O_SHOW_NEARBY_OPTIONS",
+      "reward": -10.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.9790327697992325,
+      "margin_policy_bin": "large",
+      "margin_policy_reason": "large down-gap: strong personalization override",
+      "anchor_episode_id": "office_to_cafe_u000003",
+      "anchor_context": {
+        "state_current": "at_cafe",
+        "precondition": "office_working",
+        "state_duration_sec": 4350,
+        "ps_time": "afternoon",
+        "hour": 15,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "holiday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "quiet",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 55190,
+        "ps_location": "cafe",
+        "ps_phone": "face_up",
+        "batteryLevel": 84,
+        "isCharging": 0,
+        "networkType": "cellular",
+        "activityState": "active",
+        "activityDuration": 2904,
+        "user_id_hash_bucket": "b23",
+        "age_bucket": "35_44",
+        "sex": "male",
+        "has_kids": 0
+      },
+      "anchor_top5": [
+        {
+          "action_id": "R_ENJOY_LEISURE_MOMENT",
+          "score": 1.136215090751648,
+          "mean_reward": 1.136215090751648,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 1.1238950490951538,
+          "mean_reward": 1.1238950490951538,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 1.109258770942688,
+          "mean_reward": 1.109258770942688,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_WEATHER",
+          "score": 0.1302260011434555,
+          "mean_reward": 0.1302260011434555,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_BOOKING_DETAILS",
+          "score": 0.11493778973817825,
+          "mean_reward": 0.11493778973817825,
+          "uncertainty": 0.007428671699017286
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_PAYMENT_QR",
+        "O_SHOW_NEARBY_OPTIONS"
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "mode": "hard-assigned-local-cutoff",
+      "requested_n": 2000,
+      "similarity_threshold": 0.8,
+      "condition_elapsed_seconds": 7.149067163467407,
+      "update_elapsed_seconds": 0.7809708118438721,
+      "evaluation_elapsed_seconds": 6.368083953857422,
+      "feedback_results": [
+        {
+          "feedback_id": "arrive_office_like_rank1",
+          "scenario_id": "ARRIVE_OFFICE",
+          "feedback_type": "like",
+          "target_action_id": "O_SHOW_SCHEDULE",
+          "reward": 2.0,
+          "requested_n": 2000,
+          "effective_n": 1566,
+          "anchor": {
+            "before": {
+              "rank": 1,
+              "score": 1.1454565525054932,
+              "mean_reward": 1.1454565525054932,
+              "uncertainty": 0.01652548834681511,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "O_SHOW_TODAY_TODO",
+                "R_PLAN_DAY_OVER_COFFEE"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "O_SHOW_TODAY_TODO",
+                "R_PLAN_DAY_OVER_COFFEE",
+                "R_WORK_START_SETTLE_IN",
+                "O_TURN_ON_EYE_COMFORT_MODE"
+              ],
+              "previous_action_id": null,
+              "next_action_id": "O_SHOW_TODAY_TODO",
+              "margin_to_previous": NaN,
+              "margin_to_next": 0.008123636245727539
+            },
+            "after": {
+              "rank": 1,
+              "score": 1.4112426042556763,
+              "mean_reward": 1.4112426042556763,
+              "uncertainty": 0.013897327706217766,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "O_SHOW_TODAY_TODO",
+                "R_PLAN_DAY_OVER_COFFEE"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "O_SHOW_TODAY_TODO",
+                "R_PLAN_DAY_OVER_COFFEE",
+                "R_WORK_START_SETTLE_IN",
+                "O_TURN_ON_EYE_COMFORT_MODE"
+              ],
+              "previous_action_id": null,
+              "next_action_id": "O_SHOW_TODAY_TODO",
+              "margin_to_previous": NaN,
+              "margin_to_next": 0.27390968799591064
+            },
+            "rank_delta": 0,
+            "score_delta": 0.2657860517501831
+          },
+          "same_scenario": {
+            "before": {
+              "sample_count": 5183,
+              "avg_rank": 1.203743005981092,
+              "top3_rate": 1.0,
+              "avg_score": 1.1178500263612288,
+              "avg_mean_reward": 1.1178500263612288,
+              "avg_uncertainty": 0.008171471129235339
+            },
+            "after": {
+              "sample_count": 5183,
+              "avg_rank": 1.057302720432182,
+              "top3_rate": 1.0,
+              "avg_score": 1.1419921087846088,
+              "avg_mean_reward": 1.1419921087846088,
+              "avg_uncertainty": 0.007981092208349898
+            },
+            "avg_rank_delta": 0.14644028554890998,
+            "avg_score_delta": 0.024142082423380007
+          },
+          "same_scenario_outside_neighbors": {
+            "before": {
+              "sample_count": 5183,
+              "avg_rank": 1.203743005981092,
+              "top3_rate": 1.0,
+              "avg_score": 1.1178500263612288,
+              "avg_mean_reward": 1.1178500263612288,
+              "avg_uncertainty": 0.008171471129235339
+            },
+            "after": {
+              "sample_count": 5183,
+              "avg_rank": 1.057302720432182,
+              "top3_rate": 1.0,
+              "avg_score": 1.1419921087846088,
+              "avg_mean_reward": 1.1419921087846088,
+              "avg_uncertainty": 0.007981092208349898
+            },
+            "avg_rank_delta": 0.14644028554890998,
+            "avg_score_delta": 0.024142082423380007
+          },
+          "neighbors": {
+            "before": {
+              "sample_count": 1566,
+              "avg_rank": 1.1366538952745848,
+              "top3_rate": 1.0,
+              "avg_score": 1.141609962948742,
+              "avg_mean_reward": 1.141609962948742,
+              "avg_uncertainty": 0.01651025885813614
+            },
+            "after": {
+              "sample_count": 1566,
+              "avg_rank": 1.0,
+              "top3_rate": 1.0,
+              "avg_score": 1.4094012483935399,
+              "avg_mean_reward": 1.4094012483935399,
+              "avg_uncertainty": 0.01388869957646324
+            },
+            "avg_rank_delta": 0.13665389527458482,
+            "avg_score_delta": 0.2677912854447979
+          },
+          "cross_scenario": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 6.593,
+              "top3_rate": 0.3445,
+              "avg_score": 0.41669493552763015,
+              "avg_mean_reward": 0.41669493552763015,
+              "avg_uncertainty": 0.015719600945012645
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 6.748,
+              "top3_rate": 0.343,
+              "avg_score": 0.4290865154997446,
+              "avg_mean_reward": 0.4290865154997446,
+              "avg_uncertainty": 0.015614193072076886
+            },
+            "avg_rank_delta": -0.15500000000000025,
+            "avg_score_delta": 0.01239157997211443
+          }
+        },
+        {
+          "feedback_id": "office_lunch_out_dislike_rank1",
+          "scenario_id": "OFFICE_LUNCH_OUT",
+          "feedback_type": "dislike",
+          "target_action_id": "O_SHOW_NEARBY_OPTIONS",
+          "reward": -0.1,
+          "requested_n": 2000,
+          "effective_n": 1600,
+          "anchor": {
+            "before": {
+              "rank": 1,
+              "score": 1.0106128454208374,
+              "mean_reward": 1.0106128454208374,
+              "uncertainty": 0.026799829676747322,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_NEARBY_OPTIONS",
+                "R_MEAL_BREAK",
+                "O_SHOW_PAYMENT_QR"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_NEARBY_OPTIONS",
+                "R_MEAL_BREAK",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_WEATHER",
+                "O_SHOW_BOOKING_DETAILS"
+              ],
+              "previous_action_id": null,
+              "next_action_id": "R_MEAL_BREAK",
+              "margin_to_previous": NaN,
+              "margin_to_next": 0.021098315715789795
+            },
+            "after": {
+              "rank": 3,
+              "score": 0.43947046995162964,
+              "mean_reward": 0.43947046995162964,
+              "uncertainty": 0.01976427622139454,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "R_MEAL_BREAK",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_NEARBY_OPTIONS"
+              ],
+              "top5_action_ids": [
+                "R_MEAL_BREAK",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_NEARBY_OPTIONS",
+                "O_SHOW_WEATHER",
+                "O_SHOW_BOOKING_DETAILS"
+              ],
+              "previous_action_id": "O_SHOW_PAYMENT_QR",
+              "next_action_id": "O_SHOW_WEATHER",
+              "margin_to_previous": -0.5348557233810425,
+              "margin_to_next": 0.31172923743724823
+            },
+            "rank_delta": -2,
+            "score_delta": -0.5711423754692078
+          },
+          "same_scenario": {
+            "before": {
+              "sample_count": 399,
+              "avg_rank": 1.862155388471178,
+              "top3_rate": 1.0,
+              "avg_score": 1.0103888779056998,
+              "avg_mean_reward": 1.0103888779056998,
+              "avg_uncertainty": 0.024543173905265957
+            },
+            "after": {
+              "sample_count": 399,
+              "avg_rank": 3.0,
+              "top3_rate": 1.0,
+              "avg_score": 0.455965032404228,
+              "avg_mean_reward": 0.455965032404228,
+              "avg_uncertainty": 0.01808205337956884
+            },
+            "avg_rank_delta": -1.137844611528822,
+            "avg_score_delta": -0.5544238455014718
+          },
+          "same_scenario_outside_neighbors": {
+            "before": {
+              "sample_count": 399,
+              "avg_rank": 1.862155388471178,
+              "top3_rate": 1.0,
+              "avg_score": 1.0103888779056998,
+              "avg_mean_reward": 1.0103888779056998,
+              "avg_uncertainty": 0.024543173905265957
+            },
+            "after": {
+              "sample_count": 399,
+              "avg_rank": 3.0,
+              "top3_rate": 1.0,
+              "avg_score": 0.455965032404228,
+              "avg_mean_reward": 0.455965032404228,
+              "avg_uncertainty": 0.01808205337956884
+            },
+            "avg_rank_delta": -1.137844611528822,
+            "avg_score_delta": -0.5544238455014718
+          },
+          "neighbors": {
+            "before": {
+              "sample_count": 1600,
+              "avg_rank": 1.88,
+              "top3_rate": 1.0,
+              "avg_score": 1.0097417974844576,
+              "avg_mean_reward": 1.0097417974844576,
+              "avg_uncertainty": 0.024571424848400057
+            },
+            "after": {
+              "sample_count": 1600,
+              "avg_rank": 3.0,
+              "top3_rate": 1.0,
+              "avg_score": 0.4545606999099255,
+              "avg_mean_reward": 0.4545606999099255,
+              "avg_uncertainty": 0.018116178896743804
+            },
+            "avg_rank_delta": -1.12,
+            "avg_score_delta": -0.5551810975745322
+          },
+          "cross_scenario": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 21.3655,
+              "top3_rate": 0.167,
+              "avg_score": 0.17592240434419365,
+              "avg_mean_reward": 0.17592240434419365,
+              "avg_uncertainty": 0.014890187577577308
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 25.527,
+              "top3_rate": 0.102,
+              "avg_score": 0.04665906128659844,
+              "avg_mean_reward": 0.04665906128659844,
+              "avg_uncertainty": 0.014838969092117623
+            },
+            "avg_rank_delta": -4.1615,
+            "avg_score_delta": -0.1292633430575952
+          }
+        },
+        {
+          "feedback_id": "office_working_like_rank2",
+          "scenario_id": "OFFICE_WORKING",
+          "feedback_type": "like",
+          "target_action_id": "O_SHOW_SCHEDULE",
+          "reward": 2.0,
+          "requested_n": 2000,
+          "effective_n": 1640,
+          "anchor": {
+            "before": {
+              "rank": 2,
+              "score": 1.0188746452331543,
+              "mean_reward": 1.0188746452331543,
+              "uncertainty": 0.015725772827863693,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_TODAY_TODO",
+                "O_SHOW_SCHEDULE",
+                "R_WORK_BREAK_AND_STRETCH"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_TODAY_TODO",
+                "O_SHOW_SCHEDULE",
+                "R_WORK_BREAK_AND_STRETCH",
+                "O_TURN_ON_EYE_COMFORT_MODE",
+                "R_DEEP_WORK_WINDOW"
+              ],
+              "previous_action_id": "O_SHOW_TODAY_TODO",
+              "next_action_id": "R_WORK_BREAK_AND_STRETCH",
+              "margin_to_previous": -0.0006086826324462891,
+              "margin_to_next": 0.030708909034729004
+            },
+            "after": {
+              "rank": 1,
+              "score": 1.2742362022399902,
+              "mean_reward": 1.2742362022399902,
+              "uncertainty": 0.013675281777977943,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "O_SHOW_TODAY_TODO",
+                "R_WORK_BREAK_AND_STRETCH"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "O_SHOW_TODAY_TODO",
+                "R_WORK_BREAK_AND_STRETCH",
+                "O_TURN_ON_EYE_COMFORT_MODE",
+                "R_DEEP_WORK_WINDOW"
+              ],
+              "previous_action_id": null,
+              "next_action_id": "O_SHOW_TODAY_TODO",
+              "margin_to_previous": NaN,
+              "margin_to_next": 0.25475287437438965
+            },
+            "rank_delta": 1,
+            "score_delta": 0.25536155700683594
+          },
+          "same_scenario": {
+            "before": {
+              "sample_count": 441,
+              "avg_rank": 1.5396825396825398,
+              "top3_rate": 0.9954648526077098,
+              "avg_score": 1.0275567175309404,
+              "avg_mean_reward": 1.0275567175309404,
+              "avg_uncertainty": 0.01637884898453343
+            },
+            "after": {
+              "sample_count": 441,
+              "avg_rank": 1.0136054421768708,
+              "top3_rate": 0.9954648526077098,
+              "avg_score": 1.2590085622134393,
+              "avg_mean_reward": 1.2590085622134393,
+              "avg_uncertainty": 0.014682361296464662
+            },
+            "avg_rank_delta": 0.526077097505669,
+            "avg_score_delta": 0.2314518446824989
+          },
+          "same_scenario_outside_neighbors": {
+            "before": {
+              "sample_count": 441,
+              "avg_rank": 1.5396825396825398,
+              "top3_rate": 0.9954648526077098,
+              "avg_score": 1.0275567175309404,
+              "avg_mean_reward": 1.0275567175309404,
+              "avg_uncertainty": 0.01637884898453343
+            },
+            "after": {
+              "sample_count": 441,
+              "avg_rank": 1.0136054421768708,
+              "top3_rate": 0.9954648526077098,
+              "avg_score": 1.2590085622134393,
+              "avg_mean_reward": 1.2590085622134393,
+              "avg_uncertainty": 0.014682361296464662
+            },
+            "avg_rank_delta": 0.526077097505669,
+            "avg_score_delta": 0.2314518446824989
+          },
+          "neighbors": {
+            "before": {
+              "sample_count": 1640,
+              "avg_rank": 1.521341463414634,
+              "top3_rate": 1.0,
+              "avg_score": 1.0379418250627634,
+              "avg_mean_reward": 1.0379418250627634,
+              "avg_uncertainty": 0.016447111210081636
+            },
+            "after": {
+              "sample_count": 1640,
+              "avg_rank": 1.0,
+              "top3_rate": 1.0,
+              "avg_score": 1.2765062530229732,
+              "avg_mean_reward": 1.2765062530229732,
+              "avg_uncertainty": 0.014676633828728483
+            },
+            "avg_rank_delta": 0.521341463414634,
+            "avg_score_delta": 0.2385644279602097
+          },
+          "cross_scenario": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 6.1185,
+              "top3_rate": 0.3965,
+              "avg_score": 0.4745112775741145,
+              "avg_mean_reward": 0.4745112775741145,
+              "avg_uncertainty": 0.014716497527202591
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 6.2965,
+              "top3_rate": 0.3955,
+              "avg_score": 0.4840027198754251,
+              "avg_mean_reward": 0.4840027198754251,
+              "avg_uncertainty": 0.01462982350611128
+            },
+            "avg_rank_delta": -0.17799999999999994,
+            "avg_score_delta": 0.009491442301310604
+          }
+        },
+        {
+          "feedback_id": "leave_office_dislike_rank2",
+          "scenario_id": "LEAVE_OFFICE",
+          "feedback_type": "dislike",
+          "target_action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+          "reward": -0.1,
+          "requested_n": 2000,
+          "effective_n": 1600,
+          "anchor": {
+            "before": {
+              "rank": 2,
+              "score": 1.0077691078186035,
+              "mean_reward": 1.0077691078186035,
+              "uncertainty": 0.025463083758950233,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_WEATHER",
+                "R_CLOCK_OUT_BEFORE_LEAVING",
+                "O_SHOW_COMMUTE_TRAFFIC"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_WEATHER",
+                "R_CLOCK_OUT_BEFORE_LEAVING",
+                "O_SHOW_COMMUTE_TRAFFIC",
+                "R_CHECK_TRIP_OR_BOOKING_INFO",
+                "O_SHOW_TRAVEL_INFO"
+              ],
+              "previous_action_id": "O_SHOW_WEATHER",
+              "next_action_id": "O_SHOW_COMMUTE_TRAFFIC",
+              "margin_to_previous": -0.004958987236022949,
+              "margin_to_next": 0.007906913757324219
+            },
+            "after": {
+              "rank": 3,
+              "score": 0.45464569330215454,
+              "mean_reward": 0.45464569330215454,
+              "uncertainty": 0.01815728098154068,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_WEATHER",
+                "O_SHOW_COMMUTE_TRAFFIC",
+                "R_CLOCK_OUT_BEFORE_LEAVING"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_WEATHER",
+                "O_SHOW_COMMUTE_TRAFFIC",
+                "R_CLOCK_OUT_BEFORE_LEAVING",
+                "R_CHECK_TRIP_OR_BOOKING_INFO",
+                "O_SHOW_TRAVEL_INFO"
+              ],
+              "previous_action_id": "O_SHOW_COMMUTE_TRAFFIC",
+              "next_action_id": "R_CHECK_TRIP_OR_BOOKING_INFO",
+              "margin_to_previous": -0.5452165007591248,
+              "margin_to_next": 0.34932998567819595
+            },
+            "rank_delta": -1,
+            "score_delta": -0.553123414516449
+          },
+          "same_scenario": {
+            "before": {
+              "sample_count": 399,
+              "avg_rank": 2.5037593984962405,
+              "top3_rate": 1.0,
+              "avg_score": 0.9932766833102196,
+              "avg_mean_reward": 0.9932766833102196,
+              "avg_uncertainty": 0.025418003190094067
+            },
+            "after": {
+              "sample_count": 399,
+              "avg_rank": 3.0,
+              "top3_rate": 1.0,
+              "avg_score": 0.44814714430866387,
+              "avg_mean_reward": 0.44814714430866387,
+              "avg_uncertainty": 0.01833478018249336
+            },
+            "avg_rank_delta": -0.4962406015037595,
+            "avg_score_delta": -0.5451295390015557
+          },
+          "same_scenario_outside_neighbors": {
+            "before": {
+              "sample_count": 399,
+              "avg_rank": 2.5037593984962405,
+              "top3_rate": 1.0,
+              "avg_score": 0.9932766833102196,
+              "avg_mean_reward": 0.9932766833102196,
+              "avg_uncertainty": 0.025418003190094067
+            },
+            "after": {
+              "sample_count": 399,
+              "avg_rank": 3.0,
+              "top3_rate": 1.0,
+              "avg_score": 0.44814714430866387,
+              "avg_mean_reward": 0.44814714430866387,
+              "avg_uncertainty": 0.01833478018249336
+            },
+            "avg_rank_delta": -0.4962406015037595,
+            "avg_score_delta": -0.5451295390015557
+          },
+          "neighbors": {
+            "before": {
+              "sample_count": 1600,
+              "avg_rank": 2.470625,
+              "top3_rate": 1.0,
+              "avg_score": 0.993721815943718,
+              "avg_mean_reward": 0.993721815943718,
+              "avg_uncertainty": 0.025390285266330467
+            },
+            "after": {
+              "sample_count": 1600,
+              "avg_rank": 3.0,
+              "top3_rate": 1.0,
+              "avg_score": 0.4483479025959969,
+              "avg_mean_reward": 0.4483479025959969,
+              "avg_uncertainty": 0.018290948334615677
+            },
+            "avg_rank_delta": -0.5293749999999999,
+            "avg_score_delta": -0.5453739133477211
+          },
+          "cross_scenario": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 29.572,
+              "top3_rate": 0.0,
+              "avg_score": 0.00023015682958066463,
+              "avg_mean_reward": 0.00023015682958066463,
+              "avg_uncertainty": 0.014795998171670363
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 30.3145,
+              "top3_rate": 0.0,
+              "avg_score": 0.00010616976860910654,
+              "avg_mean_reward": 0.00010616976860910654,
+              "avg_uncertainty": 0.014790441557532176
+            },
+            "avg_rank_delta": -0.7424999999999997,
+            "avg_score_delta": -0.0001239870609715581
+          }
+        },
+        {
+          "feedback_id": "cafe_stay_like_rank3",
+          "scenario_id": "CAFE_STAY",
+          "feedback_type": "like",
+          "target_action_id": "O_SHOW_PAYMENT_QR",
+          "reward": 2.0,
+          "requested_n": 2000,
+          "effective_n": 2000,
+          "anchor": {
+            "before": {
+              "rank": 3,
+              "score": 1.0789766311645508,
+              "mean_reward": 1.0789766311645508,
+              "uncertainty": 0.018328597769141197,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "R_ENJOY_LEISURE_MOMENT",
+                "O_SHOW_PAYMENT_QR"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_SCHEDULE",
+                "R_ENJOY_LEISURE_MOMENT",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_NEARBY_OPTIONS",
+                "R_MEAL_BREAK"
+              ],
+              "previous_action_id": "R_ENJOY_LEISURE_MOMENT",
+              "next_action_id": "O_SHOW_NEARBY_OPTIONS",
+              "margin_to_previous": -0.02239859104156494,
+              "margin_to_next": 0.895354613661766
+            },
+            "after": {
+              "rank": 1,
+              "score": 1.4444196224212646,
+              "mean_reward": 1.4444196224212646,
+              "uncertainty": 0.014289897866547108,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_SCHEDULE",
+                "R_ENJOY_LEISURE_MOMENT"
+              ],
+              "top5_action_ids": [
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_SCHEDULE",
+                "R_ENJOY_LEISURE_MOMENT",
+                "O_SHOW_NEARBY_OPTIONS",
+                "R_MEAL_BREAK"
+              ],
+              "previous_action_id": null,
+              "next_action_id": "O_SHOW_SCHEDULE",
+              "margin_to_previous": NaN,
+              "margin_to_next": 0.31070268154144287
+            },
+            "rank_delta": 2,
+            "score_delta": 0.36544299125671387
+          },
+          "same_scenario": {
+            "before": {
+              "sample_count": 921,
+              "avg_rank": 2.9109663409337676,
+              "top3_rate": 0.8447339847991314,
+              "avg_score": 0.951566306212826,
+              "avg_mean_reward": 0.951566306212826,
+              "avg_uncertainty": 0.018762907630133965
+            },
+            "after": {
+              "sample_count": 921,
+              "avg_rank": 1.5656894679695983,
+              "top3_rate": 0.8447339847991314,
+              "avg_score": 1.2595373053795351,
+              "avg_mean_reward": 1.2595373053795351,
+              "avg_uncertainty": 0.015463618458482264
+            },
+            "avg_rank_delta": 1.3452768729641693,
+            "avg_score_delta": 0.3079709991667091
+          },
+          "same_scenario_outside_neighbors": {
+            "before": {
+              "sample_count": 921,
+              "avg_rank": 2.9109663409337676,
+              "top3_rate": 0.8447339847991314,
+              "avg_score": 0.951566306212826,
+              "avg_mean_reward": 0.951566306212826,
+              "avg_uncertainty": 0.018762907630133965
+            },
+            "after": {
+              "sample_count": 921,
+              "avg_rank": 1.5656894679695983,
+              "top3_rate": 0.8447339847991314,
+              "avg_score": 1.2595373053795351,
+              "avg_mean_reward": 1.2595373053795351,
+              "avg_uncertainty": 0.015463618458482264
+            },
+            "avg_rank_delta": 1.3452768729641693,
+            "avg_score_delta": 0.3079709991667091
+          },
+          "neighbors": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 2.629,
+              "top3_rate": 1.0,
+              "avg_score": 1.0823116679787637,
+              "avg_mean_reward": 1.0823116679787637,
+              "avg_uncertainty": 0.018445648198015988
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 1.0,
+              "top3_rate": 1.0,
+              "avg_score": 1.4469406611323357,
+              "avg_mean_reward": 1.4469406611323357,
+              "avg_uncertainty": 0.014457560698036104
+            },
+            "avg_rank_delta": 1.629,
+            "avg_score_delta": 0.364628993153572
+          },
+          "cross_scenario": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 34.005,
+              "top3_rate": 0.194,
+              "avg_score": 0.14462982244789602,
+              "avg_mean_reward": 0.14462982244789602,
+              "avg_uncertainty": 0.014809602599823847
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 33.8255,
+              "top3_rate": 0.1945,
+              "avg_score": 0.1460729781333357,
+              "avg_mean_reward": 0.1460729781333357,
+              "avg_uncertainty": 0.014804445380577817
+            },
+            "avg_rank_delta": 0.17950000000000443,
+            "avg_score_delta": 0.0014431556854396788
+          }
+        },
+        {
+          "feedback_id": "office_to_cafe_dislike_rank3",
+          "scenario_id": "OFFICE_TO_CAFE",
+          "feedback_type": "dislike",
+          "target_action_id": "O_SHOW_NEARBY_OPTIONS",
+          "reward": -10.0,
+          "requested_n": 2000,
+          "effective_n": 2000,
+          "anchor": {
+            "before": {
+              "rank": 3,
+              "score": 1.1092655658721924,
+              "mean_reward": 1.1092655658721924,
+              "uncertainty": 0.007428682874888182,
+              "default_bonus": 0.0,
+              "in_top3": true,
+              "top3_action_ids": [
+                "R_ENJOY_LEISURE_MOMENT",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_NEARBY_OPTIONS"
+              ],
+              "top5_action_ids": [
+                "R_ENJOY_LEISURE_MOMENT",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_NEARBY_OPTIONS",
+                "O_SHOW_WEATHER",
+                "O_SHOW_BOOKING_DETAILS"
+              ],
+              "previous_action_id": "O_SHOW_PAYMENT_QR",
+              "next_action_id": "O_SHOW_WEATHER",
+              "margin_to_previous": -0.01463174819946289,
+              "margin_to_next": 0.9790392518043518
+            },
+            "after": {
+              "rank": 8,
+              "score": 0.062294960021972656,
+              "mean_reward": 0.062294960021972656,
+              "uncertainty": 0.007091555278748274,
+              "default_bonus": 0.0,
+              "in_top3": false,
+              "top3_action_ids": [
+                "R_ENJOY_LEISURE_MOMENT",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_WEATHER"
+              ],
+              "top5_action_ids": [
+                "R_ENJOY_LEISURE_MOMENT",
+                "O_SHOW_PAYMENT_QR",
+                "O_SHOW_WEATHER",
+                "O_SHOW_BOOKING_DETAILS",
+                "R_MEAL_BREAK"
+              ],
+              "previous_action_id": "O_SHOW_TODAY_TODO",
+              "next_action_id": "R_PLAN_DAY_OVER_COFFEE",
+              "margin_to_previous": -0.0005519390106201172,
+              "margin_to_next": 0.03161925449967384
+            },
+            "rank_delta": -5,
+            "score_delta": -1.0469706058502197
+          },
+          "same_scenario": {
+            "before": {
+              "sample_count": 1842,
+              "avg_rank": 2.45656894679696,
+              "top3_rate": 1.0,
+              "avg_score": 1.1254191887236316,
+              "avg_mean_reward": 1.1254191887236316,
+              "avg_uncertainty": 0.007689006197853792
+            },
+            "after": {
+              "sample_count": 1842,
+              "avg_rank": 5.082519001085776,
+              "top3_rate": 0.3735070575461455,
+              "avg_score": 0.11573505611942593,
+              "avg_mean_reward": 0.11573505611942593,
+              "avg_uncertainty": 0.007379475731987114
+            },
+            "avg_rank_delta": -2.6259500542888166,
+            "avg_score_delta": -1.0096841326042056
+          },
+          "same_scenario_outside_neighbors": {
+            "before": {
+              "sample_count": 1842,
+              "avg_rank": 2.45656894679696,
+              "top3_rate": 1.0,
+              "avg_score": 1.1254191887236316,
+              "avg_mean_reward": 1.1254191887236316,
+              "avg_uncertainty": 0.007689006197853792
+            },
+            "after": {
+              "sample_count": 1842,
+              "avg_rank": 5.082519001085776,
+              "top3_rate": 0.3735070575461455,
+              "avg_score": 0.11573505611942593,
+              "avg_mean_reward": 0.11573505611942593,
+              "avg_uncertainty": 0.007379475731987114
+            },
+            "avg_rank_delta": -2.6259500542888166,
+            "avg_score_delta": -1.0096841326042056
+          },
+          "neighbors": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 2.5315,
+              "top3_rate": 1.0,
+              "avg_score": 1.1244584945440292,
+              "avg_mean_reward": 1.1244584945440292,
+              "avg_uncertainty": 0.007496340042445809
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 5.9365,
+              "top3_rate": 0.1055,
+              "avg_score": 0.09349811209738254,
+              "avg_mean_reward": 0.09349811209738254,
+              "avg_uncertainty": 0.007171557625290007
+            },
+            "avg_rank_delta": -3.405,
+            "avg_score_delta": -1.0309603824466467
+          },
+          "cross_scenario": {
+            "before": {
+              "sample_count": 2000,
+              "avg_rank": 21.8745,
+              "top3_rate": 0.137,
+              "avg_score": 0.1419672410902567,
+              "avg_mean_reward": 0.1419672410902567,
+              "avg_uncertainty": 0.015300679044798017
+            },
+            "after": {
+              "sample_count": 2000,
+              "avg_rank": 26.3795,
+              "top3_rate": 0.0955,
+              "avg_score": 0.04999674232210964,
+              "avg_mean_reward": 0.04999674232210964,
+              "avg_uncertainty": 0.015216040345840155
+            },
+            "avg_rank_delta": -4.504999999999999,
+            "avg_score_delta": -0.09197049876814707
+          }
+        }
+      ],
+      "aggregate": {
+        "avg_anchor_rank_delta": -0.8333333333333334,
+        "avg_anchor_score_delta": -0.21410763263702393,
+        "avg_neighbor_rank_delta": -0.4612299402184635,
+        "avg_neighbor_score_delta": -0.21008844780172006,
+        "avg_same_scenario_rank_delta": -0.3737068352171083,
+        "avg_same_scenario_score_delta": -0.2576120984724409,
+        "avg_same_scenario_outside_neighbors_rank_delta": -0.3737068352171083,
+        "avg_same_scenario_outside_neighbors_score_delta": -0.2576120984724409,
+        "avg_cross_scenario_rank_delta": -1.5937499999999991,
+        "avg_cross_scenario_score_delta": -0.03300527515464152
+      },
+      "selected_scenarios_quality_before": {
+        "sample_count": 9191,
+        "avg_most_relevant_covered_in_topk": 2.9518006745729517,
+        "avg_acceptable_covered_in_topk": 2.9724730714829724,
+        "avg_irrelevant_in_topk": 0.0,
+        "top10_predicted_action_distribution_top3": [
+          {
+            "action_id": "O_SHOW_SCHEDULE",
+            "count": 6546,
+            "topk_appearance_rate": 0.7122184745947122,
+            "slot_share": 0.2374061581982374
+          },
+          {
+            "action_id": "O_SHOW_TODAY_TODO",
+            "count": 5624,
+            "topk_appearance_rate": 0.6119029485366119,
+            "slot_share": 0.20396764951220397
+          },
+          {
+            "action_id": "R_PLAN_DAY_OVER_COFFEE",
+            "count": 5137,
+            "topk_appearance_rate": 0.5589163311935589,
+            "slot_share": 0.1863054437311863
+          },
+          {
+            "action_id": "O_SHOW_PAYMENT_QR",
+            "count": 3022,
+            "topk_appearance_rate": 0.3287999129583288,
+            "slot_share": 0.1095999709861096
+          },
+          {
+            "action_id": "R_ENJOY_LEISURE_MOMENT",
+            "count": 2622,
+            "topk_appearance_rate": 0.2852790773582853,
+            "slot_share": 0.09509302578609509
+          },
+          {
+            "action_id": "O_SHOW_NEARBY_OPTIONS",
+            "count": 2243,
+            "topk_appearance_rate": 0.24404308562724406,
+            "slot_share": 0.08134769520908135
+          },
+          {
+            "action_id": "O_SHOW_COMMUTE_TRAFFIC",
+            "count": 400,
+            "topk_appearance_rate": 0.04352083560004352,
+            "slot_share": 0.014506945200014507
+          },
+          {
+            "action_id": "O_SHOW_WEATHER",
+            "count": 400,
+            "topk_appearance_rate": 0.04352083560004352,
+            "slot_share": 0.014506945200014507
+          },
+          {
+            "action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+            "count": 400,
+            "topk_appearance_rate": 0.04352083560004352,
+            "slot_share": 0.014506945200014507
+          },
+          {
+            "action_id": "R_MEAL_BREAK",
+            "count": 400,
+            "topk_appearance_rate": 0.04352083560004352,
+            "slot_share": 0.014506945200014507
+          }
+        ]
+      },
+      "selected_scenarios_quality_after": {
+        "sample_count": 9191,
+        "avg_most_relevant_covered_in_topk": 2.8261342617778262,
+        "avg_acceptable_covered_in_topk": 2.972037863126972,
+        "avg_irrelevant_in_topk": 0.0,
+        "top10_predicted_action_distribution_top3": [
+          {
+            "action_id": "O_SHOW_SCHEDULE",
+            "count": 6550,
+            "topk_appearance_rate": 0.7126536829507126,
+            "slot_share": 0.23755122765023756
+          },
+          {
+            "action_id": "O_SHOW_TODAY_TODO",
+            "count": 5624,
+            "topk_appearance_rate": 0.6119029485366119,
+            "slot_share": 0.20396764951220397
+          },
+          {
+            "action_id": "R_PLAN_DAY_OVER_COFFEE",
+            "count": 5137,
+            "topk_appearance_rate": 0.5589163311935589,
+            "slot_share": 0.1863054437311863
+          },
+          {
+            "action_id": "O_SHOW_PAYMENT_QR",
+            "count": 3022,
+            "topk_appearance_rate": 0.3287999129583288,
+            "slot_share": 0.1095999709861096
+          },
+          {
+            "action_id": "R_ENJOY_LEISURE_MOMENT",
+            "count": 2622,
+            "topk_appearance_rate": 0.2852790773582853,
+            "slot_share": 0.09509302578609509
+          },
+          {
+            "action_id": "O_SHOW_NEARBY_OPTIONS",
+            "count": 1088,
+            "topk_appearance_rate": 0.11837667283211838,
+            "slot_share": 0.03945889094403946
+          },
+          {
+            "action_id": "O_SHOW_WEATHER",
+            "count": 952,
+            "topk_appearance_rate": 0.10357958872810358,
+            "slot_share": 0.034526529576034526
+          },
+          {
+            "action_id": "R_MEAL_BREAK",
+            "count": 753,
+            "topk_appearance_rate": 0.08192797301708193,
+            "slot_share": 0.02730932433902731
+          },
+          {
+            "action_id": "O_SHOW_COMMUTE_TRAFFIC",
+            "count": 400,
+            "topk_appearance_rate": 0.04352083560004352,
+            "slot_share": 0.014506945200014507
+          },
+          {
+            "action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
+            "count": 400,
+            "topk_appearance_rate": 0.04352083560004352,
+            "slot_share": 0.014506945200014507
+          }
+        ]
+      }
+    }
+  ]
+}

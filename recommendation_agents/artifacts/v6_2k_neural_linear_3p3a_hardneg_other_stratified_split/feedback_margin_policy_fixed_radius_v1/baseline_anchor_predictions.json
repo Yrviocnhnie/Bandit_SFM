@@ -143,6 +143,78 @@
           "uncertainty": 0.025463085621595383
         }
       ]
+    },
+    {
+      "scenario_id": "CAFE_STAY",
+      "anchor_episode_id": "cafe_stay_u000004",
+      "top5": [
+        {
+          "action_id": "O_SHOW_SCHEDULE",
+          "score": 1.125586986541748,
+          "mean_reward": 1.125586986541748,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "R_ENJOY_LEISURE_MOMENT",
+          "score": 1.1013625860214233,
+          "mean_reward": 1.1013625860214233,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 1.0789692401885986,
+          "mean_reward": 1.0789692401885986,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 0.1836315095424652,
+          "mean_reward": 0.1836315095424652,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "R_MEAL_BREAK",
+          "score": 0.11851923167705536,
+          "mean_reward": 0.11851923167705536,
+          "uncertainty": 0.018328599631786346
+        }
+      ]
+    },
+    {
+      "scenario_id": "OFFICE_TO_CAFE",
+      "anchor_episode_id": "office_to_cafe_u000003",
+      "top5": [
+        {
+          "action_id": "R_ENJOY_LEISURE_MOMENT",
+          "score": 1.136215090751648,
+          "mean_reward": 1.136215090751648,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 1.1238950490951538,
+          "mean_reward": 1.1238950490951538,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 1.109258770942688,
+          "mean_reward": 1.109258770942688,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_WEATHER",
+          "score": 0.1302260011434555,
+          "mean_reward": 0.1302260011434555,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_BOOKING_DETAILS",
+          "score": 0.11493778973817825,
+          "mean_reward": 0.11493778973817825,
+          "uncertainty": 0.007428671699017286
+        }
+      ]
     }
   ]
 }

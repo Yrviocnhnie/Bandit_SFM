@@ -1,11 +1,16 @@
 {
   "feedback_items": [
     {
+      "feedback_id": "arrive_office_like_rank1",
       "scenario_id": "ARRIVE_OFFICE",
       "feedback_type": "like",
       "target_position": 1,
       "target_action_id": "O_SHOW_SCHEDULE",
-      "reward": 1.0,
+      "reward": 2.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.0,
+      "margin_policy_bin": "boundary",
+      "margin_policy_reason": "like rank1: conservative score/margin nudge",
       "anchor_episode_id": "arrive_office_u000002",
       "anchor_context": {
         "state_current": "office_arriving",
@@ -81,11 +86,16 @@
       ]
     },
     {
+      "feedback_id": "office_lunch_out_dislike_rank1",
       "scenario_id": "OFFICE_LUNCH_OUT",
       "feedback_type": "dislike",
       "target_position": 1,
       "target_action_id": "O_SHOW_NEARBY_OPTIONS",
-      "reward": -1.0,
+      "reward": -0.1,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.02108865976333618,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small down-gap: break tie / light personalization",
       "anchor_episode_id": "office_lunch_out_a000002",
       "anchor_context": {
         "state_current": "outdoor_walking",
@@ -161,11 +171,16 @@
       ]
     },
     {
+      "feedback_id": "office_working_like_rank2",
       "scenario_id": "OFFICE_WORKING",
       "feedback_type": "like",
       "target_position": 2,
       "target_action_id": "O_SHOW_SCHEDULE",
-      "reward": 1.0,
+      "reward": 2.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.0006161928176879883,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small up-gap: break tie / light personalization",
       "anchor_episode_id": "office_afternoon_u000008",
       "anchor_context": {
         "state_current": "office_working",
@@ -241,11 +256,16 @@
       ]
     },
     {
+      "feedback_id": "leave_office_dislike_rank2",
       "scenario_id": "LEAVE_OFFICE",
       "feedback_type": "dislike",
       "target_position": 2,
       "target_action_id": "R_CLOCK_OUT_BEFORE_LEAVING",
-      "reward": -1.0,
+      "reward": -0.1,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.007906138896942139,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small down-gap: break tie / light personalization",
       "anchor_episode_id": "leave_office_a000009",
       "anchor_context": {
         "state_current": "commuting_walk_home",
@@ -318,6 +338,176 @@
         "O_SHOW_WEATHER",
         "R_CLOCK_OUT_BEFORE_LEAVING",
         "O_SHOW_COMMUTE_TRAFFIC"
+      ]
+    },
+    {
+      "feedback_id": "cafe_stay_like_rank3",
+      "scenario_id": "CAFE_STAY",
+      "feedback_type": "like",
+      "target_position": 3,
+      "target_action_id": "O_SHOW_PAYMENT_QR",
+      "reward": 2.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.022393345832824707,
+      "margin_policy_bin": "small",
+      "margin_policy_reason": "small up-gap: break tie / light personalization",
+      "anchor_episode_id": "cafe_stay_u000004",
+      "anchor_context": {
+        "state_current": "at_cafe",
+        "precondition": "at_cafe",
+        "state_duration_sec": 4423,
+        "ps_time": "afternoon",
+        "hour": 16,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "holiday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "quiet",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 58265,
+        "ps_location": "cafe",
+        "ps_phone": "face_up",
+        "batteryLevel": 92,
+        "isCharging": 0,
+        "networkType": "wifi",
+        "activityState": "active",
+        "activityDuration": 5272,
+        "user_id_hash_bucket": "b02",
+        "age_bucket": "55_64",
+        "sex": "male",
+        "has_kids": 1
+      },
+      "anchor_top5": [
+        {
+          "action_id": "O_SHOW_SCHEDULE",
+          "score": 1.125586986541748,
+          "mean_reward": 1.125586986541748,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "R_ENJOY_LEISURE_MOMENT",
+          "score": 1.1013625860214233,
+          "mean_reward": 1.1013625860214233,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 1.0789692401885986,
+          "mean_reward": 1.0789692401885986,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 0.1836315095424652,
+          "mean_reward": 0.1836315095424652,
+          "uncertainty": 0.018328599631786346
+        },
+        {
+          "action_id": "R_MEAL_BREAK",
+          "score": 0.11851923167705536,
+          "mean_reward": 0.11851923167705536,
+          "uncertainty": 0.018328599631786346
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "O_SHOW_SCHEDULE",
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_PAYMENT_QR"
+      ]
+    },
+    {
+      "feedback_id": "office_to_cafe_dislike_rank3",
+      "scenario_id": "OFFICE_TO_CAFE",
+      "feedback_type": "dislike",
+      "target_position": 3,
+      "target_action_id": "O_SHOW_NEARBY_OPTIONS",
+      "reward": -10.0,
+      "reward_policy": "margin-aware-fixed-radius-v1",
+      "margin_gap": 0.9790327697992325,
+      "margin_policy_bin": "large",
+      "margin_policy_reason": "large down-gap: strong personalization override",
+      "anchor_episode_id": "office_to_cafe_u000003",
+      "anchor_context": {
+        "state_current": "at_cafe",
+        "precondition": "office_working",
+        "state_duration_sec": 4350,
+        "ps_time": "afternoon",
+        "hour": 15,
+        "cal_hasUpcoming": 0,
+        "ps_dayType": "holiday",
+        "ps_motion": "walking",
+        "wifiLost": 0,
+        "wifiLostCategory": "unknown",
+        "cal_eventCount": 0,
+        "cal_inMeeting": 0,
+        "cal_nextLocation": "unknown",
+        "ps_sound": "quiet",
+        "sms_delivery_pending": 0,
+        "sms_train_pending": 0,
+        "sms_flight_pending": 0,
+        "sms_hotel_pending": 0,
+        "sms_movie_pending": 0,
+        "sms_hospital_pending": 0,
+        "sms_ride_pending": 0,
+        "timestep": 55190,
+        "ps_location": "cafe",
+        "ps_phone": "face_up",
+        "batteryLevel": 84,
+        "isCharging": 0,
+        "networkType": "cellular",
+        "activityState": "active",
+        "activityDuration": 2904,
+        "user_id_hash_bucket": "b23",
+        "age_bucket": "35_44",
+        "sex": "male",
+        "has_kids": 0
+      },
+      "anchor_top5": [
+        {
+          "action_id": "R_ENJOY_LEISURE_MOMENT",
+          "score": 1.136215090751648,
+          "mean_reward": 1.136215090751648,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_PAYMENT_QR",
+          "score": 1.1238950490951538,
+          "mean_reward": 1.1238950490951538,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_NEARBY_OPTIONS",
+          "score": 1.109258770942688,
+          "mean_reward": 1.109258770942688,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_WEATHER",
+          "score": 0.1302260011434555,
+          "mean_reward": 0.1302260011434555,
+          "uncertainty": 0.007428671699017286
+        },
+        {
+          "action_id": "O_SHOW_BOOKING_DETAILS",
+          "score": 0.11493778973817825,
+          "mean_reward": 0.11493778973817825,
+          "uncertainty": 0.007428671699017286
+        }
+      ],
+      "baseline_top3_action_ids": [
+        "R_ENJOY_LEISURE_MOMENT",
+        "O_SHOW_PAYMENT_QR",
+        "O_SHOW_NEARBY_OPTIONS"
       ]
     }
   ]

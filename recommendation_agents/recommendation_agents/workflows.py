@@ -129,6 +129,7 @@ class FeedbackPropagationExperimentSummary:
     relevance_markdown: str
     device: str
     n_values: list[int]
+    similarity_thresholds: list[float]
     feedback_items: list[dict[str, Any]]
     conditions: list[dict[str, Any]]
 
@@ -198,11 +199,34 @@ def _copy_file(src: str | Path, dst: str | Path) -> None:
     shutil.copyfile(src, dst)
 
 
+def _stable_json_hash(payload: Any) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha1(encoded).hexdigest()[:16]
+
+
+def _path_signature(path: str | Path) -> dict[str, Any]:
+    resolved = Path(path).resolve()
+    stat = resolved.stat()
+    return {
+        "path": str(resolved),
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
 _FEEDBACK_PROPAGATION_SCENARIOS = (
     ("ARRIVE_OFFICE", "like", 1),
     ("OFFICE_LUNCH_OUT", "dislike", 1),
     ("OFFICE_WORKING", "like", 2),
     ("LEAVE_OFFICE", "dislike", 2),
+)
+
+_FEEDBACK_PROPAGATION_MODES = (
+    "single",
+    "global-latent-nearest",
+    "same-scenario-nearest",
+    "entire-scenario-all",
+    "hard-assigned-local-cutoff",
 )
 
 
@@ -247,13 +271,151 @@ def _sorted_neighbor_indices(
     return order[:top_n]
 
 
+def _build_feedback_eval_backend(
+    model: Any,
+    metadata: BanditMetadata,
+    rows: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not rows:
+        return None
+    sample_latent = next((row.get("latent") for row in rows if isinstance(row, dict) and "latent" in row), None)
+    if sample_latent is None:
+        return None
+    if not hasattr(model, "a_inv") or not hasattr(model, "b") or not hasattr(model, "action_to_index"):
+        return None
+
+    latent_dim = int(sample_latent.shape[0])
+    ucb_feature_dim = getattr(model, "ucb_feature_dim", None)
+    model_latent_dim = getattr(model, "latent_dim", latent_dim)
+    if ucb_feature_dim == latent_dim + 1:
+        augment_bias = True
+        feature_dim = latent_dim + 1
+    elif int(model_latent_dim) == latent_dim:
+        augment_bias = False
+        feature_dim = latent_dim
+    else:
+        return None
+
+    a_inv = model.a_inv.detach().cpu().numpy().astype(np.float32, copy=False)
+    b = model.b.detach().cpu().numpy().astype(np.float32, copy=False)
+    if a_inv.ndim != 3 or b.ndim != 2 or a_inv.shape[0] != b.shape[0] or a_inv.shape[1] != feature_dim:
+        return None
+
+    scenario_cache: dict[str, dict[str, Any]] = {}
+    for scenario_id in sorted({str(row["scenario_id"]) for row in rows if row.get("scenario_id") is not None}):
+        candidate_action_ids = list(metadata.candidate_action_ids(scenario_id))
+        candidate_indices = np.asarray(
+            [model.action_to_index[action_id] for action_id in candidate_action_ids],
+            dtype=np.int32,
+        )
+        default_bonus = np.zeros((len(candidate_action_ids),), dtype=np.float32)
+        default_action_id = metadata.default_action_id(scenario_id)
+        if default_action_id is not None:
+            for position, action_id in enumerate(candidate_action_ids):
+                if action_id == default_action_id:
+                    default_bonus[position] = float(getattr(model, "default_bonus", 0.0))
+                    break
+        scenario_cache[scenario_id] = {
+            "candidate_action_ids": candidate_action_ids,
+            "candidate_indices": candidate_indices,
+            "default_bonus": default_bonus,
+            "action_position": {action_id: position for position, action_id in enumerate(candidate_action_ids)},
+        }
+
+    return {
+        "a_inv": a_inv,
+        "b": b,
+        "alpha": float(getattr(model, "alpha", 0.0)),
+        "augment_bias": augment_bias,
+        "scenario_cache": scenario_cache,
+    }
+
+
+def _feedback_eval_feature(row: dict[str, Any], eval_backend: dict[str, Any]) -> np.ndarray:
+    latent = np.asarray(row["latent"], dtype=np.float32)
+    if not eval_backend["augment_bias"]:
+        return latent
+    feature = np.empty((latent.shape[0] + 1,), dtype=np.float32)
+    feature[:-1] = latent
+    feature[-1] = 1.0
+    return feature
+
+
+def _fast_rank_action_details(
+    eval_backend: dict[str, Any],
+    row: dict[str, Any],
+    target_action_id: str,
+) -> dict[str, Any]:
+    scenario_id = str(row["scenario_id"])
+    scenario_info = eval_backend["scenario_cache"][scenario_id]
+    action_position = scenario_info["action_position"]
+    if target_action_id not in action_position:
+        raise KeyError(f"Action {target_action_id!r} is not available for scenario {scenario_id!r}")
+
+    candidate_indices = scenario_info["candidate_indices"]
+    feature = _feedback_eval_feature(row, eval_backend)
+    a_inv = eval_backend["a_inv"][candidate_indices]
+    b = eval_backend["b"][candidate_indices]
+    theta = np.einsum("aij,aj->ai", a_inv, b)
+    mean_rewards = theta @ feature
+    a_inv_feature = np.einsum("aij,j->ai", a_inv, feature)
+    uncertainties = np.sqrt(np.maximum(np.einsum("ai,i->a", a_inv_feature, feature), 0.0))
+    scores = mean_rewards + (eval_backend["alpha"] * uncertainties) + scenario_info["default_bonus"]
+
+    target_position = action_position[target_action_id]
+    target_score = float(scores[target_position])
+    ties_before_target = int(
+        np.sum(
+            np.isclose(scores[:target_position], target_score, rtol=1e-6, atol=1e-8)
+        )
+    )
+    rank = int(np.sum(scores > target_score)) + ties_before_target + 1
+    order = np.argsort(-scores, kind="stable")
+    candidate_action_ids = scenario_info["candidate_action_ids"]
+    ordered_action_ids = [candidate_action_ids[int(index)] for index in order]
+    ordered_scores = [float(scores[int(index)]) for index in order]
+    ordered_position = next(index for index, action_index in enumerate(order) if int(action_index) == target_position)
+    previous_action_id = ordered_action_ids[ordered_position - 1] if ordered_position > 0 else None
+    next_action_id = ordered_action_ids[ordered_position + 1] if ordered_position + 1 < len(ordered_action_ids) else None
+    margin_to_previous = (
+        target_score - ordered_scores[ordered_position - 1]
+        if ordered_position > 0
+        else math.nan
+    )
+    margin_to_next = (
+        target_score - ordered_scores[ordered_position + 1]
+        if ordered_position + 1 < len(ordered_scores)
+        else math.nan
+    )
+    top3_action_ids = [candidate_action_ids[int(index)] for index in order[:3]]
+    top5_action_ids = [candidate_action_ids[int(index)] for index in order[:5]]
+    return {
+        "rank": rank,
+        "score": target_score,
+        "mean_reward": float(mean_rewards[target_position]),
+        "uncertainty": float(uncertainties[target_position]),
+        "default_bonus": float(scenario_info["default_bonus"][target_position]),
+        "in_top3": rank <= 3,
+        "top3_action_ids": top3_action_ids,
+        "top5_action_ids": top5_action_ids,
+        "previous_action_id": previous_action_id,
+        "next_action_id": next_action_id,
+        "margin_to_previous": float(margin_to_previous) if not math.isnan(margin_to_previous) else math.nan,
+        "margin_to_next": float(margin_to_next) if not math.isnan(margin_to_next) else math.nan,
+    }
+
+
 def _rank_action_details(
     model: Any,
     x: np.ndarray,
     metadata: BanditMetadata,
     scenario_id: str,
     action_id: str,
+    row: dict[str, Any] | None = None,
+    eval_backend: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if row is not None and eval_backend is not None:
+        return _fast_rank_action_details(eval_backend, row, action_id)
     ranked = model.rank(
         x,
         metadata.candidate_action_ids(scenario_id),
@@ -262,6 +424,8 @@ def _rank_action_details(
     )
     for position, item in enumerate(ranked, start=1):
         if item.action_id == action_id:
+            previous_item = ranked[position - 2] if position > 1 else None
+            next_item = ranked[position] if position < len(ranked) else None
             return {
                 "rank": position,
                 "score": item.score,
@@ -271,6 +435,10 @@ def _rank_action_details(
                 "in_top3": position <= 3,
                 "top3_action_ids": [ranked_item.action_id for ranked_item in ranked[:3]],
                 "top5_action_ids": [ranked_item.action_id for ranked_item in ranked[:5]],
+                "previous_action_id": previous_item.action_id if previous_item is not None else None,
+                "next_action_id": next_item.action_id if next_item is not None else None,
+                "margin_to_previous": item.score - previous_item.score if previous_item is not None else math.nan,
+                "margin_to_next": item.score - next_item.score if next_item is not None else math.nan,
             }
     raise KeyError(f"Action {action_id!r} was not returned by model.rank for scenario {scenario_id!r}")
 
@@ -280,6 +448,7 @@ def _evaluate_target_action_on_rows(
     rows: list[dict[str, Any]],
     metadata: BanditMetadata,
     target_action_id: str,
+    eval_backend: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not rows:
         return {
@@ -298,7 +467,15 @@ def _evaluate_target_action_on_rows(
     uncertainty_sum = 0.0
 
     for row in rows:
-        details = _rank_action_details(model, row["x"], metadata, row["scenario_id"], target_action_id)
+        details = _rank_action_details(
+            model,
+            row["x"],
+            metadata,
+            row["scenario_id"],
+            target_action_id,
+            row=row,
+            eval_backend=eval_backend,
+        )
         rank_sum += details["rank"]
         top3_hits += 1 if details["in_top3"] else 0
         score_sum += details["score"]
@@ -322,6 +499,7 @@ def _evaluate_ro_quality_on_rows(
     metadata: BanditMetadata,
     relevance_catalog: dict[str, Any],
     top_k: int = 3,
+    eval_backend: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not rows:
         return {
@@ -347,13 +525,30 @@ def _evaluate_ro_quality_on_rows(
             most_relevant_ids = tuple(getattr(rel, "most_relevant", ()))
             plausible_ids = tuple(getattr(rel, "plausible", ()))
             irrelevant_ids = tuple(getattr(rel, "irrelevant", ())) + tuple(getattr(rel, "extra_hard_negative", ()))
-        ranked = model.rank(
-            row["x"],
-            metadata.candidate_action_ids(scenario_id),
-            metadata.default_action_id(scenario_id),
-            top_k=top_k,
-        )
-        predicted = tuple(item.action_id for item in ranked)
+        if eval_backend is not None:
+            scenario_info = eval_backend["scenario_cache"][scenario_id]
+            feature = _feedback_eval_feature(row, eval_backend)
+            candidate_indices = scenario_info["candidate_indices"]
+            a_inv = eval_backend["a_inv"][candidate_indices]
+            b = eval_backend["b"][candidate_indices]
+            theta = np.einsum("aij,aj->ai", a_inv, b)
+            mean_rewards = theta @ feature
+            a_inv_feature = np.einsum("aij,j->ai", a_inv, feature)
+            uncertainties = np.sqrt(np.maximum(np.einsum("ai,i->a", a_inv_feature, feature), 0.0))
+            scores = mean_rewards + (eval_backend["alpha"] * uncertainties) + scenario_info["default_bonus"]
+            order = np.argsort(-scores, kind="stable")
+            predicted = tuple(
+                scenario_info["candidate_action_ids"][int(index)]
+                for index in order[:top_k]
+            )
+        else:
+            ranked = model.rank(
+                row["x"],
+                metadata.candidate_action_ids(scenario_id),
+                metadata.default_action_id(scenario_id),
+                top_k=top_k,
+            )
+            predicted = tuple(item.action_id for item in ranked)
         predicted_counts.update(predicted)
         most_relevant = {metadata.resolve_action_token(action_id, scenario_id) for action_id in most_relevant_ids}
         plausible = {metadata.resolve_action_token(action_id, scenario_id) for action_id in plausible_ids}
@@ -379,6 +574,7 @@ def _render_feedback_propagation_markdown(summary: FeedbackPropagationExperiment
         f"- artifact_dir: `{summary.artifact_dir}`",
         f"- device: `{summary.device}`",
         f"- n_values: `{','.join(str(value) for value in summary.n_values)}`",
+        f"- similarity_thresholds: `{','.join(f'{value:.3f}' for value in summary.similarity_thresholds)}`",
         "",
         "## Locked Feedback Items",
         "",
@@ -397,16 +593,27 @@ def _render_feedback_propagation_markdown(summary: FeedbackPropagationExperiment
             "",
             "## Condition Summary",
             "",
-            "| mode | N | avg anchor rank delta | avg same-scenario rank delta | avg cross-scenario rank delta | selected-scenario most_rel before | selected-scenario most_rel after |",
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+            "| mode | N | sim>=t | update sec | eval sec | avg anchor rank delta | avg anchor score delta | avg neighbor rank delta | avg neighbor score delta | avg same-scenario outside-neighbors rank delta | avg same-scenario outside-neighbors score delta | avg cross-scenario rank delta | avg cross-scenario score delta | selected-scenario most_rel before | selected-scenario most_rel after |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for condition in summary.conditions:
+        update_sec = condition.get("update_elapsed_seconds", math.nan)
+        eval_sec = condition.get("evaluation_elapsed_seconds", math.nan)
+        similarity_threshold = condition.get("similarity_threshold", math.nan)
         lines.append(
             f"| `{condition['mode']}` | `{condition['requested_n']}` | "
+            f"{similarity_threshold if not math.isnan(similarity_threshold) else '-'} | "
+            f"{update_sec:.1f} | "
+            f"{eval_sec:.1f} | "
             f"{condition['aggregate']['avg_anchor_rank_delta']:.3f} | "
-            f"{condition['aggregate']['avg_same_scenario_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_anchor_score_delta']:.4f} | "
+            f"{condition['aggregate']['avg_neighbor_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_neighbor_score_delta']:.4f} | "
+            f"{condition['aggregate']['avg_same_scenario_outside_neighbors_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_same_scenario_outside_neighbors_score_delta']:.4f} | "
             f"{condition['aggregate']['avg_cross_scenario_rank_delta']:.3f} | "
+            f"{condition['aggregate']['avg_cross_scenario_score_delta']:.4f} | "
             f"{condition['selected_scenarios_quality_before']['avg_most_relevant_covered_in_topk']:.3f} | "
             f"{condition['selected_scenarios_quality_after']['avg_most_relevant_covered_in_topk']:.3f} |"
         )
@@ -1403,21 +1610,79 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
     artifact_dir: str | Path,
     relevance_markdown: str | Path = "docs/scenario_recommendation_actions_v6.md",
     n_values: list[int] | None = None,
+    similarity_thresholds: list[float] | None = None,
     output_dir: str | Path | None = None,
+    feedback_specs: list[dict[str, Any]] | None = None,
+    propagation_modes: list[str] | None = None,
+    like_reward: float = 1.0,
+    dislike_reward: float = -1.0,
+    feedback_reward_policy: str = "fixed",
     device: str = "auto",
     progress_every: int = 25000,
+    cross_scenario_sample_size: int | None = 2000,
 ) -> FeedbackPropagationExperimentSummary:
+    overall_start = time.time()
     if progress_every <= 0:
         raise ValueError("progress_every must be positive")
+    if cross_scenario_sample_size is not None and cross_scenario_sample_size <= 0:
+        raise ValueError("cross_scenario_sample_size must be positive when provided")
     n_values = [1, 5, 10, 20, 50, 100] if n_values is None else sorted({int(value) for value in n_values if int(value) > 0})
     if not n_values:
         raise ValueError("n_values must contain at least one positive integer")
+    similarity_thresholds = [0.0] if similarity_thresholds is None else sorted({float(value) for value in similarity_thresholds})
+    if not similarity_thresholds:
+        raise ValueError("similarity_thresholds must contain at least one value")
+    if any(value < -1.0 or value > 1.0 for value in similarity_thresholds):
+        raise ValueError("similarity_thresholds values must be in [-1.0, 1.0]")
+    propagation_modes = (
+        ["single", "global-latent-nearest", "same-scenario-nearest", "entire-scenario-all"]
+        if propagation_modes is None
+        else list(propagation_modes)
+    )
+    invalid_modes = [mode for mode in propagation_modes if mode not in _FEEDBACK_PROPAGATION_MODES]
+    if invalid_modes:
+        raise ValueError(f"Unknown propagation mode(s): {invalid_modes}")
+    if not propagation_modes:
+        raise ValueError("propagation_modes must contain at least one mode")
+    valid_reward_policies = {"fixed", "margin-aware-fixed-radius-v1"}
+    if feedback_reward_policy not in valid_reward_policies:
+        raise ValueError(f"Unknown feedback_reward_policy {feedback_reward_policy!r}; expected one of {sorted(valid_reward_policies)}")
+    if feedback_specs is None:
+        feedback_specs = [
+            {
+                "scenario_id": scenario_id,
+                "feedback_type": feedback_type,
+                "target_position": target_position,
+            }
+            for scenario_id, feedback_type, target_position in _FEEDBACK_PROPAGATION_SCENARIOS
+        ]
+    normalized_feedback_specs: list[dict[str, Any]] = []
+    for index, item in enumerate(feedback_specs, start=1):
+        scenario_id = str(item["scenario_id"])
+        feedback_type = str(item["feedback_type"]).strip().lower()
+        if feedback_type not in {"like", "dislike"}:
+            raise ValueError(f"feedback_type must be 'like' or 'dislike', got {feedback_type!r}")
+        target_position = int(item["target_position"])
+        if target_position <= 0:
+            raise ValueError("target_position must be positive")
+        normalized_feedback_specs.append(
+            {
+                "feedback_id": str(item.get("feedback_id") or f"{scenario_id}:{feedback_type}:rank{target_position}:{index}"),
+                "scenario_id": scenario_id,
+                "feedback_type": feedback_type,
+                "target_position": target_position,
+                "anchor_episode_id": str(item["anchor_episode_id"]) if item.get("anchor_episode_id") is not None else None,
+                "reward": float(item["reward"]) if item.get("reward") is not None else None,
+            }
+        )
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     data_path = Path(artifact_dir)
     output_path = Path(output_dir) if output_dir is not None else data_path / "feedback_propagation_ro_v1"
     output_path.mkdir(parents=True, exist_ok=True)
+    cache_root = data_path / "feedback_propagation_cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
 
     metadata = BanditMetadata.load(data_path / "ro_metadata.json")
     feature_space = V0FeatureSpace()
@@ -1431,8 +1696,49 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
     if not train_rows_raw or not test_rows_raw:
         raise ValueError("artifact_dir must contain non-empty train.raw.jsonl and test.raw.jsonl")
 
-    def _encode_raw_rows(raw_rows: list[dict[str, Any]], label: str) -> list[dict[str, Any]]:
+    model_files = sorted(path for path in (data_path / "ro_model").rglob("*") if path.is_file())
+    encoding_signature = {
+        "train_raw": _path_signature(data_path / "train.raw.jsonl"),
+        "test_raw": _path_signature(data_path / "test.raw.jsonl"),
+        "ro_metadata": _path_signature(data_path / "ro_metadata.json"),
+        "model_files": [_path_signature(path) for path in model_files],
+    }
+    encoding_cache_key = _stable_json_hash(encoding_signature)
+    encoding_cache_dir = cache_root / f"encodings_{encoding_cache_key}"
+    train_cache_npz = encoding_cache_dir / "train_encodings.npz"
+    test_cache_npz = encoding_cache_dir / "test_encodings.npz"
+
+    def _encode_raw_rows(raw_rows: list[dict[str, Any]], label: str, cache_npz: Path) -> tuple[list[dict[str, Any]], bool]:
+        if cache_npz.exists():
+            payload = np.load(cache_npz, allow_pickle=False)
+            scenario_ids = payload["scenario_ids"].tolist()
+            episode_ids = payload["episode_ids"].tolist()
+            x_values = payload["x_values"]
+            latent_values = payload["latent_values"]
+            raw_valid_rows = [row for row in raw_rows if _scenario_id(row) is not None]
+            if not (
+                len(raw_valid_rows) == len(scenario_ids) == len(episode_ids) == len(x_values) == len(latent_values)
+            ):
+                raise ValueError(f"Feedback encoding cache at {cache_npz} is incompatible with the current raw rows")
+            encoded_rows: list[dict[str, Any]] = []
+            for row, scenario_id, episode_id, x, latent in zip(raw_valid_rows, scenario_ids, episode_ids, x_values, latent_values):
+                encoded_rows.append(
+                    {
+                        "scenario_id": str(scenario_id),
+                        "episode_id": str(episode_id),
+                        "context": _build_context(row),
+                        "x": x.astype(np.float32, copy=False),
+                        "latent": latent.astype(np.float32, copy=False),
+                    }
+                )
+            logger.info("[FEEDBACK-%s] Loaded encoding cache | rows=%d | cache=%s", label, len(encoded_rows), cache_npz)
+            return encoded_rows, True
+
         encoded_rows: list[dict[str, Any]] = []
+        scenario_ids: list[str] = []
+        episode_ids: list[str] = []
+        x_values: list[np.ndarray] = []
+        latent_values: list[np.ndarray] = []
         start = time.time()
         for index, row in enumerate(raw_rows, start=1):
             scenario_id = _scenario_id(row)
@@ -1451,6 +1757,10 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
                     "latent": latent,
                 }
             )
+            scenario_ids.append(str(scenario_id))
+            episode_ids.append(episode_id)
+            x_values.append(np.asarray(x, dtype=np.float32))
+            latent_values.append(np.asarray(latent, dtype=np.float32))
             if index % progress_every == 0:
                 elapsed = time.time() - start
                 rows_per_sec = index / elapsed if elapsed > 0 else 0.0
@@ -1462,43 +1772,140 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
                     _format_duration(elapsed),
                     rows_per_sec,
                 )
-        return encoded_rows
+        cache_npz.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            cache_npz,
+            scenario_ids=np.asarray(scenario_ids, dtype=str),
+            episode_ids=np.asarray(episode_ids, dtype=str),
+            x_values=np.stack(x_values).astype(np.float32, copy=False),
+            latent_values=np.stack(latent_values).astype(np.float32, copy=False),
+        )
+        logger.info("[FEEDBACK-%s] Saved encoding cache | rows=%d | cache=%s", label, len(encoded_rows), cache_npz)
+        return encoded_rows, False
 
-    train_rows = _encode_raw_rows(train_rows_raw, "TRAIN")
-    test_rows = _encode_raw_rows(test_rows_raw, "TEST")
+    preparation_start = time.time()
+    logger.info("[FEEDBACK] Preparation stage 1/3 | train encodings")
+    train_rows, train_cache_hit = _encode_raw_rows(train_rows_raw, "TRAIN", train_cache_npz)
+    logger.info("[FEEDBACK] Preparation stage 2/3 | test encodings")
+    test_rows, test_cache_hit = _encode_raw_rows(test_rows_raw, "TEST", test_cache_npz)
+    preparation_elapsed = time.time() - preparation_start
 
     train_latents = np.stack([row["latent"] for row in train_rows]).astype(np.float32, copy=False)
     train_episode_ids = [str(row["episode_id"]) for row in train_rows]
     scenario_to_train_indices: dict[str, list[int]] = defaultdict(list)
     for index, row in enumerate(train_rows):
         scenario_to_train_indices[row["scenario_id"]].append(index)
+    test_rows_by_scenario: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in test_rows:
+        test_rows_by_scenario[row["scenario_id"]].append(row)
 
-    anchor_rows: dict[str, dict[str, Any]] = {}
-    for scenario_id, _, _ in _FEEDBACK_PROPAGATION_SCENARIOS:
+    required_scenarios = {item["scenario_id"] for item in normalized_feedback_specs}
+    anchor_rows_by_feedback: dict[str, dict[str, Any]] = {}
+    for spec in normalized_feedback_specs:
+        scenario_id = spec["scenario_id"]
         matching = [row for row in test_rows if row["scenario_id"] == scenario_id]
         if not matching:
             raise ValueError(f"No test.raw rows found for required feedback scenario {scenario_id!r}")
-        anchor_rows[scenario_id] = min(matching, key=lambda row: row["episode_id"])
+        if spec["anchor_episode_id"] is not None:
+            matching_episode = [row for row in matching if row["episode_id"] == spec["anchor_episode_id"]]
+            if not matching_episode:
+                raise ValueError(
+                    f"anchor_episode_id {spec['anchor_episode_id']!r} was not found in test.raw for scenario {scenario_id!r}"
+                )
+            anchor_rows_by_feedback[spec["feedback_id"]] = matching_episode[0]
+        else:
+            anchor_rows_by_feedback[spec["feedback_id"]] = min(matching, key=lambda row: row["episode_id"])
 
     locked_feedback_items: list[dict[str, Any]] = []
-    for scenario_id, feedback_type, target_position in _FEEDBACK_PROPAGATION_SCENARIOS:
-        anchor = anchor_rows[scenario_id]
+    def _margin_policy_reward(
+        feedback_type: str,
+        target_position: int,
+        target_score: float,
+        previous_score: float | None,
+        next_score: float | None,
+    ) -> tuple[float, float, str, str]:
+        if feedback_type == "like":
+            if previous_score is None:
+                return 2.0, 0.0, "boundary", "like rank1: conservative score/margin nudge"
+            margin_gap = max(0.0, previous_score - target_score)
+            if margin_gap < 0.05:
+                return 2.0, margin_gap, "small", "small up-gap: break tie / light personalization"
+            if margin_gap < 0.5:
+                return 5.0, margin_gap, "medium", "medium up-gap: override moderate model preference"
+            return 10.0, margin_gap, "large", "large up-gap: strong personalization override"
+        if next_score is None:
+            return -1.0, 0.0, "boundary", "dislike last rank: conservative score nudge"
+        margin_gap = max(0.0, target_score - next_score)
+        if margin_gap < 0.05:
+            return -0.1, margin_gap, "small", "small down-gap: break tie / light personalization"
+        if margin_gap < 0.5:
+            return -1.0, margin_gap, "medium", "medium down-gap: override moderate model preference"
+        return -10.0, margin_gap, "large", "large down-gap: strong personalization override"
+
+    for spec in normalized_feedback_specs:
+        feedback_id = spec["feedback_id"]
+        scenario_id = spec["scenario_id"]
+        feedback_type = spec["feedback_type"]
+        target_position = spec["target_position"]
+        anchor = anchor_rows_by_feedback[feedback_id]
+        candidate_action_ids = metadata.candidate_action_ids(scenario_id)
         anchor_ranked = base_model.rank(
             anchor["x"],
-            metadata.candidate_action_ids(scenario_id),
+            candidate_action_ids,
             metadata.default_action_id(scenario_id),
-            top_k=5,
+            top_k=max(5, min(len(candidate_action_ids), target_position + 1)),
         )
         if len(anchor_ranked) < target_position:
             raise ValueError(f"Scenario {scenario_id!r} returned only {len(anchor_ranked)} candidates; cannot use target position {target_position}")
-        reward = 1.0 if feedback_type == "like" else -1.0
+        target_item = anchor_ranked[target_position - 1]
+        previous_item = anchor_ranked[target_position - 2] if target_position > 1 else None
+        next_item = anchor_ranked[target_position] if target_position < len(anchor_ranked) else None
+        if spec["reward"] is not None:
+            reward = float(spec["reward"])
+            margin_gap = (
+                0.0
+                if (feedback_type == "like" and previous_item is None) or (feedback_type == "dislike" and next_item is None)
+                else (
+                    max(0.0, float(previous_item.score) - float(target_item.score))
+                    if feedback_type == "like"
+                    else max(0.0, float(target_item.score) - float(next_item.score))
+                )
+            )
+            margin_policy_bin = "explicit"
+            margin_policy_reason = "reward supplied by feedback spec"
+        elif feedback_reward_policy == "margin-aware-fixed-radius-v1":
+            reward, margin_gap, margin_policy_bin, margin_policy_reason = _margin_policy_reward(
+                feedback_type=feedback_type,
+                target_position=target_position,
+                target_score=float(target_item.score),
+                previous_score=float(previous_item.score) if previous_item is not None else None,
+                next_score=float(next_item.score) if next_item is not None else None,
+            )
+        else:
+            reward = float(like_reward) if feedback_type == "like" else float(dislike_reward)
+            margin_gap = (
+                0.0
+                if (feedback_type == "like" and previous_item is None) or (feedback_type == "dislike" and next_item is None)
+                else (
+                    max(0.0, float(previous_item.score) - float(target_item.score))
+                    if feedback_type == "like"
+                    else max(0.0, float(target_item.score) - float(next_item.score))
+                )
+            )
+            margin_policy_bin = "fixed"
+            margin_policy_reason = "global fixed like/dislike reward"
         locked_feedback_items.append(
             {
+                "feedback_id": feedback_id,
                 "scenario_id": scenario_id,
                 "feedback_type": feedback_type,
                 "target_position": target_position,
-                "target_action_id": anchor_ranked[target_position - 1].action_id,
+                "target_action_id": target_item.action_id,
                 "reward": reward,
+                "reward_policy": feedback_reward_policy,
+                "margin_gap": margin_gap,
+                "margin_policy_bin": margin_policy_bin,
+                "margin_policy_reason": margin_policy_reason,
                 "anchor_episode_id": anchor["episode_id"],
                 "anchor_context": anchor["context"],
                 "anchor_top5": [
@@ -1529,80 +1936,393 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         },
     )
 
+    baseline_eval_backend = _build_feedback_eval_backend(base_model, metadata, test_rows)
+    if baseline_eval_backend is not None:
+        logger.info("[FEEDBACK] Using fast evaluation backend for cached-latent scoring")
+
+    same_rows_by_feedback: dict[str, list[dict[str, Any]]] = {}
+    cross_rows_by_feedback: dict[str, list[dict[str, Any]]] = {}
+    for item in locked_feedback_items:
+        scenario_id = item["scenario_id"]
+        anchor_episode_id = anchor_rows_by_feedback[item["feedback_id"]]["episode_id"]
+        same_rows_by_feedback[item["feedback_id"]] = [
+            row for row in test_rows_by_scenario[scenario_id] if row["episode_id"] != anchor_episode_id
+        ]
+        full_cross_rows = [
+            row for row in test_rows if row["scenario_id"] != scenario_id
+        ]
+        if cross_scenario_sample_size is None or len(full_cross_rows) <= cross_scenario_sample_size:
+            cross_rows_by_feedback[item["feedback_id"]] = full_cross_rows
+        else:
+            rng = np.random.default_rng(
+                int(_stable_json_hash({
+                    "feedback_id": item["feedback_id"],
+                    "cross_scenario_sample_size": cross_scenario_sample_size,
+                    "encoding_cache_key": encoding_cache_key,
+                }), 16) % (2**32)
+            )
+            sampled_indices = rng.choice(
+                len(full_cross_rows),
+                size=cross_scenario_sample_size,
+                replace=False,
+            )
+            sampled_indices = np.sort(sampled_indices)
+            cross_rows_by_feedback[item["feedback_id"]] = [
+                full_cross_rows[int(index)] for index in sampled_indices
+            ]
+
+    baseline_cache_signature = {
+        "encoding_cache_key": encoding_cache_key,
+        "relevance_markdown": _path_signature(Path(relevance_markdown)),
+        "feedback_specs": normalized_feedback_specs,
+        "cross_scenario_sample_size": cross_scenario_sample_size,
+        "baseline_cache_version": 2,
+    }
+    baseline_cache_key = _stable_json_hash(baseline_cache_signature)
+    baseline_cache_dir = cache_root / f"baseline_{baseline_cache_key}"
+    baseline_cache_path = baseline_cache_dir / "baseline_stats.json"
+    baseline_cache_hit = False
+
     def _baseline_target_stats_by_feedback() -> dict[str, dict[str, Any]]:
         stats: dict[str, dict[str, Any]] = {}
         for item in locked_feedback_items:
             scenario_id = item["scenario_id"]
             target_action_id = item["target_action_id"]
-            anchor = anchor_rows[scenario_id]
-            same_rows = [row for row in test_rows if row["scenario_id"] == scenario_id and row["episode_id"] != anchor["episode_id"]]
-            cross_rows = [row for row in test_rows if row["scenario_id"] != scenario_id]
-            stats[scenario_id] = {
-                "anchor": _rank_action_details(base_model, anchor["x"], metadata, scenario_id, target_action_id),
-                "same_scenario": _evaluate_target_action_on_rows(base_model, same_rows, metadata, target_action_id),
-                "cross_scenario": _evaluate_target_action_on_rows(base_model, cross_rows, metadata, target_action_id),
+            anchor = anchor_rows_by_feedback[item["feedback_id"]]
+            stats[item["feedback_id"]] = {
+                "anchor": _rank_action_details(
+                    base_model,
+                    anchor["x"],
+                    metadata,
+                    scenario_id,
+                    target_action_id,
+                    row=anchor,
+                    eval_backend=baseline_eval_backend,
+                ),
+                "same_scenario": _evaluate_target_action_on_rows(
+                    base_model,
+                    same_rows_by_feedback[item["feedback_id"]],
+                    metadata,
+                    target_action_id,
+                    eval_backend=baseline_eval_backend,
+                ),
+                "cross_scenario": _evaluate_target_action_on_rows(
+                    base_model,
+                    cross_rows_by_feedback[item["feedback_id"]],
+                    metadata,
+                    target_action_id,
+                    eval_backend=baseline_eval_backend,
+                ),
             }
         return stats
 
-    baseline_target_stats = _baseline_target_stats_by_feedback()
-    selected_test_rows = [row for row in test_rows if row["scenario_id"] in {scenario_id for scenario_id, _, _ in _FEEDBACK_PROPAGATION_SCENARIOS}]
-    selected_scenarios_quality_before = _evaluate_ro_quality_on_rows(
-        base_model,
-        selected_test_rows,
-        metadata,
-        relevance_catalog,
-        top_k=3,
+    selected_test_rows = [row for row in test_rows if row["scenario_id"] in required_scenarios]
+    if baseline_cache_path.exists():
+        logger.info("[FEEDBACK] Loading baseline cache ...")
+        baseline_payload = json.loads(baseline_cache_path.read_text())
+        baseline_target_stats = baseline_payload["baseline_target_stats"]
+        selected_scenarios_quality_before = baseline_payload["selected_scenarios_quality_before"]
+        baseline_cache_hit = True
+        logger.info("[FEEDBACK] Loaded baseline cache | cache=%s", baseline_cache_path)
+    else:
+        logger.info("[FEEDBACK] Computing baseline target stats ...")
+        baseline_target_stats = _baseline_target_stats_by_feedback()
+        logger.info("[FEEDBACK] Computing selected-scenario quality before ...")
+        selected_scenarios_quality_before = _evaluate_ro_quality_on_rows(
+            base_model,
+            selected_test_rows,
+            metadata,
+            relevance_catalog,
+            top_k=3,
+            eval_backend=baseline_eval_backend,
+        )
+        baseline_cache_dir.mkdir(parents=True, exist_ok=True)
+        _write_json_unsorted(
+            baseline_cache_path,
+            {
+                "baseline_target_stats": baseline_target_stats,
+                "selected_scenarios_quality_before": selected_scenarios_quality_before,
+                "cross_scenario_sample_size": cross_scenario_sample_size,
+                "cross_scenario_sample_counts": {
+                    feedback_id: len(rows) for feedback_id, rows in cross_rows_by_feedback.items()
+                },
+            },
+        )
+        logger.info("[FEEDBACK] Saved baseline cache | cache=%s", baseline_cache_path)
+
+    item_anchor_latents = {item["feedback_id"]: anchor_rows_by_feedback[item["feedback_id"]]["latent"] for item in locked_feedback_items}
+
+    neighbor_cache_signature = {
+        "encoding_cache_key": encoding_cache_key,
+        "feedback_specs": normalized_feedback_specs,
+        "neighbor_cache_version": 2,
+    }
+    neighbor_cache_key = _stable_json_hash(neighbor_cache_signature)
+    neighbor_cache_dir = cache_root / f"neighbors_{neighbor_cache_key}"
+    neighbor_cache_npz = neighbor_cache_dir / "neighbor_orders.npz"
+    neighbor_cache_meta_path = neighbor_cache_dir / "cache_meta.json"
+
+    def _safe_feedback_key(feedback_id: str) -> str:
+        return f"f_{_stable_json_hash({'feedback_id': feedback_id})}"
+
+    neighbor_orders: dict[str, dict[str, np.ndarray]] = {}
+    if neighbor_cache_npz.exists() and neighbor_cache_meta_path.exists():
+        logger.info("[FEEDBACK] Loading neighbor cache ...")
+        neighbor_payload = np.load(neighbor_cache_npz, allow_pickle=False)
+        neighbor_meta = json.loads(neighbor_cache_meta_path.read_text())
+        for item in locked_feedback_items:
+            safe_key = neighbor_meta["feedback_key_map"][item["feedback_id"]]
+            local_similarities_key = f"{safe_key}__assigned_local_similarities"
+            neighbor_orders[item["feedback_id"]] = {
+                "global": neighbor_payload[f"{safe_key}__global"].astype(np.int32, copy=False),
+                "same_scenario": neighbor_payload[f"{safe_key}__same_scenario"].astype(np.int32, copy=False),
+                "assigned_local": neighbor_payload[f"{safe_key}__assigned_local"].astype(np.int32, copy=False),
+                "assigned_local_similarities": (
+                    neighbor_payload[local_similarities_key].astype(np.float32, copy=False)
+                    if local_similarities_key in neighbor_payload.files
+                    else np.zeros((0,), dtype=np.float32)
+                ),
+            }
+        neighbor_cache_hit = True
+        logger.info("[FEEDBACK] Loaded neighbor cache | cache=%s", neighbor_cache_npz)
+    else:
+        neighbor_cache_hit = False
+        logger.info("[FEEDBACK] Preparation stage 3/3 | building neighbor cache")
+        payload: dict[str, np.ndarray] = {}
+        feedback_key_map: dict[str, str] = {}
+        scenario_feedback_ids: dict[str, list[str]] = defaultdict(list)
+        for item in locked_feedback_items:
+            scenario_feedback_ids[item["scenario_id"]].append(item["feedback_id"])
+        neighbor_start = time.time()
+        total_feedback_items = len(locked_feedback_items)
+        assigned_local_cache: dict[str, dict[str, np.ndarray]] = {}
+        for scenario_id, feedback_ids in scenario_feedback_ids.items():
+            sorted_feedback_ids = sorted(feedback_ids)
+            scenario_indices = scenario_to_train_indices[scenario_id]
+            if not scenario_indices:
+                for feedback_id in sorted_feedback_ids:
+                    assigned_local_cache[feedback_id] = {
+                        "indices": np.zeros((0,), dtype=np.int32),
+                        "similarities": np.zeros((0,), dtype=np.float32),
+                    }
+                continue
+            scenario_latents = train_latents[scenario_indices]
+            scenario_episode_ids = [train_episode_ids[index] for index in scenario_indices]
+            similarity_matrix = np.stack(
+                [_cosine_similarity(item_anchor_latents[feedback_id], scenario_latents) for feedback_id in sorted_feedback_ids],
+                axis=0,
+            )
+            owner_positions = np.argmax(similarity_matrix, axis=0)
+            for feedback_position, feedback_id in enumerate(sorted_feedback_ids):
+                local_member_positions = np.where(owner_positions == feedback_position)[0].tolist()
+                local_member_positions.sort(
+                    key=lambda position: (-float(similarity_matrix[feedback_position, position]), scenario_episode_ids[position])
+                )
+                assigned_local_cache[feedback_id] = {
+                    "indices": np.asarray([scenario_indices[position] for position in local_member_positions], dtype=np.int32),
+                    "similarities": np.asarray(
+                        [float(similarity_matrix[feedback_position, position]) for position in local_member_positions],
+                        dtype=np.float32,
+                    ),
+                }
+        for feedback_index, item in enumerate(locked_feedback_items, start=1):
+            feedback_id = item["feedback_id"]
+            safe_key = _safe_feedback_key(feedback_id)
+            feedback_key_map[feedback_id] = safe_key
+            global_indices = _sorted_neighbor_indices(item_anchor_latents[feedback_id], train_latents, train_episode_ids, len(train_rows))
+            same_indices = scenario_to_train_indices[item["scenario_id"]]
+            same_latents = train_latents[same_indices]
+            same_episode_ids = [train_episode_ids[index] for index in same_indices]
+            same_local = _sorted_neighbor_indices(item_anchor_latents[feedback_id], same_latents, same_episode_ids, len(same_indices))
+            payload[f"{safe_key}__global"] = np.asarray(global_indices, dtype=np.int32)
+            payload[f"{safe_key}__same_scenario"] = np.asarray([same_indices[index] for index in same_local], dtype=np.int32)
+            payload[f"{safe_key}__assigned_local"] = assigned_local_cache[feedback_id]["indices"]
+            payload[f"{safe_key}__assigned_local_similarities"] = assigned_local_cache[feedback_id]["similarities"]
+            neighbor_orders[feedback_id] = {
+                "global": payload[f"{safe_key}__global"],
+                "same_scenario": payload[f"{safe_key}__same_scenario"],
+                "assigned_local": payload[f"{safe_key}__assigned_local"],
+                "assigned_local_similarities": payload[f"{safe_key}__assigned_local_similarities"],
+            }
+            elapsed = time.time() - neighbor_start
+            items_per_sec = feedback_index / elapsed if elapsed > 0 else 0.0
+            remaining = total_feedback_items - feedback_index
+            eta_seconds = remaining / items_per_sec if items_per_sec > 0 else 0.0
+            logger.info(
+                "[FEEDBACK] Neighbor cache %d/%d | feedback_id=%s | elapsed=%s | eta=%s",
+                feedback_index,
+                total_feedback_items,
+                feedback_id,
+                _format_duration(elapsed),
+                _format_duration(eta_seconds),
+            )
+        neighbor_cache_dir.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(neighbor_cache_npz, **payload)
+        neighbor_cache_meta_path.write_text(json.dumps({"feedback_key_map": feedback_key_map}, indent=2, sort_keys=True))
+        logger.info("[FEEDBACK] Saved neighbor cache | cache=%s", neighbor_cache_npz)
+
+    logger.info(
+        "[FEEDBACK] Preparation finished | elapsed=%s | train_cache_hit=%s | test_cache_hit=%s | neighbor_cache_hit=%s | baseline_cache_hit=%s | cross_sample=%s",
+        _format_duration(preparation_elapsed),
+        train_cache_hit,
+        test_cache_hit,
+        neighbor_cache_hit,
+        baseline_cache_hit,
+        "all" if cross_scenario_sample_size is None else cross_scenario_sample_size,
     )
 
     def _propagation_rows_for_item(item: dict[str, Any], mode: str, requested_n: int | str) -> list[dict[str, Any]]:
         if mode == "single":
-            return [anchor_rows[item["scenario_id"]]]
+            return [anchor_rows_by_feedback[item["feedback_id"]]]
         if mode == "global-latent-nearest":
-            indices = _sorted_neighbor_indices(item_anchor_latents[item["scenario_id"]], train_latents, train_episode_ids, int(requested_n))
+            indices = neighbor_orders[item["feedback_id"]]["global"][: int(requested_n)].tolist()
             return [train_rows[index] for index in indices]
         if mode == "same-scenario-nearest":
-            same_indices = scenario_to_train_indices[item["scenario_id"]]
-            same_latents = train_latents[same_indices]
-            same_episode_ids = [train_episode_ids[index] for index in same_indices]
-            selected_local = _sorted_neighbor_indices(item_anchor_latents[item["scenario_id"]], same_latents, same_episode_ids, int(requested_n))
-            return [train_rows[same_indices[index]] for index in selected_local]
+            indices = neighbor_orders[item["feedback_id"]]["same_scenario"][: int(requested_n)].tolist()
+            return [train_rows[index] for index in indices]
         if mode == "entire-scenario-all":
             return [train_rows[index] for index in scenario_to_train_indices[item["scenario_id"]]]
+        if mode == "hard-assigned-local-cutoff":
+            raise ValueError("hard-assigned-local-cutoff requires the overloaded helper with a similarity threshold")
         raise ValueError(f"Unknown propagation mode {mode!r}")
 
-    item_anchor_latents = {item["scenario_id"]: anchor_rows[item["scenario_id"]]["latent"] for item in locked_feedback_items}
+    def _propagation_rows_for_item_with_cutoff(
+        item: dict[str, Any],
+        mode: str,
+        requested_n: int | str,
+        similarity_threshold: float | None,
+    ) -> list[dict[str, Any]]:
+        if mode != "hard-assigned-local-cutoff":
+            return _propagation_rows_for_item(item, mode, requested_n)
+        requested_limit = int(requested_n)
+        assigned_indices = neighbor_orders[item["feedback_id"]]["assigned_local"]
+        assigned_similarities = neighbor_orders[item["feedback_id"]]["assigned_local_similarities"]
+        filtered_indices = [
+            int(index)
+            for index, similarity in zip(assigned_indices.tolist(), assigned_similarities.tolist())
+            if similarity_threshold is None or float(similarity) >= similarity_threshold
+        ]
+        if requested_limit > 0:
+            filtered_indices = filtered_indices[:requested_limit]
+        return [train_rows[index] for index in filtered_indices]
 
     conditions: list[dict[str, Any]] = []
-    condition_specs: list[tuple[str, int | str]] = [("single", 1)]
-    condition_specs.extend(("global-latent-nearest", value) for value in n_values)
-    condition_specs.extend(("same-scenario-nearest", value) for value in n_values)
-    condition_specs.append(("entire-scenario-all", "all"))
+    condition_specs: list[tuple[str, int | str, float | None]] = []
+    for mode in propagation_modes:
+        if mode == "single":
+            condition_specs.append((mode, 1, math.nan))
+        elif mode == "entire-scenario-all":
+            condition_specs.append((mode, "all", math.nan))
+        elif mode == "hard-assigned-local-cutoff":
+            for threshold in similarity_thresholds:
+                condition_specs.extend((mode, value, float(threshold)) for value in n_values)
+        else:
+            condition_specs.extend((mode, value, math.nan) for value in n_values)
 
-    for mode, requested_n in condition_specs:
-        logger.info("[FEEDBACK] Running condition | mode=%s | requested_n=%s", mode, requested_n)
+    for mode, requested_n, similarity_threshold in condition_specs:
+        logger.info(
+            "[FEEDBACK] Running condition | mode=%s | requested_n=%s | similarity_threshold=%s",
+            mode,
+            requested_n,
+            similarity_threshold if not math.isnan(similarity_threshold) else "-",
+        )
+        condition_start = time.time()
+        update_start = time.time()
         model = load_bandit_model(data_path / "ro_model", device=device)
         feedback_results: list[dict[str, Any]] = []
+        pending_eval_inputs: list[dict[str, Any]] = []
 
-        for item in locked_feedback_items:
-            propagation_rows = _propagation_rows_for_item(item, mode, requested_n)
+        total_feedback_items = len(locked_feedback_items)
+        for feedback_index, item in enumerate(locked_feedback_items, start=1):
+            propagation_rows = _propagation_rows_for_item_with_cutoff(
+                item,
+                mode,
+                requested_n,
+                None if math.isnan(similarity_threshold) else similarity_threshold,
+            )
             for row in propagation_rows:
                 model.partial_fit(row["x"], item["target_action_id"], item["reward"])
 
+            pending_eval_inputs.append(
+                {
+                    "item": item,
+                    "propagation_rows": propagation_rows,
+                }
+            )
+            update_elapsed_so_far = time.time() - update_start
+            items_per_sec = feedback_index / update_elapsed_so_far if update_elapsed_so_far > 0 else 0.0
+            remaining = total_feedback_items - feedback_index
+            eta_seconds = remaining / items_per_sec if items_per_sec > 0 else 0.0
+            logger.info(
+                "[FEEDBACK] Update progress | mode=%s | requested_n=%s | %d/%d feedback items | last=%s | elapsed=%s | eta=%s",
+                mode,
+                requested_n,
+                feedback_index,
+                total_feedback_items,
+                item["feedback_id"],
+                _format_duration(update_elapsed_so_far),
+                _format_duration(eta_seconds),
+            )
+
+        update_elapsed = time.time() - update_start
+
+        evaluation_start = time.time()
+        condition_eval_backend = _build_feedback_eval_backend(model, metadata, test_rows)
+
+        for feedback_index, pending in enumerate(pending_eval_inputs, start=1):
+            item = pending["item"]
+            propagation_rows = pending["propagation_rows"]
+            feedback_id = item["feedback_id"]
             scenario_id = item["scenario_id"]
             target_action_id = item["target_action_id"]
-            anchor = anchor_rows[scenario_id]
-            same_rows = [row for row in test_rows if row["scenario_id"] == scenario_id and row["episode_id"] != anchor["episode_id"]]
-            cross_rows = [row for row in test_rows if row["scenario_id"] != scenario_id]
+            anchor = anchor_rows_by_feedback[feedback_id]
+            same_rows = same_rows_by_feedback[feedback_id]
+            cross_rows = cross_rows_by_feedback[feedback_id]
 
-            anchor_before = baseline_target_stats[scenario_id]["anchor"]
-            anchor_after = _rank_action_details(model, anchor["x"], metadata, scenario_id, target_action_id)
-            same_before = baseline_target_stats[scenario_id]["same_scenario"]
-            same_after = _evaluate_target_action_on_rows(model, same_rows, metadata, target_action_id)
-            cross_before = baseline_target_stats[scenario_id]["cross_scenario"]
-            cross_after = _evaluate_target_action_on_rows(model, cross_rows, metadata, target_action_id)
+            anchor_before = baseline_target_stats[feedback_id]["anchor"]
+            anchor_after = _rank_action_details(
+                model,
+                anchor["x"],
+                metadata,
+                scenario_id,
+                target_action_id,
+                row=anchor,
+                eval_backend=condition_eval_backend,
+            )
+            same_before = baseline_target_stats[feedback_id]["same_scenario"]
+            same_after = _evaluate_target_action_on_rows(
+                model,
+                same_rows,
+                metadata,
+                target_action_id,
+                eval_backend=condition_eval_backend,
+            )
+            neighbor_before = _evaluate_target_action_on_rows(
+                base_model,
+                propagation_rows,
+                metadata,
+                target_action_id,
+                eval_backend=baseline_eval_backend,
+            )
+            neighbor_after = _evaluate_target_action_on_rows(
+                model,
+                propagation_rows,
+                metadata,
+                target_action_id,
+                eval_backend=condition_eval_backend,
+            )
+            cross_before = baseline_target_stats[feedback_id]["cross_scenario"]
+            cross_after = _evaluate_target_action_on_rows(
+                model,
+                cross_rows,
+                metadata,
+                target_action_id,
+                eval_backend=condition_eval_backend,
+            )
 
             feedback_results.append(
                 {
+                    "feedback_id": feedback_id,
                     "scenario_id": scenario_id,
                     "feedback_type": item["feedback_type"],
                     "target_action_id": target_action_id,
@@ -1621,6 +2341,18 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
                         "avg_rank_delta": same_before["avg_rank"] - same_after["avg_rank"] if not math.isnan(same_before["avg_rank"]) else math.nan,
                         "avg_score_delta": same_after["avg_score"] - same_before["avg_score"] if not math.isnan(same_before["avg_score"]) else math.nan,
                     },
+                    "same_scenario_outside_neighbors": {
+                        "before": same_before,
+                        "after": same_after,
+                        "avg_rank_delta": same_before["avg_rank"] - same_after["avg_rank"] if not math.isnan(same_before["avg_rank"]) else math.nan,
+                        "avg_score_delta": same_after["avg_score"] - same_before["avg_score"] if not math.isnan(same_before["avg_score"]) else math.nan,
+                    },
+                    "neighbors": {
+                        "before": neighbor_before,
+                        "after": neighbor_after,
+                        "avg_rank_delta": neighbor_before["avg_rank"] - neighbor_after["avg_rank"] if not math.isnan(neighbor_before["avg_rank"]) else math.nan,
+                        "avg_score_delta": neighbor_after["avg_score"] - neighbor_before["avg_score"] if not math.isnan(neighbor_before["avg_score"]) else math.nan,
+                    },
                     "cross_scenario": {
                         "before": cross_before,
                         "after": cross_after,
@@ -1629,6 +2361,20 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
                     },
                 }
             )
+            evaluation_elapsed_so_far = time.time() - evaluation_start
+            items_per_sec = feedback_index / evaluation_elapsed_so_far if evaluation_elapsed_so_far > 0 else 0.0
+            remaining = total_feedback_items - feedback_index
+            eta_seconds = remaining / items_per_sec if items_per_sec > 0 else 0.0
+            logger.info(
+                "[FEEDBACK] Eval progress | mode=%s | requested_n=%s | %d/%d feedback items | last=%s | elapsed=%s | eta=%s",
+                mode,
+                requested_n,
+                feedback_index,
+                total_feedback_items,
+                feedback_id,
+                _format_duration(evaluation_elapsed_so_far),
+                _format_duration(eta_seconds),
+            )
 
         selected_scenarios_quality_after = _evaluate_ro_quality_on_rows(
             model,
@@ -1636,23 +2382,49 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
             metadata,
             relevance_catalog,
             top_k=3,
+            eval_backend=condition_eval_backend,
         )
+        evaluation_elapsed = time.time() - evaluation_start
 
         valid_anchor_deltas = [row["anchor"]["rank_delta"] for row in feedback_results]
+        valid_anchor_score_deltas = [row["anchor"]["score_delta"] for row in feedback_results if not math.isnan(row["anchor"]["score_delta"])]
+        valid_neighbor_deltas = [row["neighbors"]["avg_rank_delta"] for row in feedback_results if not math.isnan(row["neighbors"]["avg_rank_delta"])]
+        valid_neighbor_score_deltas = [row["neighbors"]["avg_score_delta"] for row in feedback_results if not math.isnan(row["neighbors"]["avg_score_delta"])]
         valid_same_deltas = [row["same_scenario"]["avg_rank_delta"] for row in feedback_results if not math.isnan(row["same_scenario"]["avg_rank_delta"])]
+        valid_same_score_deltas = [row["same_scenario"]["avg_score_delta"] for row in feedback_results if not math.isnan(row["same_scenario"]["avg_score_delta"])]
         valid_cross_deltas = [row["cross_scenario"]["avg_rank_delta"] for row in feedback_results if not math.isnan(row["cross_scenario"]["avg_rank_delta"])]
+        valid_cross_score_deltas = [row["cross_scenario"]["avg_score_delta"] for row in feedback_results if not math.isnan(row["cross_scenario"]["avg_score_delta"])]
         condition_summary = {
             "mode": mode,
             "requested_n": requested_n,
+            "similarity_threshold": similarity_threshold,
+            "condition_elapsed_seconds": time.time() - condition_start,
+            "update_elapsed_seconds": update_elapsed,
+            "evaluation_elapsed_seconds": evaluation_elapsed,
             "feedback_results": feedback_results,
             "aggregate": {
                 "avg_anchor_rank_delta": sum(valid_anchor_deltas) / len(valid_anchor_deltas) if valid_anchor_deltas else math.nan,
+                "avg_anchor_score_delta": sum(valid_anchor_score_deltas) / len(valid_anchor_score_deltas) if valid_anchor_score_deltas else math.nan,
+                "avg_neighbor_rank_delta": sum(valid_neighbor_deltas) / len(valid_neighbor_deltas) if valid_neighbor_deltas else math.nan,
+                "avg_neighbor_score_delta": sum(valid_neighbor_score_deltas) / len(valid_neighbor_score_deltas) if valid_neighbor_score_deltas else math.nan,
                 "avg_same_scenario_rank_delta": sum(valid_same_deltas) / len(valid_same_deltas) if valid_same_deltas else math.nan,
+                "avg_same_scenario_score_delta": sum(valid_same_score_deltas) / len(valid_same_score_deltas) if valid_same_score_deltas else math.nan,
+                "avg_same_scenario_outside_neighbors_rank_delta": sum(valid_same_deltas) / len(valid_same_deltas) if valid_same_deltas else math.nan,
+                "avg_same_scenario_outside_neighbors_score_delta": sum(valid_same_score_deltas) / len(valid_same_score_deltas) if valid_same_score_deltas else math.nan,
                 "avg_cross_scenario_rank_delta": sum(valid_cross_deltas) / len(valid_cross_deltas) if valid_cross_deltas else math.nan,
+                "avg_cross_scenario_score_delta": sum(valid_cross_score_deltas) / len(valid_cross_score_deltas) if valid_cross_score_deltas else math.nan,
             },
             "selected_scenarios_quality_before": selected_scenarios_quality_before,
             "selected_scenarios_quality_after": selected_scenarios_quality_after,
         }
+        logger.info(
+            "[FEEDBACK] Finished condition | mode=%s | requested_n=%s | update=%s | eval=%s | total=%s",
+            mode,
+            requested_n,
+            _format_duration(condition_summary["update_elapsed_seconds"]),
+            _format_duration(condition_summary["evaluation_elapsed_seconds"]),
+            _format_duration(condition_summary["condition_elapsed_seconds"]),
+        )
         conditions.append(condition_summary)
 
     summary = FeedbackPropagationExperimentSummary(
@@ -1661,6 +2433,7 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         relevance_markdown=str(Path(relevance_markdown)),
         device=device,
         n_values=n_values,
+        similarity_thresholds=similarity_thresholds,
         feedback_items=locked_feedback_items,
         conditions=conditions,
     )
@@ -1672,6 +2445,16 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
             "relevance_markdown": summary.relevance_markdown,
             "device": summary.device,
             "n_values": summary.n_values,
+            "similarity_thresholds": summary.similarity_thresholds,
+            "timing": {
+                "preparation_seconds": preparation_elapsed,
+                "total_seconds": time.time() - overall_start,
+                "train_cache_hit": train_cache_hit,
+                "test_cache_hit": test_cache_hit,
+                "neighbor_cache_hit": neighbor_cache_hit,
+                "baseline_cache_hit": baseline_cache_hit,
+                "cross_scenario_sample_size": cross_scenario_sample_size,
+            },
             "feedback_items": summary.feedback_items,
             "conditions": summary.conditions,
         },
