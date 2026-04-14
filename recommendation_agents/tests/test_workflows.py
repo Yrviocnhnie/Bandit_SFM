@@ -713,6 +713,277 @@ class WorkflowEvaluationTest(unittest.TestCase):
             self.assertIn("margin_to_previous", feedback_result["anchor"]["before"])
             self.assertIn("margin_to_next", feedback_result["anchor"]["before"])
 
+    def test_simulate_feedback_propagation_accepts_explicit_anchor_context_and_shared_anchor_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            data_dir = tmp_path / "prepared"
+            data_dir.mkdir()
+            metadata = {
+                "schema_version": "ro-global-catalog",
+                "global_action_ids": [
+                    "O_SHOW_SCHEDULE",
+                    "O_SHOW_TODAY_TODO",
+                    "R_PLAN_DAY_OVER_COFFEE",
+                ],
+                "actions": [
+                    {"action_id": "O_SHOW_SCHEDULE", "display_name": "Show schedule"},
+                    {"action_id": "O_SHOW_TODAY_TODO", "display_name": "Show todo"},
+                    {"action_id": "R_PLAN_DAY_OVER_COFFEE", "display_name": "Plan day over coffee"},
+                ],
+            }
+            train_rows: list[dict[str, object]] = []
+            train_raw_rows: list[dict[str, object]] = []
+            test_raw_rows: list[dict[str, object]] = []
+            for sample_index in range(3):
+                context = _context(hour=9 + sample_index, cal_eventCount=1 + sample_index)
+                episode_id = f"arrive_office_train_{sample_index}"
+                train_raw_rows.append(
+                    {
+                        "scenario_id": "ARRIVE_OFFICE",
+                        "scenario_name": "ARRIVE_OFFICE",
+                        "episode_id": episode_id,
+                        "features": context,
+                        "gt_ro": "O_SHOW_SCHEDULE",
+                        "gt_app": "productivity",
+                    }
+                )
+                train_rows.extend(
+                    [
+                        {
+                            "event_id": f"{episode_id}:0",
+                            "source_base_event_id": episode_id,
+                            "scenario_id": "ARRIVE_OFFICE",
+                            "context": context,
+                            "selected_action": "O_SHOW_SCHEDULE",
+                            "reward": 1.0,
+                            "propensity": 1.0,
+                        },
+                        {
+                            "event_id": f"{episode_id}:1",
+                            "source_base_event_id": episode_id,
+                            "scenario_id": "ARRIVE_OFFICE",
+                            "context": context,
+                            "selected_action": "O_SHOW_TODAY_TODO",
+                            "reward": 0.8,
+                            "propensity": 1.0,
+                        },
+                    ]
+                )
+            for sample_index in range(2):
+                context = _context(hour=12 + sample_index, cal_eventCount=2 + sample_index)
+                test_raw_rows.append(
+                    {
+                        "scenario_id": "ARRIVE_OFFICE",
+                        "scenario_name": "ARRIVE_OFFICE",
+                        "episode_id": f"arrive_office_test_{sample_index}",
+                        "features": context,
+                        "gt_ro": "O_SHOW_SCHEDULE",
+                        "gt_app": "productivity",
+                    }
+                )
+
+            (data_dir / "ro_metadata.json").write_text(json.dumps(metadata, indent=2))
+            (data_dir / "train.raw.jsonl").write_text("".join(json.dumps(row) + "\n" for row in train_raw_rows))
+            (data_dir / "test.raw.jsonl").write_text("".join(json.dumps(row) + "\n" for row in test_raw_rows))
+            (data_dir / "ro_train_samples_expanded.jsonl").write_text("".join(json.dumps(row) + "\n" for row in train_rows))
+            relevance_path = tmp_path / "relevance.md"
+            relevance_path.write_text(
+                "\n".join(
+                    [
+                        "# v6",
+                        "",
+                        "## Scenario Defaults",
+                        "",
+                        "| scenarioId | scenarioNameZh | most relevant 3 R/O actionIds | other plausible 3 R/O actionIds | irrelevant 2 R/O actionIds | extra hard negative R/O actionIds | most relevant 3 app categories | other plausible 3 app categories | irrelevant 2 app categories |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| `ARRIVE_OFFICE` | 到达办公室 | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `R_PLAN_DAY_OVER_COFFEE`<br>`O_SHOW_TODAY_TODO` |  | `productivity`<br>`news`<br>`music` | `reading`<br>`social`<br>`health` | `shopping`<br>`game` |",
+                    ]
+                )
+            )
+
+            train_v0(
+                metadata_path=data_dir / "ro_metadata.json",
+                samples_path=(data_dir / "ro_train_samples_expanded.jsonl"),
+                output_dir=data_dir / "ro_model",
+                alpha=0.0,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+                model_type="neural-linear",
+            )
+
+            feedback_specs = [
+                {
+                    "feedback_id": "arrive_ctx_a_like",
+                    "anchor_id": "arrive_ctx_a",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "feedback_type": "like",
+                    "target_action_id": "O_SHOW_SCHEDULE",
+                    "anchor_context": _context(hour=8, cal_eventCount=3),
+                },
+                {
+                    "feedback_id": "arrive_ctx_a_dislike",
+                    "anchor_id": "arrive_ctx_a",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "feedback_type": "dislike",
+                    "target_action_id": "R_PLAN_DAY_OVER_COFFEE",
+                    "anchor_context": _context(hour=8, cal_eventCount=3),
+                },
+            ]
+
+            summary = simulate_feedback_propagation_on_frozen_neural_linear(
+                artifact_dir=data_dir,
+                relevance_markdown=relevance_path,
+                feedback_specs=feedback_specs,
+                propagation_modes=["hard-assigned-local-cutoff"],
+                n_values=[2],
+                similarity_thresholds=[0.0],
+                device="cpu",
+                progress_every=10,
+            )
+
+            self.assertEqual(len(summary.feedback_items), 2)
+            self.assertEqual({item["anchor_id"] for item in summary.feedback_items}, {"arrive_ctx_a"})
+            self.assertEqual(len(summary.conditions), 1)
+            feedback_ids = {result["feedback_id"] for result in summary.conditions[0]["feedback_results"]}
+            self.assertEqual(feedback_ids, {"arrive_ctx_a_like", "arrive_ctx_a_dislike"})
+
+    def test_simulate_feedback_propagation_balanced_mode_apportions_min_neighbors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            data_dir = tmp_path / "prepared"
+            data_dir.mkdir()
+            metadata = {
+                "schema_version": "ro-global-catalog",
+                "global_action_ids": [
+                    "O_SHOW_SCHEDULE",
+                    "O_SHOW_TODAY_TODO",
+                    "R_PLAN_DAY_OVER_COFFEE",
+                ],
+                "actions": [
+                    {"action_id": "O_SHOW_SCHEDULE", "display_name": "Show schedule"},
+                    {"action_id": "O_SHOW_TODAY_TODO", "display_name": "Show todo"},
+                    {"action_id": "R_PLAN_DAY_OVER_COFFEE", "display_name": "Plan day over coffee"},
+                ],
+            }
+            train_rows: list[dict[str, object]] = []
+            train_raw_rows: list[dict[str, object]] = []
+            test_raw_rows: list[dict[str, object]] = []
+            for sample_index in range(6):
+                context = _context(hour=9, cal_eventCount=2)
+                episode_id = f"arrive_office_train_{sample_index}"
+                train_raw_rows.append(
+                    {
+                        "scenario_id": "ARRIVE_OFFICE",
+                        "scenario_name": "ARRIVE_OFFICE",
+                        "episode_id": episode_id,
+                        "features": context,
+                        "gt_ro": "O_SHOW_SCHEDULE",
+                        "gt_app": "productivity",
+                    }
+                )
+                train_rows.extend(
+                    [
+                        {
+                            "event_id": f"{episode_id}:0",
+                            "source_base_event_id": episode_id,
+                            "scenario_id": "ARRIVE_OFFICE",
+                            "context": context,
+                            "selected_action": "O_SHOW_SCHEDULE",
+                            "reward": 1.0,
+                            "propensity": 1.0,
+                        },
+                        {
+                            "event_id": f"{episode_id}:1",
+                            "source_base_event_id": episode_id,
+                            "scenario_id": "ARRIVE_OFFICE",
+                            "context": context,
+                            "selected_action": "O_SHOW_TODAY_TODO",
+                            "reward": 0.8,
+                            "propensity": 1.0,
+                        },
+                    ]
+                )
+            for sample_index in range(2):
+                context = _context(hour=11 + sample_index, cal_eventCount=2 + sample_index)
+                test_raw_rows.append(
+                    {
+                        "scenario_id": "ARRIVE_OFFICE",
+                        "scenario_name": "ARRIVE_OFFICE",
+                        "episode_id": f"arrive_office_test_{sample_index}",
+                        "features": context,
+                        "gt_ro": "O_SHOW_SCHEDULE",
+                        "gt_app": "productivity",
+                    }
+                )
+
+            (data_dir / "ro_metadata.json").write_text(json.dumps(metadata, indent=2))
+            (data_dir / "train.raw.jsonl").write_text("".join(json.dumps(row) + "\n" for row in train_raw_rows))
+            (data_dir / "test.raw.jsonl").write_text("".join(json.dumps(row) + "\n" for row in test_raw_rows))
+            (data_dir / "ro_train_samples_expanded.jsonl").write_text("".join(json.dumps(row) + "\n" for row in train_rows))
+            relevance_path = tmp_path / "relevance.md"
+            relevance_path.write_text(
+                "\n".join(
+                    [
+                        "# v6",
+                        "",
+                        "## Scenario Defaults",
+                        "",
+                        "| scenarioId | scenarioNameZh | most relevant 3 R/O actionIds | other plausible 3 R/O actionIds | irrelevant 2 R/O actionIds | extra hard negative R/O actionIds | most relevant 3 app categories | other plausible 3 app categories | irrelevant 2 app categories |",
+                        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                        "| `ARRIVE_OFFICE` | 到达办公室 | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `O_SHOW_SCHEDULE`<br>`O_SHOW_TODAY_TODO`<br>`R_PLAN_DAY_OVER_COFFEE` | `R_PLAN_DAY_OVER_COFFEE`<br>`O_SHOW_TODAY_TODO` |  | `productivity`<br>`news`<br>`music` | `reading`<br>`social`<br>`health` | `shopping`<br>`game` |",
+                    ]
+                )
+            )
+
+            train_v0(
+                metadata_path=data_dir / "ro_metadata.json",
+                samples_path=(data_dir / "ro_train_samples_expanded.jsonl"),
+                output_dir=data_dir / "ro_model",
+                alpha=0.0,
+                default_bonus=0.0,
+                device="cpu",
+                progress_every=10,
+                model_type="neural-linear",
+            )
+
+            feedback_specs = [
+                {
+                    "feedback_id": "arrive_ctx_a_like",
+                    "anchor_id": "arrive_ctx_a",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "feedback_type": "like",
+                    "target_action_id": "O_SHOW_SCHEDULE",
+                    "anchor_context": _context(hour=8, cal_eventCount=3),
+                },
+                {
+                    "feedback_id": "arrive_ctx_b_like",
+                    "anchor_id": "arrive_ctx_b",
+                    "scenario_id": "ARRIVE_OFFICE",
+                    "feedback_type": "like",
+                    "target_action_id": "O_SHOW_TODAY_TODO",
+                    "anchor_context": _context(hour=8, cal_eventCount=3),
+                },
+            ]
+
+            summary = simulate_feedback_propagation_on_frozen_neural_linear(
+                artifact_dir=data_dir,
+                relevance_markdown=relevance_path,
+                feedback_specs=feedback_specs,
+                propagation_modes=["hard-assigned-local-balanced"],
+                n_values=[4],
+                similarity_thresholds=[0.8],
+                min_neighbors=2,
+                max_neighbors=4,
+                device="cpu",
+                progress_every=10,
+            )
+
+            self.assertEqual(len(summary.conditions), 1)
+            condition = summary.conditions[0]
+            self.assertEqual(condition["mode"], "hard-assigned-local-balanced")
+            self.assertTrue(all(result["effective_n"] >= 2 for result in condition["feedback_results"]))
+
     def test_run_v6_plan_a_reuses_existing_test_split(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)

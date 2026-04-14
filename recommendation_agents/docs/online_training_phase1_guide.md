@@ -207,6 +207,30 @@ Reward table:
 
 The small-gap dislike reward is intentionally `-0.1`, not `-1.0`. With fixed `N=2000`, `-1.0` was too aggressive for a small rank gap and could push a disliked top action far below the intended local adjustment.
 
+Important implementation detail:
+
+- in the current phase-1 implementation, the score gap is computed from the
+  original frozen offline model
+- the target action and reward are then locked before any online updates begin
+- the reward is **not** recomputed after each feedback update
+
+So the current design is:
+
+```text
+lock margin from offline base model -> choose reward -> run online updates
+```
+
+This keeps the experiment deterministic and avoids making reward selection
+depend on update order.
+
+Potential future improvement:
+
+- recompute the score gap on-the-fly using the latest updated model before each
+  feedback item
+
+That could be more adaptive, especially when multiple feedback events interact,
+but it would also make the result depend more strongly on update order.
+
 ## 5. Implementation Entry Points
 
 Main CLI:

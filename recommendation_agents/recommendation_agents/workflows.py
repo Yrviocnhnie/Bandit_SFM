@@ -227,6 +227,7 @@ _FEEDBACK_PROPAGATION_MODES = (
     "same-scenario-nearest",
     "entire-scenario-all",
     "hard-assigned-local-cutoff",
+    "hard-assigned-local-balanced",
 )
 
 
@@ -269,6 +270,108 @@ def _sorted_neighbor_indices(
         key=lambda index: (-float(similarities[index]), candidate_episode_ids[index]),
     )
     return order[:top_n]
+
+
+def _build_balanced_local_assignment(
+    *,
+    scenario_indices: list[int],
+    scenario_latents: np.ndarray,
+    scenario_episode_ids: list[str],
+    anchor_ids: list[str],
+    anchor_latents: dict[str, np.ndarray],
+    min_neighbors: int,
+    max_neighbors: int,
+    similarity_threshold: float,
+) -> dict[str, dict[str, np.ndarray]]:
+    unique_anchor_ids = sorted(dict.fromkeys(anchor_ids))
+    if not unique_anchor_ids:
+        return {}
+    if max_neighbors <= 0:
+        raise ValueError("max_neighbors must be positive for balanced local assignment")
+    if min_neighbors < 0:
+        raise ValueError("min_neighbors must be non-negative for balanced local assignment")
+    if not scenario_indices:
+        return {
+            anchor_id: {
+                "indices": np.zeros((0,), dtype=np.int32),
+                "similarities": np.zeros((0,), dtype=np.float32),
+            }
+            for anchor_id in unique_anchor_ids
+        }
+
+    similarity_matrix = np.stack(
+        [_cosine_similarity(anchor_latents[anchor_id], scenario_latents) for anchor_id in unique_anchor_ids],
+        axis=0,
+    )
+    anchor_index = {anchor_id: index for index, anchor_id in enumerate(unique_anchor_ids)}
+    anchor_count = len(unique_anchor_ids)
+    context_count = len(scenario_indices)
+    target_min = min(min_neighbors, max_neighbors, context_count // anchor_count if anchor_count > 0 else 0)
+
+    sorted_positions_by_anchor: dict[str, list[int]] = {}
+    for anchor_id in unique_anchor_ids:
+        idx = anchor_index[anchor_id]
+        sorted_positions_by_anchor[anchor_id] = sorted(
+            range(context_count),
+            key=lambda position: (-float(similarity_matrix[idx, position]), scenario_episode_ids[position]),
+        )
+
+    owners = np.full((context_count,), -1, dtype=np.int32)
+    counts = {anchor_id: 0 for anchor_id in unique_anchor_ids}
+    pointers = {anchor_id: 0 for anchor_id in unique_anchor_ids}
+
+    if target_min > 0:
+        progress = True
+        while progress:
+            progress = False
+            for anchor_id in sorted(unique_anchor_ids, key=lambda item: (counts[item], item)):
+                if counts[anchor_id] >= target_min:
+                    continue
+                ranked_positions = sorted_positions_by_anchor[anchor_id]
+                pointer = pointers[anchor_id]
+                while pointer < len(ranked_positions) and owners[ranked_positions[pointer]] != -1:
+                    pointer += 1
+                pointers[anchor_id] = pointer
+                if pointer >= len(ranked_positions):
+                    continue
+                position = ranked_positions[pointer]
+                owners[position] = anchor_index[anchor_id]
+                counts[anchor_id] += 1
+                pointers[anchor_id] = pointer + 1
+                progress = True
+            if all(counts[anchor_id] >= target_min for anchor_id in unique_anchor_ids):
+                break
+
+    unassigned_positions = [position for position, owner in enumerate(owners.tolist()) if owner == -1]
+    unassigned_positions.sort(
+        key=lambda position: (-float(np.max(similarity_matrix[:, position])), scenario_episode_ids[position]),
+    )
+    for position in unassigned_positions:
+        ranked_anchor_ids = sorted(
+            unique_anchor_ids,
+            key=lambda anchor_id: (-float(similarity_matrix[anchor_index[anchor_id], position]), anchor_id),
+        )
+        for anchor_id in ranked_anchor_ids:
+            if counts[anchor_id] >= max_neighbors:
+                continue
+            if float(similarity_matrix[anchor_index[anchor_id], position]) < similarity_threshold:
+                continue
+            owners[position] = anchor_index[anchor_id]
+            counts[anchor_id] += 1
+            break
+
+    assignment: dict[str, dict[str, np.ndarray]] = {}
+    for anchor_id in unique_anchor_ids:
+        idx = anchor_index[anchor_id]
+        local_positions = [position for position, owner in enumerate(owners.tolist()) if owner == idx]
+        local_positions.sort(
+            key=lambda position: (-float(similarity_matrix[idx, position]), scenario_episode_ids[position]),
+        )
+        assignment[anchor_id] = {
+            "indices": np.asarray([scenario_indices[position] for position in local_positions], dtype=np.int32),
+            "similarities": np.asarray([float(similarity_matrix[idx, position]) for position in local_positions], dtype=np.float32),
+        }
+    return assignment
 
 
 def _build_feedback_eval_backend(
@@ -1617,6 +1720,8 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
     like_reward: float = 1.0,
     dislike_reward: float = -1.0,
     feedback_reward_policy: str = "fixed",
+    min_neighbors: int = 0,
+    max_neighbors: int = 0,
     device: str = "auto",
     progress_every: int = 25000,
     cross_scenario_sample_size: int | None = 2000,
@@ -1626,6 +1731,10 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         raise ValueError("progress_every must be positive")
     if cross_scenario_sample_size is not None and cross_scenario_sample_size <= 0:
         raise ValueError("cross_scenario_sample_size must be positive when provided")
+    if min_neighbors < 0:
+        raise ValueError("min_neighbors must be non-negative")
+    if max_neighbors < 0:
+        raise ValueError("max_neighbors must be non-negative")
     n_values = [1, 5, 10, 20, 50, 100] if n_values is None else sorted({int(value) for value in n_values if int(value) > 0})
     if not n_values:
         raise ValueError("n_values must contain at least one positive integer")
@@ -1662,16 +1771,29 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         feedback_type = str(item["feedback_type"]).strip().lower()
         if feedback_type not in {"like", "dislike"}:
             raise ValueError(f"feedback_type must be 'like' or 'dislike', got {feedback_type!r}")
-        target_position = int(item["target_position"])
-        if target_position <= 0:
+        target_action_id = str(item["target_action_id"]) if item.get("target_action_id") is not None else None
+        target_position = int(item["target_position"]) if item.get("target_position") is not None else None
+        if target_action_id is None and target_position is None:
+            raise ValueError("Each feedback item must provide either target_action_id or target_position")
+        if target_position is not None and target_position <= 0:
             raise ValueError("target_position must be positive")
+        anchor_context = item.get("anchor_context")
+        if anchor_context is not None and not isinstance(anchor_context, dict):
+            raise ValueError("anchor_context must be a JSON object when provided")
+        anchor_episode_id = str(item["anchor_episode_id"]) if item.get("anchor_episode_id") is not None else None
+        anchor_id = str(item.get("anchor_id") or anchor_episode_id or f"{scenario_id}:anchor:{index}")
         normalized_feedback_specs.append(
             {
                 "feedback_id": str(item.get("feedback_id") or f"{scenario_id}:{feedback_type}:rank{target_position}:{index}"),
+                "anchor_id": anchor_id,
                 "scenario_id": scenario_id,
                 "feedback_type": feedback_type,
                 "target_position": target_position,
-                "anchor_episode_id": str(item["anchor_episode_id"]) if item.get("anchor_episode_id") is not None else None,
+                "target_action_id": target_action_id,
+                "anchor_episode_id": anchor_episode_id,
+                "anchor_context": anchor_context,
+                "anchor_context_id": str(item["anchor_context_id"]) if item.get("anchor_context_id") is not None else None,
+                "anchor_context_title": str(item["anchor_context_title"]) if item.get("anchor_context_title") is not None else None,
                 "reward": float(item["reward"]) if item.get("reward") is not None else None,
             }
         )
@@ -1800,21 +1922,37 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         test_rows_by_scenario[row["scenario_id"]].append(row)
 
     required_scenarios = {item["scenario_id"] for item in normalized_feedback_specs}
+    anchor_rows_by_anchor_id: dict[str, dict[str, Any]] = {}
     anchor_rows_by_feedback: dict[str, dict[str, Any]] = {}
     for spec in normalized_feedback_specs:
         scenario_id = spec["scenario_id"]
-        matching = [row for row in test_rows if row["scenario_id"] == scenario_id]
-        if not matching:
-            raise ValueError(f"No test.raw rows found for required feedback scenario {scenario_id!r}")
-        if spec["anchor_episode_id"] is not None:
-            matching_episode = [row for row in matching if row["episode_id"] == spec["anchor_episode_id"]]
-            if not matching_episode:
-                raise ValueError(
-                    f"anchor_episode_id {spec['anchor_episode_id']!r} was not found in test.raw for scenario {scenario_id!r}"
-                )
-            anchor_rows_by_feedback[spec["feedback_id"]] = matching_episode[0]
-        else:
-            anchor_rows_by_feedback[spec["feedback_id"]] = min(matching, key=lambda row: row["episode_id"])
+        anchor_id = spec["anchor_id"]
+        if anchor_id not in anchor_rows_by_anchor_id:
+            if spec["anchor_context"] is not None:
+                context = spec["anchor_context"]
+                x = feature_space.encode(context)
+                latent = base_model.encode_context(x)
+                anchor_rows_by_anchor_id[anchor_id] = {
+                    "scenario_id": scenario_id,
+                    "episode_id": spec["anchor_episode_id"] or f"anchor::{anchor_id}",
+                    "context": context,
+                    "x": x,
+                    "latent": latent,
+                }
+            else:
+                matching = [row for row in test_rows if row["scenario_id"] == scenario_id]
+                if not matching:
+                    raise ValueError(f"No test.raw rows found for required feedback scenario {scenario_id!r}")
+                if spec["anchor_episode_id"] is not None:
+                    matching_episode = [row for row in matching if row["episode_id"] == spec["anchor_episode_id"]]
+                    if not matching_episode:
+                        raise ValueError(
+                            f"anchor_episode_id {spec['anchor_episode_id']!r} was not found in test.raw for scenario {scenario_id!r}"
+                        )
+                    anchor_rows_by_anchor_id[anchor_id] = matching_episode[0]
+                else:
+                    anchor_rows_by_anchor_id[anchor_id] = min(matching, key=lambda row: row["episode_id"])
+        anchor_rows_by_feedback[spec["feedback_id"]] = anchor_rows_by_anchor_id[anchor_id]
 
     locked_feedback_items: list[dict[str, Any]] = []
     def _margin_policy_reward(
@@ -1844,19 +1982,32 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
 
     for spec in normalized_feedback_specs:
         feedback_id = spec["feedback_id"]
+        anchor_id = spec["anchor_id"]
         scenario_id = spec["scenario_id"]
         feedback_type = spec["feedback_type"]
-        target_position = spec["target_position"]
+        requested_target_position = spec["target_position"]
+        requested_target_action_id = spec["target_action_id"]
         anchor = anchor_rows_by_feedback[feedback_id]
         candidate_action_ids = metadata.candidate_action_ids(scenario_id)
         anchor_ranked = base_model.rank(
             anchor["x"],
             candidate_action_ids,
             metadata.default_action_id(scenario_id),
-            top_k=max(5, min(len(candidate_action_ids), target_position + 1)),
+            top_k=None,
         )
-        if len(anchor_ranked) < target_position:
-            raise ValueError(f"Scenario {scenario_id!r} returned only {len(anchor_ranked)} candidates; cannot use target position {target_position}")
+        if requested_target_action_id is not None:
+            target_position = next(
+                (position for position, ranked_item in enumerate(anchor_ranked, start=1) if ranked_item.action_id == requested_target_action_id),
+                None,
+            )
+            if target_position is None:
+                raise ValueError(
+                    f"target_action_id {requested_target_action_id!r} was not returned by model.rank for scenario {scenario_id!r}"
+                )
+        else:
+            target_position = int(requested_target_position)
+            if len(anchor_ranked) < target_position:
+                raise ValueError(f"Scenario {scenario_id!r} returned only {len(anchor_ranked)} candidates; cannot use target position {target_position}")
         target_item = anchor_ranked[target_position - 1]
         previous_item = anchor_ranked[target_position - 2] if target_position > 1 else None
         next_item = anchor_ranked[target_position] if target_position < len(anchor_ranked) else None
@@ -1897,6 +2048,7 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         locked_feedback_items.append(
             {
                 "feedback_id": feedback_id,
+                "anchor_id": anchor_id,
                 "scenario_id": scenario_id,
                 "feedback_type": feedback_type,
                 "target_position": target_position,
@@ -1907,6 +2059,9 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
                 "margin_policy_bin": margin_policy_bin,
                 "margin_policy_reason": margin_policy_reason,
                 "anchor_episode_id": anchor["episode_id"],
+                "anchor_context_id": spec["anchor_context_id"],
+                "anchor_context_title": spec["anchor_context_title"],
+                "anchor_source": "explicit-context" if spec["anchor_context"] is not None else "test.raw",
                 "anchor_context": anchor["context"],
                 "anchor_top5": [
                     {
@@ -2050,12 +2205,15 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         )
         logger.info("[FEEDBACK] Saved baseline cache | cache=%s", baseline_cache_path)
 
-    item_anchor_latents = {item["feedback_id"]: anchor_rows_by_feedback[item["feedback_id"]]["latent"] for item in locked_feedback_items}
+    anchor_rows_for_neighbors = {item["anchor_id"]: anchor_rows_by_feedback[item["feedback_id"]] for item in locked_feedback_items}
+    item_anchor_latents = {anchor_id: row["latent"] for anchor_id, row in anchor_rows_for_neighbors.items()}
 
     neighbor_cache_signature = {
         "encoding_cache_key": encoding_cache_key,
         "feedback_specs": normalized_feedback_specs,
-        "neighbor_cache_version": 2,
+        "min_neighbors": min_neighbors,
+        "max_neighbors": max_neighbors,
+        "neighbor_cache_version": 4,
     }
     neighbor_cache_key = _stable_json_hash(neighbor_cache_signature)
     neighbor_cache_dir = cache_root / f"neighbors_{neighbor_cache_key}"
@@ -2070,16 +2228,23 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         logger.info("[FEEDBACK] Loading neighbor cache ...")
         neighbor_payload = np.load(neighbor_cache_npz, allow_pickle=False)
         neighbor_meta = json.loads(neighbor_cache_meta_path.read_text())
-        for item in locked_feedback_items:
-            safe_key = neighbor_meta["feedback_key_map"][item["feedback_id"]]
+        for anchor_id in sorted(item_anchor_latents):
+            safe_key = neighbor_meta["anchor_key_map"][anchor_id]
             local_similarities_key = f"{safe_key}__assigned_local_similarities"
-            neighbor_orders[item["feedback_id"]] = {
+            balanced_similarities_key = f"{safe_key}__balanced_local_similarities"
+            neighbor_orders[anchor_id] = {
                 "global": neighbor_payload[f"{safe_key}__global"].astype(np.int32, copy=False),
                 "same_scenario": neighbor_payload[f"{safe_key}__same_scenario"].astype(np.int32, copy=False),
                 "assigned_local": neighbor_payload[f"{safe_key}__assigned_local"].astype(np.int32, copy=False),
                 "assigned_local_similarities": (
                     neighbor_payload[local_similarities_key].astype(np.float32, copy=False)
                     if local_similarities_key in neighbor_payload.files
+                    else np.zeros((0,), dtype=np.float32)
+                ),
+                "balanced_local": neighbor_payload[f"{safe_key}__balanced_local"].astype(np.int32, copy=False),
+                "balanced_local_similarities": (
+                    neighbor_payload[balanced_similarities_key].astype(np.float32, copy=False)
+                    if balanced_similarities_key in neighbor_payload.files
                     else np.zeros((0,), dtype=np.float32)
                 ),
             }
@@ -2089,19 +2254,25 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         neighbor_cache_hit = False
         logger.info("[FEEDBACK] Preparation stage 3/3 | building neighbor cache")
         payload: dict[str, np.ndarray] = {}
-        feedback_key_map: dict[str, str] = {}
-        scenario_feedback_ids: dict[str, list[str]] = defaultdict(list)
+        anchor_key_map: dict[str, str] = {}
+        scenario_anchor_ids: dict[str, list[str]] = defaultdict(list)
         for item in locked_feedback_items:
-            scenario_feedback_ids[item["scenario_id"]].append(item["feedback_id"])
+            scenario_anchor_ids[item["scenario_id"]].append(item["anchor_id"])
         neighbor_start = time.time()
-        total_feedback_items = len(locked_feedback_items)
+        ordered_anchor_ids = sorted(item_anchor_latents)
+        total_anchor_items = len(ordered_anchor_ids)
         assigned_local_cache: dict[str, dict[str, np.ndarray]] = {}
-        for scenario_id, feedback_ids in scenario_feedback_ids.items():
-            sorted_feedback_ids = sorted(feedback_ids)
+        balanced_local_cache: dict[str, dict[str, np.ndarray]] = {}
+        for scenario_id, anchor_ids in scenario_anchor_ids.items():
+            sorted_feedback_ids = sorted(set(anchor_ids))
             scenario_indices = scenario_to_train_indices[scenario_id]
             if not scenario_indices:
                 for feedback_id in sorted_feedback_ids:
                     assigned_local_cache[feedback_id] = {
+                        "indices": np.zeros((0,), dtype=np.int32),
+                        "similarities": np.zeros((0,), dtype=np.float32),
+                    }
+                    balanced_local_cache[feedback_id] = {
                         "indices": np.zeros((0,), dtype=np.int32),
                         "similarities": np.zeros((0,), dtype=np.float32),
                     }
@@ -2125,40 +2296,56 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
                         dtype=np.float32,
                     ),
                 }
-        for feedback_index, item in enumerate(locked_feedback_items, start=1):
-            feedback_id = item["feedback_id"]
-            safe_key = _safe_feedback_key(feedback_id)
-            feedback_key_map[feedback_id] = safe_key
-            global_indices = _sorted_neighbor_indices(item_anchor_latents[feedback_id], train_latents, train_episode_ids, len(train_rows))
-            same_indices = scenario_to_train_indices[item["scenario_id"]]
+            balanced_assignment = _build_balanced_local_assignment(
+                scenario_indices=scenario_indices,
+                scenario_latents=scenario_latents,
+                scenario_episode_ids=scenario_episode_ids,
+                anchor_ids=sorted_feedback_ids,
+                anchor_latents=item_anchor_latents,
+                min_neighbors=min_neighbors,
+                max_neighbors=max_neighbors if max_neighbors > 0 else max(n_values),
+                similarity_threshold=max(similarity_thresholds),
+            )
+            for anchor_id in sorted_feedback_ids:
+                balanced_local_cache[anchor_id] = balanced_assignment[anchor_id]
+        for feedback_index, anchor_id in enumerate(ordered_anchor_ids, start=1):
+            scenario_id = next(item["scenario_id"] for item in locked_feedback_items if item["anchor_id"] == anchor_id)
+            safe_key = _safe_feedback_key(anchor_id)
+            anchor_key_map[anchor_id] = safe_key
+            global_indices = _sorted_neighbor_indices(item_anchor_latents[anchor_id], train_latents, train_episode_ids, len(train_rows))
+            same_indices = scenario_to_train_indices[scenario_id]
             same_latents = train_latents[same_indices]
             same_episode_ids = [train_episode_ids[index] for index in same_indices]
-            same_local = _sorted_neighbor_indices(item_anchor_latents[feedback_id], same_latents, same_episode_ids, len(same_indices))
+            same_local = _sorted_neighbor_indices(item_anchor_latents[anchor_id], same_latents, same_episode_ids, len(same_indices))
             payload[f"{safe_key}__global"] = np.asarray(global_indices, dtype=np.int32)
             payload[f"{safe_key}__same_scenario"] = np.asarray([same_indices[index] for index in same_local], dtype=np.int32)
-            payload[f"{safe_key}__assigned_local"] = assigned_local_cache[feedback_id]["indices"]
-            payload[f"{safe_key}__assigned_local_similarities"] = assigned_local_cache[feedback_id]["similarities"]
-            neighbor_orders[feedback_id] = {
+            payload[f"{safe_key}__assigned_local"] = assigned_local_cache[anchor_id]["indices"]
+            payload[f"{safe_key}__assigned_local_similarities"] = assigned_local_cache[anchor_id]["similarities"]
+            payload[f"{safe_key}__balanced_local"] = balanced_local_cache[anchor_id]["indices"]
+            payload[f"{safe_key}__balanced_local_similarities"] = balanced_local_cache[anchor_id]["similarities"]
+            neighbor_orders[anchor_id] = {
                 "global": payload[f"{safe_key}__global"],
                 "same_scenario": payload[f"{safe_key}__same_scenario"],
                 "assigned_local": payload[f"{safe_key}__assigned_local"],
                 "assigned_local_similarities": payload[f"{safe_key}__assigned_local_similarities"],
+                "balanced_local": payload[f"{safe_key}__balanced_local"],
+                "balanced_local_similarities": payload[f"{safe_key}__balanced_local_similarities"],
             }
             elapsed = time.time() - neighbor_start
             items_per_sec = feedback_index / elapsed if elapsed > 0 else 0.0
-            remaining = total_feedback_items - feedback_index
+            remaining = total_anchor_items - feedback_index
             eta_seconds = remaining / items_per_sec if items_per_sec > 0 else 0.0
             logger.info(
                 "[FEEDBACK] Neighbor cache %d/%d | feedback_id=%s | elapsed=%s | eta=%s",
                 feedback_index,
-                total_feedback_items,
-                feedback_id,
+                total_anchor_items,
+                anchor_id,
                 _format_duration(elapsed),
                 _format_duration(eta_seconds),
             )
         neighbor_cache_dir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(neighbor_cache_npz, **payload)
-        neighbor_cache_meta_path.write_text(json.dumps({"feedback_key_map": feedback_key_map}, indent=2, sort_keys=True))
+        neighbor_cache_meta_path.write_text(json.dumps({"anchor_key_map": anchor_key_map}, indent=2, sort_keys=True))
         logger.info("[FEEDBACK] Saved neighbor cache | cache=%s", neighbor_cache_npz)
 
     logger.info(
@@ -2175,15 +2362,15 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         if mode == "single":
             return [anchor_rows_by_feedback[item["feedback_id"]]]
         if mode == "global-latent-nearest":
-            indices = neighbor_orders[item["feedback_id"]]["global"][: int(requested_n)].tolist()
+            indices = neighbor_orders[item["anchor_id"]]["global"][: int(requested_n)].tolist()
             return [train_rows[index] for index in indices]
         if mode == "same-scenario-nearest":
-            indices = neighbor_orders[item["feedback_id"]]["same_scenario"][: int(requested_n)].tolist()
+            indices = neighbor_orders[item["anchor_id"]]["same_scenario"][: int(requested_n)].tolist()
             return [train_rows[index] for index in indices]
         if mode == "entire-scenario-all":
             return [train_rows[index] for index in scenario_to_train_indices[item["scenario_id"]]]
-        if mode == "hard-assigned-local-cutoff":
-            raise ValueError("hard-assigned-local-cutoff requires the overloaded helper with a similarity threshold")
+        if mode in {"hard-assigned-local-cutoff", "hard-assigned-local-balanced"}:
+            raise ValueError(f"{mode} requires the overloaded helper with a similarity threshold")
         raise ValueError(f"Unknown propagation mode {mode!r}")
 
     def _propagation_rows_for_item_with_cutoff(
@@ -2192,16 +2379,20 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
         requested_n: int | str,
         similarity_threshold: float | None,
     ) -> list[dict[str, Any]]:
-        if mode != "hard-assigned-local-cutoff":
+        if mode not in {"hard-assigned-local-cutoff", "hard-assigned-local-balanced"}:
             return _propagation_rows_for_item(item, mode, requested_n)
         requested_limit = int(requested_n)
-        assigned_indices = neighbor_orders[item["feedback_id"]]["assigned_local"]
-        assigned_similarities = neighbor_orders[item["feedback_id"]]["assigned_local_similarities"]
-        filtered_indices = [
-            int(index)
-            for index, similarity in zip(assigned_indices.tolist(), assigned_similarities.tolist())
-            if similarity_threshold is None or float(similarity) >= similarity_threshold
-        ]
+        if mode == "hard-assigned-local-cutoff":
+            assigned_indices = neighbor_orders[item["anchor_id"]]["assigned_local"]
+            assigned_similarities = neighbor_orders[item["anchor_id"]]["assigned_local_similarities"]
+            filtered_indices = [
+                int(index)
+                for index, similarity in zip(assigned_indices.tolist(), assigned_similarities.tolist())
+                if similarity_threshold is None or float(similarity) >= similarity_threshold
+            ]
+        else:
+            assigned_indices = neighbor_orders[item["anchor_id"]]["balanced_local"]
+            filtered_indices = [int(index) for index in assigned_indices.tolist()]
         if requested_limit > 0:
             filtered_indices = filtered_indices[:requested_limit]
         return [train_rows[index] for index in filtered_indices]
@@ -2213,7 +2404,7 @@ def simulate_feedback_propagation_on_frozen_neural_linear(
             condition_specs.append((mode, 1, math.nan))
         elif mode == "entire-scenario-all":
             condition_specs.append((mode, "all", math.nan))
-        elif mode == "hard-assigned-local-cutoff":
+        elif mode in {"hard-assigned-local-cutoff", "hard-assigned-local-balanced"}:
             for threshold in similarity_thresholds:
                 condition_specs.extend((mode, value, float(threshold)) for value in n_values)
         else:

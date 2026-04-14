@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from recommendation_agents.catalog import build_app_metadata_from_catalog_markdown, build_ro_metadata_from_catalog_markdown
+from recommendation_agents.feedback_specs import parse_phase2_feedback_markdown
 from recommendation_agents.metadata import BanditMetadata
 from recommendation_agents.raw_synthetic import (
     convert_raw_sequence_to_v0,
@@ -415,7 +416,7 @@ def build_parser() -> argparse.ArgumentParser:
     feedback_prop_parser.add_argument(
         "--similarity-thresholds",
         default="0.0",
-        help="Comma-separated cosine similarity thresholds used by hard-assigned-local-cutoff propagation",
+        help="Comma-separated cosine similarity thresholds used by hard-assigned-local-cutoff / hard-assigned-local-balanced propagation",
     )
     feedback_prop_parser.add_argument(
         "--output-dir",
@@ -425,12 +426,29 @@ def build_parser() -> argparse.ArgumentParser:
     feedback_prop_parser.add_argument(
         "--feedback-spec-json",
         required=False,
-        help="Optional JSON file containing a list of feedback items with scenario_id, feedback_type, and target_position",
+        help="Optional JSON file containing feedback items. Supports rank-locked specs with target_position or explicit specs with target_action_id / anchor_context / anchor_id.",
+    )
+    feedback_prop_parser.add_argument(
+        "--feedback-spec-markdown",
+        required=False,
+        help="Optional markdown file containing explicit phase-2 feedback anchors with Features and Simulated feedback blocks",
     )
     feedback_prop_parser.add_argument(
         "--propagation-modes",
         default="single,global-latent-nearest,same-scenario-nearest,entire-scenario-all",
         help="Comma-separated propagation modes to run",
+    )
+    feedback_prop_parser.add_argument(
+        "--min-neighbors",
+        type=int,
+        default=0,
+        help="Minimum local neighbors per anchor for hard-assigned-local-balanced propagation",
+    )
+    feedback_prop_parser.add_argument(
+        "--max-neighbors",
+        type=int,
+        default=0,
+        help="Optional max neighbors cap for hard-assigned-local-balanced. When 0, requested N is used as the cap.",
     )
     feedback_prop_parser.add_argument("--like-reward", type=float, default=1.0, help="Reward used for like feedback items")
     feedback_prop_parser.add_argument("--dislike-reward", type=float, default=-1.0, help="Reward used for dislike feedback items")
@@ -924,8 +942,12 @@ def main() -> None:
         similarity_thresholds = [float(value.strip()) for value in args.similarity_thresholds.split(",") if value.strip()]
         propagation_modes = [value.strip() for value in args.propagation_modes.split(",") if value.strip()]
         feedback_specs = None
+        if args.feedback_spec_json and args.feedback_spec_markdown:
+            raise ValueError("Specify at most one of --feedback-spec-json or --feedback-spec-markdown")
         if args.feedback_spec_json:
             feedback_specs = json.loads(Path(args.feedback_spec_json).read_text())
+        elif args.feedback_spec_markdown:
+            feedback_specs = parse_phase2_feedback_markdown(args.feedback_spec_markdown)
         summary = simulate_feedback_propagation_on_frozen_neural_linear(
             artifact_dir=args.artifact_dir,
             relevance_markdown=args.relevance_markdown,
@@ -937,6 +959,8 @@ def main() -> None:
             like_reward=args.like_reward,
             dislike_reward=args.dislike_reward,
             feedback_reward_policy=args.feedback_reward_policy,
+            min_neighbors=args.min_neighbors,
+            max_neighbors=args.max_neighbors,
             device=args.device,
             progress_every=args.progress_every,
             cross_scenario_sample_size=None if args.cross_scenario_sample_size == 0 else args.cross_scenario_sample_size,
