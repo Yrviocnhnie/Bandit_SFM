@@ -1,0 +1,4 @@
+Routine vs non-routine counts (Alex persona):
+
+  ARRIVE_OFFICE: routine=192 non-routine=25728 total=25920 (0.7% routine)
+  HOME_EVENING: routine=401 non-routine=8431 total=8832 (4.5% routine)

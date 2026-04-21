@@ -1,0 +1,17 @@
+Tier counts per scenario (full dataset):
+
+ARRIVE_OFFICE:
+  ROUTINE: 192
+  MILD: 343
+  MODERATE: 4265
+  STRONG: 0
+  EXTREME: 21120
+
+HOME_EVENING:
+  ROUTINE: 401
+  MILD: 383
+  MODERATE: 752
+  STRONG: 7296
+  EXTREME: 0
+
+Selected 320 rows (up to 40 per scenario x tier).
