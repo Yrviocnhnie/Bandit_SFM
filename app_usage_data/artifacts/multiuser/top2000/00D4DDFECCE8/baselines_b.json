@@ -1,0 +1,30 @@
+{
+  "set": "top2000",
+  "uid": "00D4DDFECCE8",
+  "V": 25,
+  "n_test": 962,
+  "task_b_test_MFU": {
+    "event_hit_at_5": 0.9516745540589734,
+    "recall_at_5": 0.9266112266112266,
+    "coverage_at_5": 0.7713097713097713,
+    "n": 962
+  },
+  "task_b_test_MRU": {
+    "event_hit_at_5": 0.9573170731707317,
+    "recall_at_5": 0.9344594594594595,
+    "coverage_at_5": 0.7900207900207901,
+    "n": 962
+  },
+  "task_b_test_HourMFU": {
+    "event_hit_at_5": 0.9534947215143793,
+    "recall_at_5": 0.9330214830214829,
+    "coverage_at_5": 0.7858627858627859,
+    "n": 962
+  },
+  "task_b_test_Markov-1": {
+    "event_hit_at_5": 0.9496723698580269,
+    "recall_at_5": 0.9219334719334721,
+    "coverage_at_5": 0.7266112266112266,
+    "n": 962
+  }
+}

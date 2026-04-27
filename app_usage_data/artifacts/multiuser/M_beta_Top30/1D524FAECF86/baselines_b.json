@@ -1,0 +1,30 @@
+{
+  "set": "M_beta_Top30",
+  "uid": "1D524FAECF86",
+  "V": 74,
+  "n_test": 1796,
+  "task_b_test_MFU": {
+    "event_hit_at_5": 0.6454450897113634,
+    "recall_at_5": 0.5447225596724483,
+    "coverage_at_5": 0.13752783964365256,
+    "n": 1796
+  },
+  "task_b_test_MRU": {
+    "event_hit_at_5": 0.680527866863136,
+    "recall_at_5": 0.5950210826046014,
+    "coverage_at_5": 0.1920935412026726,
+    "n": 1796
+  },
+  "task_b_test_HourMFU": {
+    "event_hit_at_5": 0.6405044638987605,
+    "recall_at_5": 0.537133384432939,
+    "coverage_at_5": 0.1319599109131403,
+    "n": 1796
+  },
+  "task_b_test_Markov-1": {
+    "event_hit_at_5": 0.6351304498569819,
+    "recall_at_5": 0.5594680699775355,
+    "coverage_at_5": 0.16369710467706014,
+    "n": 1796
+  }
+}

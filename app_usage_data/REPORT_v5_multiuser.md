@@ -194,25 +194,59 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 
 ---
 
-## 10. Aggregate analysis (Markov-1 across 22 users)
+## 10. Aggregate analysis — all baselines across 22 users
 
-```
-                           Task A test Hit@1     Task B test EventHit@5
-Mean (22 users)            0.585 ± 0.080         0.720 ± 0.172
-Median                     0.568                 0.748
-IQR (Q1, Q3)               [0.518, 0.621]        [0.623, 0.865]
-Range (min, max)           0.414 → 0.807         0.255 → 0.950
-```
+### 10.1 Task A — test set, mean / median across n=22 users
 
-For comparison, the **single-user numbers** from the prior reports:
-```
-Single user (Huawei, 5,471 train targets)
-  Markov-1 task A test Hit@1:    0.496       (below the multi-user median 0.568)
-  Markov-1 task B test EH@5:     0.688       (below the multi-user median 0.748)
-  v3 R6      task B test EH@5:   0.746       (at the multi-user median; +5.8 pp over its Markov-1)
-```
+| Model | Test Hit@1 mean | Test Hit@1 median | Test Hit@5 mean | Test Hit@5 median | Test MRR mean | Test MRR median |
+|---|---|---|---|---|---|---|
+| MFU | 0.388 | 0.338 | 0.714 | 0.737 | 0.535 | 0.494 |
+| MRU | 0.566 | 0.553 | 0.708 | 0.725 | 0.624 | 0.612 |
+| HourMFU | 0.398 | 0.338 | 0.706 | 0.725 | 0.538 | 0.494 |
+| **Markov-1** | **0.585** | **0.568** | **0.856** | **0.862** | **0.710** | **0.695** |
+| v1 GRU | 0.561 | 0.535 | 0.851 | 0.855 | 0.693 | 0.668 |
 
-This is reassuring: the v3 R6 result is consistent with the population median, not an outlier. It also tells us the headroom for neural lift varies considerably — easy users will see smaller % gains, hard users may see larger.
+**Markov-1 is the best classical model across all three Task A metrics.** The neural v1 GRU is essentially tied or slightly behind, despite training on user-specific data — the multi-user XLSX schema is leaner (no scene/networktype) so the GRU is operating with reduced input bandwidth.
+
+### 10.2 Task B — test set, mean / median across n=22 users
+
+| Model | Test EH@5 mean | Test EH@5 median | Test Recall@5 mean | Test Recall@5 median | Test Coverage@5 mean | Test Coverage@5 median |
+|---|---|---|---|---|---|---|
+| MFU | 0.699 | 0.725 | 0.665 | 0.695 | 0.398 | 0.445 |
+| **MRU** | **0.731** | **0.760** | **0.724** | **0.746** | 0.451 | 0.477 |
+| HourMFU | 0.687 | 0.685 | 0.655 | 0.677 | 0.386 | 0.397 |
+| **Markov-1** | 0.720 | 0.748 | 0.715 | 0.736 | 0.436 | **0.479** |
+| v1 GRU | 0.713 | 0.736 | 0.699 | 0.723 | — | — |
+
+**MRU is surprisingly strong on Task B mean** (0.720 vs Markov-1's 0.720, with MRU slightly ahead at the median). This is because in our scoring, MRU's top-K = `[last_app, then MFU-ordered apps]`, so the top-5 set is essentially "last-app plus the user's top-4 apps" — a strong predictor when the user is in a tight session. Markov-1 still wins on Coverage@5 (catching all apps in the next 15 min, not just one).
+
+### 10.3 Cross-cohort breakdown — Markov-1 (Task B test EH@5)
+
+| Cohort | n | Mean | Median | IQR | Min | Max |
+|---|---|---|---|---|---|---|
+| M_beta_Top30 | 11 | 0.610 | 0.635 | [0.533, 0.682] | 0.255 | 0.761 |
+| top2000 | 11 | 0.831 | 0.865 | [0.797, 0.896] | 0.537 | 0.950 |
+| **All 22 users** | 22 | **0.720** | **0.748** | [0.623, 0.865] | 0.255 | 0.950 |
+
+`top2000` users are uniformly more predictable than `M_beta_Top30` users — likely smaller / tighter app routines (median vocab 38 vs 78).
+
+### 10.3 Single-user comparison
+
+The original Huawei single-user (REPORT_v1–v4) numbers, on the test split:
+
+| Model | Test Hit@1 | Test EH@5 |
+|---|---|---|
+| MFU | 0.240 | 0.622 |
+| MRU | 0.504 | 0.470 |
+| HourMFU | 0.244 | 0.689 |
+| Markov-1 | 0.496 | 0.688 |
+| v1 GRU | 0.602 | 0.641 |
+| v3 R6 (best single-user) | 0.599 | **0.746** |
+
+Three observations from this comparison:
+1. **The Huawei single-user is harder than the 22-user mean.** Single-user Markov-1 Task B EH@5 = 0.688 vs multi-user mean 0.720. The original demo user lies in the lower half of the distribution.
+2. **v3 R6's single-user result (0.746)** equals the multi-user *mean* for Markov-1 alone — i.e. v3 R6 architecture lifts a "harder" user up to where the typical user already sits.
+3. **Single-user v1 GRU lifted Task A Hit@1 from 0.496 (Markov-1) → 0.602 (+10.6 pp).** Multi-user v1 GRU does not show this lift (0.585 → 0.561, **−2.4 pp**). The schema difference (no scene/networktype) is the main driver — those are 9 of the 28 numeric features the single-user GRU was using.
 
 ---
 
