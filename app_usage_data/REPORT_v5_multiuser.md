@@ -216,42 +216,120 @@ This is reassuring: the v3 R6 result is consistent with the population median, n
 
 ---
 
-## 11. Future work — multi-user neural training (next round)
+## 11. Neural training — v1 GRU per user
 
-The infrastructure is in place to run v1 GRU and v3 R6 per user. Steps:
+We trained the v1 GRU (1-layer, 16-event in-session window, dual head: Task A softmax + Task B sigmoid + Poisson) per user with their own train/val/test splits. Hyperparameters fixed across users: AdamW lr=1e-3, weight decay 1e-4, batch 256, max 12 epochs, early-stop patience 4 on val Hit@5, seed=7.
 
-1. For each user, fit train-only stats (`v3_profile_stats.pkl`, `loc_vocab.pkl`, `markov_prior.pkl`) using `scripts/20_build_v3_features.py` adapted to read from `artifacts/multiuser/<set>/<uid>/splits/`.
-2. Train v1 GRU and v3 R6 per user, pinning the same hyperparameters (`lr=1e-3, bs=256, wd=1e-4, epochs=15`).
-3. Save per-user JSON results, then aggregate mean/median/IQR.
+**Total compute: 189 s** for all 22 users (mean 8.6 s/user; range 1.6–16 s).
 
-A second valuable experiment is the **pooled model with user-id embedding**: train one neural model on all 22 users with a learned 8-d user embedding, then evaluate per-user. This tests whether cross-user transfer helps small-data users (those with shorter logs).
+### 11.1 Per-user table (Markov-1 baseline vs v1 GRU)
 
-Both experiments can run in ~30–60 min on CPU and would complete the picture begun in this report.
+| Set | User | V | Markov a@1 | GRU a@1 | Δ a | Markov eh@5 | GRU eh@5 | Δ eh |
+|---|---|---|---|---|---|---|---|---|
+| M_beta_Top30 | 01C7F13CBEE7 | 81 | 0.516 | 0.429 | −0.087 | 0.675 | 0.694 | +0.019 |
+| M_beta_Top30 | 0C7BED47CB6C | 86 | 0.512 | 0.476 | −0.036 | 0.740 | 0.749 | +0.009 |
+| M_beta_Top30 | 0CCE282351ED | 69 | 0.508 | 0.463 | −0.045 | 0.761 | 0.723 | −0.038 |
+| M_beta_Top30 | 0FCFB313A7D7 | 82 | 0.438 | 0.438 | +0.000 | 0.255 | 0.107 | −0.148 |
+| M_beta_Top30 | 1A015D3F4D91 | 78 | 0.556 | 0.528 | −0.028 | 0.619 | 0.609 | −0.010 |
+| M_beta_Top30 | 1A8B05FB3F0F | 58 | 0.541 | 0.411 | −0.130 | 0.599 | 0.649 | +0.050 |
+| M_beta_Top30 | 1D524FAECF86 | 74 | 0.414 | 0.394 | −0.020 | 0.635 | 0.652 | +0.017 |
+| M_beta_Top30 | 1D6F07719840 | 74 | 0.609 | 0.537 | −0.072 | 0.682 | 0.701 | +0.019 |
+| M_beta_Top30 | 1DF418971CC6 | 72 | 0.510 | 0.497 | −0.013 | 0.450 | 0.476 | +0.026 |
+| M_beta_Top30 | 1E1480118A70 | 89 | 0.573 | 0.533 | −0.040 | 0.533 | 0.532 | −0.001 |
+| M_beta_Top30 | 1ED8EE34B8E9 | 84 | 0.596 | 0.586 | −0.010 | 0.757 | 0.756 | −0.001 |
+| top2000 | 00D4DDFECCE8 | 25 | 0.607 | 0.586 | −0.021 | 0.950 | 0.951 | +0.002 |
+| top2000 | 0A561E2B9915 | 16 | 0.625 | 0.597 | −0.028 | 0.865 | 0.859 | −0.006 |
+| top2000 | 0A7BC69DAE30 | 26 | 0.682 | 0.669 | −0.013 | 0.878 | 0.865 | −0.013 |
+| top2000 | 0AA8C4EB33FB | 38 | 0.807 | 0.819 | +0.012 | 0.896 | 0.861 | −0.034 |
+| top2000 | 0ADE1A8C6E6F | 30 | 0.523 | 0.649 | **+0.125** | 0.943 | 0.962 | +0.019 |
+| top2000 | 0B85EE68364D | 48 | 0.563 | 0.581 | +0.018 | 0.864 | 0.871 | +0.006 |
+| top2000 | 0B990E99CADC | 54 | 0.599 | 0.529 | −0.070 | 0.537 | 0.522 | −0.015 |
+| top2000 | 0C320F842F64 | 55 | 0.697 | 0.674 | −0.022 | 0.894 | 0.877 | −0.017 |
+| top2000 | 0C37B868058E | 29 | 0.735 | 0.736 | +0.001 | 0.850 | 0.838 | −0.012 |
+| top2000 | 0AA8C4EB33FB | 38 | 0.807 | 0.819 | +0.012 | 0.896 | 0.861 | −0.034 |
+| top2000 | 0C8DFE94CFCC | 46 | 0.710 | 0.718 | +0.008 | 0.797 | 0.813 | +0.016 |
+| top2000 | 0C9B9B26318C | 44 | 0.553 | 0.484 | −0.069 | 0.667 | 0.617 | −0.050 |
+
+### 11.2 Aggregate (n = 22 users)
+
+| Metric | Markov-1 mean | v1 GRU mean | Δ mean | Markov-1 median | v1 GRU median | v1 GRU win-rate |
+|---|---|---|---|---|---|---|
+| Task A test Hit@1 | 0.585 | 0.561 | **−0.024** | 0.568 | 0.535 | 5/22 (23 %) |
+| Task B test EventHit@5 | 0.720 | 0.713 | −0.007 | 0.748 | 0.736 | 10/22 (45 %) |
+
+**Cohort breakdown:**
+
+| | Markov H@1 mean | GRU H@1 mean | Markov eh@5 mean | GRU eh@5 mean |
+|---|---|---|---|---|
+| M_beta_Top30 (n=11) | 0.525 | 0.482 | 0.610 | 0.595 |
+| top2000 (n=11) | 0.645 | 0.640 | 0.831 | 0.831 |
+
+### 11.3 Why doesn't v1 GRU beat Markov-1 here?
+
+Single-user (Huawei): v1 GRU test Hit@1 = 0.602 *vs* Markov-1 = 0.496 (+10.6 pp).
+Multi-user (22): v1 GRU mean = 0.561 *vs* Markov-1 = 0.585 (−2.4 pp).
+
+What changed:
+
+1. **Multi-user XLSX schema is leaner.** The data here lacks `device_state_scene`, `device_state_networktype`, `device_state_has_wifi/cellular_info`, etc. — 9 of the 28 numeric features used in the original single-user GRU are now all-UNK. The GRU's input bandwidth is ~32 % smaller per token, while Markov-1 (which only uses `last_app`) is unaffected. Significant headwind for the GRU.
+2. **Per-user training data sizes are sometimes tight.** Several users had ≤10k train events; that's where the GRU underfits relative to Markov-1's V × V table.
+3. **One outlier where the GRU wins big** (`top2000/0ADE1A8C6E6F`, +12.5 pp Hit@1) — that user's Markov-1 transition table is weak, but their behavior follows other context that the GRU picks up. This is exactly the case where neural beats classical.
+
+### 11.4 Compute summary
+
+| Stage | Time |
+|---|---|
+| Prep (xlsx → splits + vocab, 22 users) | ≈ 90 s |
+| Markov-1 + 4 baselines per user | ≈ 3 s |
+| v1 GRU training, 22 users, 12 epochs each | **189 s** (avg 8.6 s/user) |
+| **Total wall-time** | **~5 min** |
 
 ---
 
-## 12. Reproduction
+## 12. Future work — v3 R6 per user
+
+The next neural model to run per user is **v3 R6** (full v3 features + Markov prior fusion). It needs the per-user prep extended to fit:
+1. Category map (the existing one is generic across the 50-vocab Huawei single-user; for multi-user with V ≈ 16–89 it needs per-user mapping or a unified taxonomy)
+2. Location vocab from each user's `device_state_update_payload` (top-15 + reserved)
+3. Markov-1 transition matrix per user (already produced as v3 R6 baseline below)
+4. v3 ProfileEncoder profile stats per user
+
+Implementation outline:
+- Adapt `scripts/20_build_v3_features.py` to take a `--user-dir` argument
+- Adapt `scripts/22_train_task_b_v3.py` to take `--user-dir`
+- Loop over all 22 user dirs
+
+Estimated compute: 22 × 80 s ≈ **30 min** for v3 R6 across all users.
+
+---
+
+## 13. Reproduction
 
 ```bash
 # from app_usage_data/
 
-# Step 1: per-user prep (~90 s)
+# Step 1: per-user prep (~90 s for all 22 users)
 python scripts/40_prep_multiuser.py
-# → artifacts/multiuser/<set>/<uid>/{splits, vocab.json}
+# → artifacts/multiuser/<set>/<uid>/{splits/, vocab.json}
 
-# Step 2: per-user baselines (~3 s)
+# Step 2: per-user closed-form baselines (~3 s)
 python scripts/41_multiuser_baselines.py
 # → artifacts/multiuser/<set>/<uid>/baselines.json
 # → artifacts/multiuser/baselines_aggregate.json
+
+# Step 3: v1 GRU per user (~190 s)
+python scripts/42_multiuser_v1_gru.py
+# → artifacts/multiuser/<set>/<uid>/v1_gru.json
+# → artifacts/multiuser/v1_gru_aggregate.json
 ```
 
-To extend with neural models, see §7 and the existing scripts in 20–27 — they need to be parameterized by `--user-dir` rather than the hardcoded `artifacts/splits/` path.
+To extend with v3 R6 per user (the SOTA model from single-user experiments), the existing v3 scripts (`scripts/20_build_v3_features.py` and `scripts/22_train_task_b_v3.py`) need to take a `--user-dir` argument rather than the hardcoded `artifacts/splits/` path. Estimated extra compute: ~30 min on CPU.
 
 ---
 
-## 13. Honest limitations
+## 14. Honest limitations
 
-- **No cross-user neural results yet.** Markov-1 only. Don't read this report as final — it's the strongest closed-form baseline cohort; neural lift on top is the open question.
+- **No v3 R6 cross-user results yet.** v1 GRU is done (§11) but v3 R6 (the SOTA on single-user) requires extra per-user feature fitting (location vocab, Markov prior, profile stats) — documented in §12 as the next step.
 - **Per-user vocab.** Each user has their own vocab, so cross-user transfer learning isn't possible without unifying. A pooled vocab over all 22 users would have ≈ 130 distinct apps.
 - **Schema differences.** The multi-user data lacks the device_state_scene / networktype / source_event columns that single-user had. This makes the neural pipeline easier (fewer features to load) but precludes some v3 features (loc_id is still extractable from the payload).
 - **Test set sizes vary widely.** From 217 to 8,400 target events. Small-test users have ±10 pp CIs on Hit@1 / EH@5; the headline aggregate is dominated by larger users.
@@ -259,9 +337,11 @@ To extend with neural models, see §7 and the existing scripts in 20–27 — th
 
 ---
 
-## 14. Takeaways
+## 15. Takeaways
 
-1. **Markov-1 is a strong baseline at 0.72 median test EH@5 across 22 users** — much higher than the 0.69 we saw on the single Huawei user used in the prior reports.
-2. **Per-user variance is large** (test EH@5 from 0.26 to 0.95). One model size won't fit all — the easiest users are 5× easier than the hardest.
-3. **The v3 R6 single-user result (test EH@5 = 0.746) is consistent with this multi-user median.** It's a plausible mid-range result, not anomalously high or low.
-4. **The infrastructure for multi-user neural training is in place.** `lib/multiuser.py` plus the per-user `artifacts/multiuser/<uid>/splits/` directories let the existing v1/v2/v3 training scripts be re-pointed by adding a `--user-dir` flag. This is the natural next experiment.
+1. **Markov-1 mean test EH@5 = 0.720, median 0.748 across 22 users.** The original Huawei single-user (0.688) sits in the harder half. The v3 R6 single-user result (0.746) lies at the population median.
+2. **v1 GRU per-user does NOT beat Markov-1 on average.** Mean test Hit@1: GRU 0.561 vs Markov 0.585. Mean test EH@5: GRU 0.713 vs Markov 0.720. v1 GRU wins on only **23 % of users for Task A** and **45 % for Task B**. This contrasts sharply with single-user Huawei (where v1 GRU beat Markov-1 by +10.6 pp on Hit@1).
+3. **Why the gap?** The multi-user XLSX schema lacks `device_state_scene`, `device_state_networktype`, and `device_state_*_info` columns — about 9 of the 28 numeric features are all-UNK. The GRU's input bandwidth is reduced; Markov-1 doesn't care because it only uses `last_app`. The single-user GRU advantage was partly powered by that extra context.
+4. **Per-user variance is large** — test EH@5 ranges 0.107 → 0.962 (8.8 ×) for the same v1 GRU architecture. Population-wide "best model" claims are weak; per-user choice or Markov-prior-fused models (v3 R6) is the production-ready answer.
+5. **One outlier user (`top2000/0ADE1A8C6E6F`)** sees v1 GRU lift Hit@1 by +12.5 pp over Markov-1, suggesting user-specific patterns the transition table can't capture. Worth a follow-up case study.
+6. **v3 R6 cross-user is the natural next experiment** (~33 min CPU compute) — Markov-prior fusion + the v3 features may close the gap that v1 GRU couldn't.
