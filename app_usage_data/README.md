@@ -72,7 +72,8 @@ app_usage_data/
 ├─ REPORT_v2.md                               # v2 writeup (per-task + global + profile)
 ├─ REPORT_v3.md                               # v3 writeup (feature enrichment + Markov prior)
 ├─ REPORT_v4.md                               # v4 writeup (recency + periodicity ablation, full baseline comparison)
-├─ REPORT_v5_multiuser.md                     # multi-user (22 users) benchmark — Markov-1 + v1 GRU per user
+├─ REPORT_v5_multiuser.md                     # multi-user (22 users) benchmark — all baselines through v5 BG-state features
+├─ REPORT_v5_cherry_picked.md                 # 10 users where v5 E2 beats MRU-5 — full mean/median tables across all baselines
 ├─ FEATURES.md                                # complete feature reference (every dim explained)
 ├─ FEATURES_v2.md                             # next-iteration feature proposal (audit + recommended drops/adds)
 │
@@ -196,5 +197,6 @@ R6-arch trim ties R6 on Task B test EH@5 (0.746) with **profile dim 79 vs 153** 
 - `REPORT_v2.md` — per-task architecture (Local + Global + Profile encoders, gated fusion), v2 ablations
 - `REPORT_v3.md` — full v3 writeup: feature schemas, ablation rounds R0–R6, overfit audit, Markov prior design, limitations
 - `REPORT_v4.md` — comprehensive comparison: all baselines (MFU / MRU / HourMFU / Markov-1 / v1 GRU / v1 TGT-lite / v2 GRU / v3 R0 / v3 R4 / v3 R6 / v4 / v4 + Markov) for both tasks; tests two new features (per-app recency, periodicity priors) and falsifies them on this dataset; **production picks**: v1 GRU for Task A, v3 R6 for Task B
-- `REPORT_v5_multiuser.md` — extends the benchmark to **22 distinct users** with their own real HarmonyOS logs (data at `/data00/ruiqing/app_forecasting/data/cleaned/`). Reports closed-form baselines (MFU/MRU/HourMFU/Markov-1) and **v1 GRU per user**. Headline: Markov-1 test EH@5 ranges 0.255–0.950 across users (median 0.748). v1 GRU does NOT beat Markov-1 on average across these 22 users — wins on only 23 % for Task A and 45 % for Task B — a striking departure from the single-user finding (where it lifted Task A Hit@1 by +10.6 pp). The likely reason: multi-user XLSX format lacks scene/networktype columns, dropping ~9 features that helped the single-user GRU.
+- `REPORT_v5_multiuser.md` — extends the benchmark to **22 distinct users** with their own real HarmonyOS logs (data at `/data00/ruiqing/app_forecasting/data/cleaned/`). Reports closed-form baselines (MFU/MRU-5/HourMFU/Markov-1) and per-user-trained v1, v2, v3 R4/R6/R6-lite/R6-arch trim, v4, v4-trim, and v5 E1/E2/E4 (BG-state features). Headline: **v5 E4 wins Task A** (mean test Hit@1 0.609, +5.4 pp over MRU-1) and **v5 E2 wins Task B** (mean test EH@5 0.749, +0.7 pp over MRU-5 mean, +3.3 pp on median, 18/22 user wins). Background-state features (BG mask + bg_count + bg_recency + time_since_screen_on) are the v5 contribution.
+- `REPORT_v5_cherry_picked.md` — focuses on **10 users where the trained model clearly beats MRU-5** (sorted by Δ EH@5 = v5 E2 − MRU). Shows mean/median tables for all 17 baselines × all standard metrics. On the picked subset: v5 E2 lifts Task B EH@5 by +3.8 pp mean / +2.9 pp median, Recall@5 by +3.1 pp, Coverage@5 by +2.4 pp absolute (≈6 % relative). Companion to the cohort-wide `REPORT_v5_multiuser.md` — exists to characterise *which* users benefit from training.
 - `paper_deep_dive.md` — literature context (MISApp, TGT, Appformer, MAPLE, ATPP, and why we chose what we chose)

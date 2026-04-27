@@ -8,7 +8,7 @@ This repo contains a Python prototype of a contextual bandit recommender system 
 
 1. **Root-level Dual UCB prototype** — an MLP-based Dual UCB model (726-dim features) that mirrors the C++ app-side implementation for debugging/training outside the app.
 2. **`recommendation_agents/`** — a production-oriented V0 LinUCB scaffold (314-dim features) with two agents: R/O (scenario-specific actions) and App (app category recommendations). This is a *linear* contextual bandit, not an MLP.
-3. **`app_usage_data/`** — single-user next-app prediction demo with two tasks (next-app + 15-min window set prediction) on 42 days of real HarmonyOS data. Independent of the above subsystems; shipped as v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified) → v4-trim (FEATURES_v2 drops: scene + F1-F4 + 2h/6h windows + n_trans, empirically validated as no-cost). Production picks: v1 GRU for Task A; **v3 R6-arch trim** (= v3 R4 + Markov + drops, no rec/per) for Task B — test EH@5 = 0.746, profile dim 79 (vs 153 untrimmed). Multi-user (22 users, separate report): v3 R6 wins Task A and B (mean test Hit@1 0.593, EH@5 0.739).
+3. **`app_usage_data/`** — single-user next-app prediction demo with two tasks (next-app + 15-min window set prediction) on 42 days of real HarmonyOS data. Independent of the above subsystems; shipped as v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified) → v4-trim (FEATURES_v2 drops: scene + F1-F4 + 2h/6h windows + n_trans, empirically validated as no-cost). Production picks: v1 GRU for Task A; **v3 R6-arch trim** (= v3 R4 + Markov + drops, no rec/per) for Task B — test EH@5 = 0.746, profile dim 79 (vs 153 untrimmed). Multi-user (22 users, separate report): per-user training, v5 BG features (BG mask + multi-window BG counts + last-screen-on recency) win — v5 E4 leads Task A (mean test Hit@1 0.609), v5 E2 leads Task B (mean test EH@5 0.749, +0.7 pp over MRU-5 mean / +3.3 pp on median, 18/22 wins). Cherry-picked 10-user analysis (`REPORT_v5_cherry_picked.md`) isolates where the trained model adds value: v5 E2 lifts EH@5 by +3.8 pp mean and Coverage@5 by ≈6 % relative on those users.
 
 These are separate model implementations with different feature spaces and architectures.
 
@@ -94,6 +94,8 @@ Documentation:
 - `app_usage_data/REPORT_v2.md` — v2 (per-task hierarchical encoder)
 - `app_usage_data/REPORT_v3.md` — v3 (feature enrichment + Markov prior)
 - `app_usage_data/REPORT_v4.md` — v4 ablation experiment, full baseline comparison, production picks
+- `app_usage_data/REPORT_v5_multiuser.md` — multi-user (22 users) benchmark across all baselines + v1/v2/v3/v4/v5 configs; v5 E2/E4 (BG features) win
+- `app_usage_data/REPORT_v5_cherry_picked.md` — 10 users where v5 E2 clearly beats MRU; full mean/median tables across all 17 baseline + neural rows
 - `app_usage_data/FEATURES.md` — every input feature explained (current v3 implementation)
 - `app_usage_data/FEATURES_v2.md` — proposed feature redesign (audit + drops + adds)
 

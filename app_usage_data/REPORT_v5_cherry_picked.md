@@ -91,6 +91,64 @@ Pattern: v5 E2 lifts both Recall@5 (catching the right apps in the window) and C
 - **Task B: v5 E2 = 0.713 vs MRU = 0.675 → +3.8 pp absolute lift.**
 - **Task A: v5 E4 = 0.556 vs MRU = 0.555 → +0.1 pp (within noise on the picked subset).**
 
+## Full baseline comparison — mean / median (same format as REPORT_v5_multiuser.md §10)
+
+### Task A — test Hit@1, Hit@5, MRR (mean / median over 10 picked users)
+
+| Model | Test Hit@1 mean | Test Hit@1 median | Test Hit@5 mean | Test Hit@5 median | Test MRR mean | Test MRR median |
+|---|---|---|---|---|---|---|
+| MFU | 0.290 | 0.306 | 0.688 | 0.692 | 0.461 | 0.460 |
+| MRU | 0.555 | 0.555 | 0.674 | 0.676 | 0.612 | 0.611 |
+| HourMFU | 0.313 | 0.294 | 0.666 | 0.676 | 0.469 | 0.462 |
+| Markov-1 | 0.552 | 0.547 | 0.830 | 0.827 | 0.676 | 0.666 |
+| v1 GRU | 0.497 | 0.480 | 0.816 | 0.829 | 0.642 | 0.636 |
+| v1 TGT-lite | 0.479 | 0.484 | 0.793 | 0.799 | 0.621 | 0.608 |
+| v1 GRU + Markov | 0.514 | 0.506 | 0.816 | 0.830 | 0.652 | 0.643 |
+| v2 (split + global) | 0.531 | 0.537 | 0.837 | 0.846 | 0.668 | 0.659 |
+| v3 R4 | 0.537 | 0.535 | 0.839 | 0.845 | 0.673 | 0.657 |
+| v3 R6 | 0.541 | 0.534 | 0.835 | 0.834 | 0.673 | 0.661 |
+| v3 R6-lite | 0.531 | 0.537 | 0.835 | 0.844 | 0.668 | 0.667 |
+| v3 R6-arch trim | 0.533 | 0.520 | 0.840 | 0.841 | 0.669 | 0.657 |
+| v4 full | 0.541 | 0.546 | 0.835 | 0.844 | 0.675 | 0.666 |
+| v4-trim | 0.545 | 0.539 | 0.837 | 0.839 | 0.677 | 0.669 |
+| v5 E1 | 0.526 | 0.533 | 0.833 | 0.838 | 0.662 | 0.667 |
+| v5 E2 (BG) | 0.531 | 0.535 | 0.836 | 0.850 | 0.665 | 0.664 |
+| **v5 E4 (BG wider)** | **0.556** | **0.557** | **0.843** | **0.849** | **0.683** | **0.683** |
+
+> MRU here is the standard last-app rule for Task A — its top-1 prediction is the most recent distinct app; for top-K it falls back to recency-ordered tail, which is why Hit@5 / MRR are below the trained models.
+
+**Task A read.** v5 E4 leads on the picked subset with **0.556 mean / 0.557 median Hit@1** — narrowly above MRU (0.555) and Markov-1 (0.552). On Hit@5 and MRR, every v3+ neural model is clustered near 0.83 / 0.67, comfortably ahead of MRU (0.674 / —). Task A on these picked users is structurally MRU-leaning at top-1; the trained models earn their gap on top-5 ranking quality.
+
+### Task B — test EventHit@5 / Recall@5 / Coverage@5 (mean / median over 10 picked users)
+
+| Model | Test EH@5 mean | Test EH@5 median | Test Recall@5 mean | Test Recall@5 median | Test Coverage@5 mean | Test Coverage@5 median |
+|---|---|---|---|---|---|---|
+| MFU | 0.659 | 0.672 | 0.639 | 0.660 | 0.329 | 0.293 |
+| MRU | 0.675 | 0.673 | 0.693 | 0.711 | 0.395 | 0.385 |
+| HourMFU | 0.631 | 0.629 | 0.614 | 0.612 | 0.301 | 0.273 |
+| Markov-1 | 0.671 | 0.671 | 0.685 | 0.690 | 0.377 | 0.338 |
+| v1 GRU | 0.673 | 0.670 | 0.676 | 0.683 | — | — |
+| v1 TGT-lite | 0.649 | 0.654 | 0.655 | 0.666 | — | — |
+| v1 GRU + Markov | 0.683 | 0.676 | 0.695 | 0.702 | — | — |
+| v2 (split + global) | 0.673 | 0.670 | 0.684 | 0.697 | 0.381 | 0.362 |
+| v3 R4 | 0.682 | 0.689 | 0.688 | 0.704 | 0.388 | 0.357 |
+| v3 R6 | 0.700 | 0.701 | 0.714 | 0.712 | 0.413 | 0.391 |
+| v3 R6-lite | 0.701 | 0.695 | 0.713 | 0.717 | 0.410 | 0.385 |
+| v3 R6-arch trim | 0.708 | 0.699 | 0.719 | 0.716 | 0.417 | 0.390 |
+| v4 full | 0.701 | 0.693 | 0.718 | 0.716 | 0.417 | 0.396 |
+| v4-trim | 0.703 | 0.696 | 0.713 | 0.719 | 0.408 | 0.387 |
+| v5 E1 | 0.706 | 0.701 | 0.721 | 0.724 | 0.417 | 0.401 |
+| **v5 E2 (BG)** | **0.713** | **0.702** | **0.724** | **0.729** | **0.419** | **0.404** |
+| v5 E4 (BG wider) | 0.706 | 0.689 | 0.723 | 0.723 | 0.419 | 0.392 |
+
+> v1 GRU / TGT-lite / GRU+Markov did not emit `coverage_at_5` in their per-user JSONs (older eval pipeline), so Coverage@5 cells are blank.
+
+**Task B read on picked subset.**
+- **EH@5**: v5 E2 wins at 0.713 mean / 0.702 median, vs MRU 0.675 / 0.673 → **+3.8 pp mean, +2.9 pp median**. Every config from v3 R6 onward beats every closed-form baseline; the picked subset is exactly where the trained tail starts paying off.
+- **Recall@5**: v5 E2 at 0.724 vs MRU 0.693 → **+3.1 pp**. The pattern tracks EH@5 closely (Recall@5 doesn't event-weight, so the gap is comparable).
+- **Coverage@5**: v5 E2 at 0.419 vs MRU 0.395 → **+2.4 pp absolute (≈6 % relative)**. The biggest *relative* improvement is here — these picked users have multi-app windows where MRU's recency-only ordering misses one of the apps, and a calibrated multi-label head recovers it.
+- The wider v5 E4 variant tracks v5 E2 within a percentage point on every metric; the picked-user advantage of the deeper representation is concentrated on Task A H@1, not Task B.
+
 For comparison, the cohort-wide (n=22) means from REPORT_v5_multiuser.md:
 
 | Metric | MRU | v5 E2 | Δ |
