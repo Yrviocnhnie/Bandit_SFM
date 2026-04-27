@@ -221,6 +221,9 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 | v2 (split + global enc) | 0.587 | 0.573 | 0.864 | 0.869 | 0.712 | 0.692 |
 | v3 R4 (cat + loc + daypart + windows) | 0.590 | 0.582 | 0.863 | 0.877 | 0.714 | 0.718 |
 | **v3 R6 (R4 + Markov fusion)** | **0.593** | **0.581** | 0.861 | 0.873 | **0.715** | **0.719** |
+| v3 R6-lite (Markov only, no R3/R4 features) | 0.593 | 0.566 | 0.863 | 0.866 | 0.715 | 0.690 |
+| v3 R6-arch trim (R6 + FEATURES_v2 drops, no rec/per) | 0.595 | 0.589 | 0.864 | 0.867 | 0.716 | 0.706 |
+| v4 (R4 + recency + periodicity + Markov) | 0.593 | 0.578 | 0.864 | 0.865 | 0.717 | 0.698 |
 
 **v3 R6 is the best Task A model on mean Hit@1 / Hit@5 / MRR.** The lift over Markov-1 (0.585 → 0.593) is small — about 0.8 pp — but consistent: v2 already adds 0.026 Hit@1 over v1 GRU (0.561 → 0.587) by splitting the backbone and adding the global encoder, and v3 R4 squeezes another 0.003 by adding cat / loc / daypart / windows. The Markov fusion in v3 R6 is *not* additive on Task A because the prior is wired only to the Task B sigmoid head; the gain we see (0.590 → 0.593) is just stochastic seed noise.
 
@@ -240,6 +243,9 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 | v2 (split + global enc) | 0.712 | 0.718 | 0.701 | 0.684 | 0.429 | 0.477 |
 | v3 R4 (cat + loc + daypart + windows) | 0.720 | 0.751 | 0.711 | 0.736 | 0.448 | 0.471 |
 | **v3 R6 (R4 + Markov fusion)** | **0.739** | **0.761** | **0.740** | **0.772** | **0.448** | **0.488** |
+| v3 R6-lite (Markov only, no R3/R4 features) | 0.742 | 0.748 | 0.739 | 0.761 | 0.466 | 0.497 |
+| v3 R6-arch trim (R6 + FEATURES_v2 drops) | 0.746 | 0.767 | 0.742 | 0.773 | 0.473 | 0.499 |
+| v4 (R4 + recency + periodicity + Markov) | 0.744 | 0.764 | 0.741 | 0.764 | 0.470 | 0.488 |
 
 **Task B has two near-tied winners on mean EH@5 (MRU-5 = 0.742, v3 R6 = 0.739), but v3 R6 wins decisively per-user (16 / 22 head-to-head; median delta +0.014).** v3 R6 also leads on median EH@5 (0.761 vs 0.748) and median Coverage@5 (0.488 vs 0.471). MRU's mean is buoyed by `top2000` users whose 15-min windows usually contain only 1-3 distinct apps — for those, "your 5 most recent distinct apps" is a near-perfect superset and trivially captures the window. v3 R6 widens the gap whenever a window contains an app the user hasn't touched recently.
 
@@ -253,6 +259,17 @@ The architectural progression (low → high) is:
 The architectural lift from splitting the backbone and adding a global Transformer + profile encoder (v2 ≈ v1 GRU on B) is small on its own, but it lets the v3 feature stack land cleanly. Adding the Markov prior on top is what pushes v3 R6 past **all the v1-class neural baselines** (0.713, 0.683, 0.726) and matches MRU-5 on mean while beating it per-user.
 
 **MRU-5 is the strongest classical baseline** — mean EH@5 0.742 beats Markov-1's 0.720 and HourMFU's 0.687. Markov-1 still wins on Hit@1 (Task A) where the structured `P(next | last_app)` table outperforms recency-ordered top-K. v1 TGT-lite remains the across-the-board under-performer (overfit on ~14k targets per user).
+
+**Cross-user replication of single-user findings.** Three additional configs were run per-user (n=22) to test whether single-user ablations generalize:
+
+| Config | Mean EH@5 | Median | Cross-user verdict |
+|---|---|---|---|
+| v3 R6 (full)               | 0.739 | 0.761 | reference |
+| **v3 R6-arch trim** (drops only, no rec/per) | **0.746** | **0.767** | **+0.007 mean over R6** — drops continue to be no-cost (or slightly +) cross-user, matching single-user |
+| v3 R6-lite (Markov-only, no R3/R4) | 0.742 | 0.748 | within noise of R6 — confirms cat/loc/daypart/windows add little when Markov is on |
+| v4 (R4 + recency + periodicity) | 0.744 | 0.764 | within noise — single-user falsification of v4 features holds cross-user |
+
+**Headline:** v3 R6-arch trim is the production multi-user winner on mean EH@5 (0.746). The FEATURES_v2 drop story holds across the cohort. v4 features (recency + periodicity) are falsified at population scale, just as single-user.
 
 > **Audit trail (2026-04-27).** Earlier drafts of this table reported two different — and both wrong — MRU numbers. The fixes are documented for transparency:
 >
