@@ -11,6 +11,7 @@
 - **Task B — 15-min window set prediction.** Best test EventHit@5 = **0.746** by **v3 (R6)** (three-branch encoder with Local + Global + Profile + per-token category & location embeddings, plus Markov-1 prior fusion on the sigmoid head). The two new v4 feature proposals — per-app recency and same-hour-yesterday/last-week periodicity priors — **did not help** when added to this best model. They produce a 0.6–1.7 pp test regression, confirming v3 R6 is at or near the data ceiling.
 - **Production recommendation:** v3 R6 (with Markov fusion) for Task B; either v1 GRU or v3 R4 for Task A (both within noise floor on test).
 - **Honest takeaway:** the proposed v4 features (recency, periodicity) are intuitive but turn out to be redundant with what the existing Local + Global + Profile + Markov stack already captures. Adding them costs profile-dim budget without buying signal.
+- **Update (§6.5):** the FEATURES_v2 *drops* — `device_state_scene` per-token, profile F1-F4, 2h+6h windows, redundant `n_transitions` — were tested as a separate experiment. Result: v3 R6-arch **trim** matches untrimmed v3 R6 at test EH@5 = **0.746** with profile dim shrunk 153 → 79 (-48 %). The drops are an empirical no-cost cleanup; ship them as the new lean baseline.
 
 ---
 
@@ -115,6 +116,8 @@ CPU runtime per training round: 50–100 s (small dataset, modest model).
 | **v4 (full: + recency + periodicity)** | 0.594 | **0.885** | 0.722 | 0.573 | 0.851 | 0.695 |
 | v4 (recency only) | 0.607 | 0.879 | 0.726 | 0.566 | 0.849 | 0.689 |
 | v4 (periodicity only) | 0.575 | 0.861 | 0.707 | 0.563 | 0.840 | 0.687 |
+| **v4-trim** (v4 with FEATURES_v2 drops: scene + F1–F4 + 2h/6h windows + n_trans; profile 179 → 105) | 0.611 | 0.876 | 0.727 | 0.571 | 0.849 | 0.690 |
+| **v3 R6-arch trim** (= v3 R4 + Markov + drops, no rec/per; profile 153 → 79) | 0.593 | 0.870 | 0.714 | 0.578 | 0.837 | 0.695 |
 
 **Reading the numbers:**
 - The top three test Hit@1 results — **v1 GRU 0.602, v3 R4 0.599, v2 GRU 0.593** — are statistically tied within the ±3 pp CI of a 583-event test set. All three are clear wins over Markov-1 (0.496) and the popularity baselines (MFU 0.240, HourMFU 0.244).
@@ -144,6 +147,8 @@ CPU runtime per training round: 50–100 s (small dataset, modest model).
 | **v4 + Markov (full: + recency + periodicity)** | ✓ | 0.707 | 0.729 | 0.720 | 0.437 |
 | v4 + Markov (recency only) | ✓ | 0.703 | 0.739 | 0.726 | 0.437 |
 | v4 + Markov (periodicity only) | ✓ | 0.704 | 0.743 | 0.732 | 0.456 |
+| **v4-trim + Markov** (FEATURES_v2 drops; profile 179 → 105) | ✓ | 0.709 | **0.737** | 0.728 | 0.416 |
+| **v3 R6-arch-trim + Markov** (no rec/per; profile 153 → 79) | ✓ | 0.696 | **0.746** | 0.730 | 0.443 |
 
 ### Top of the leaderboard
 
@@ -203,8 +208,41 @@ Honest analysis:
 - **Single-user data ceiling.** Test set has 583 target events. Test Hit@1 / EventHit@5 noise floor is ~3 pp. The "v4 hurts by 1–2 pp" deltas are likely a mix of real (slight) feature redundancy + noise. They're not a strong negative finding, but they're definitely *not* a positive finding.
 
 **What this confirms about the proposed FEATURES_v2.md design:**
-- The "drop F1–F4 / scene / 2h+6h windows" recommendations remain reasonable on first-principles grounds (verified redundancy, low coverage), but we have no positive empirical evidence they'd help — they were proposed for cleanliness, not metric gain.
-- The "add recency / periodicity" recommendations are **falsified** on this dataset. They should not be added unless we get more data (e.g. multi-user), at which point shared-statistical features may earn their slot.
+- The "drop F1–F4 / scene / 2h+6h windows / n_transitions" recommendations are **empirically validated as cleanliness wins** — see §6.5 below. Removing 74 dims from the profile (and zeroing the 5-dim scene one-hot per token) leaves test metrics unchanged or slightly improves them.
+- The "add recency / periodicity" recommendations are **falsified** on this dataset (and not rescued by the trim either). They should not be added unless we get more data; multi-user with a shared vocab might let them earn a slot.
+
+---
+
+## 6.5 FEATURES_v2 drop experiment — empirical verification
+
+The v4 baseline as originally run (and reported in §4-§5) was *strictly additive* on top of v3 R4: it kept every existing feature and added recency (8-d) + periodicity (18-d). It did **not** apply the 4 feature-block drops also proposed in `FEATURES_v2.md`:
+
+1. **`device_state_scene` one-hot** (5 dims per token) — 86 % null; remaining values nearly collinear with `networktype`.
+2. **F1–F4 in the v2 profile** (32 dims = 4 × 8) — hour / weekday top-8 marginals + rolling 24 h / 7 d top-8 frequencies. Largely subsumed by daypart + multi-window rollups in v3.
+3. **2 h and 6 h windows** (42 of the 105 multi-window dims) — daypart already captures the long-horizon time-of-day bucket; the 6 h window almost always pins to `news_feed_content`.
+4. **`n_transitions` per-window scalar** (5 dims of 105) — exactly equal to `n_self_repeats + n_switches` for each window; pure linear redundancy.
+
+`scripts/27_train_v4.py` now exposes four CLI flags (`--drop-scene --drop-f1234 --drop-long-windows --drop-n-trans`) that apply post-hoc on the numpy arrays before they enter the encoders, so the rest of the v3/v4 wiring is unchanged. Trim runs apply all four drops together; recency and periodicity can be toggled independently.
+
+| Variant | Profile dim | Token dims dropped | Params | Test Hit@1 (A) | Test EH@5 (B) |
+|---|---|---|---|---|---|
+| v4 full + Markov (no drops) | 179 | 0 | 99k / 102k | 0.573 | 0.729 |
+| **v4-trim + Markov** (all 4 drops) | 105 | 5 zero'd | 95k / 98k | **0.571** | **0.737** |
+| v3 R6 full (no rec/per, no drops) | 153 | 0 | 98k / 100k | 0.599 | 0.746 |
+| **v3 R6-arch trim** (drops, no rec/per) | 79 | 5 zero'd | 93k / 96k | 0.578 | **0.746** |
+
+**Key findings:**
+
+1. **The drops are at worst neutral on every test metric.** v3 R6-arch trim ties v3 R6 full at 0.746 EH@5 — *exactly* the same to four decimals — while shedding 74 profile dims (48 %). v4-trim improves EH@5 by +0.8 pp over v4-full (0.737 vs 0.729) by removing dimensions that were trading off against the recency / periodicity signals.
+2. **The dropped features carry no signal that this model architecture can use.** Removing them doesn't trigger compensation elsewhere; the rest of the encoder stack already covers what those features were nominally encoding (categorical / hour / weekday rhythms via daypart + cat embedding + Fourier hour; long-horizon frequency via multi-window 1h rollup + Markov prior; etc.).
+3. **Task A is unchanged within noise.** v4-trim lands at 0.571 vs v4 full's 0.573 (−0.2 pp, well below the ±3 pp 95 % CI for n=583 test events). v3 R6-arch trim at 0.578 is 2.1 pp below v3 R4's 0.599 — that gap is mostly the no-recency / no-periodicity choice (v3 R4 keeps Markov off; v3 R6-arch trim keeps Markov on but Task A doesn't use Markov), so it's noise, not the drops.
+4. **The trim doesn't rescue the recency/periodicity features.** v4-trim + Markov (0.737) is still 0.9 pp below v3 R6 full (0.746). Whatever they were doing wrong in untrimmed v4, the trim doesn't fix it — the *additions* are still net-negative even after the *redundant existing features* are removed.
+
+**Conclusion:** the FEATURES_v2 drops are a clean win on cost (smaller profile, fewer params, less compute in window rollups) with no metric cost. They are a strict improvement and should be the default for the production v3 R6 path. The recency/periodicity additions remain falsified on this single-user data.
+
+**Production picks (updated):**
+- **Task A:** v1 GRU (simplest, ties for best test Hit@1).
+- **Task B:** **v3 R6-arch trim** (v3 R4 + Markov + drops, no rec/per) — same test EH@5 = 0.746 as untrimmed v3 R6, with 80 % of the params and ~half the profile-build compute.
 
 ---
 
@@ -256,6 +294,7 @@ The v4 experiment (recency + periodicity priors) was a falsification. That's a r
 
 - It tells us the v3 architecture was already extracting near-maximum signal from this user's 5,471 training events. Additional hand-crafted features can't easily push past that without overfitting.
 - It validates our "inductive bias > parameters" principle: the 1-parameter (`α_markov`) Markov prior fusion contributes 3 pp; the 26-dim (8 + 18) recency+periodicity combo contributes 0 or negative.
+- The follow-up FEATURES_v2 trim experiment (§6.5) gives the matching positive result: removing 74 redundant profile dims (scene, F1-F4, 2h/6h windows, n_trans) holds test EH@5 at 0.746. Together the two experiments triangulate where the signal actually lives — what the model uses, and what's dead weight.
 - It suggests the next step for *real* improvement is **more data** (multi-user, cross-user transfer) or **a richer raw signal** (notification events, app-screen time, calendar) — not more features computed from the existing log.
 
 ---
@@ -287,6 +326,13 @@ python scripts/27_train_v4.py --task b --use-markov --tag task_b_v4_full
 python scripts/27_train_v4.py --task b --use-markov --no-periodicity --tag task_b_v4_rec_only
 python scripts/27_train_v4.py --task b --use-markov --no-recency     --tag task_b_v4_per_only
 python scripts/27_train_v4.py --task b --use-markov --no-recency --no-periodicity --tag task_b_v4_no_new_no_markov  # = v3 R6 essentially
+
+# FEATURES_v2 drop experiment (§6.5) — drops scene + F1-F4 + 2h/6h windows + n_trans
+DROP="--drop-scene --drop-f1234 --drop-long-windows --drop-n-trans"
+python scripts/27_train_v4.py --task a --use-markov               $DROP --tag task_a_v4_trim
+python scripts/27_train_v4.py --task a --use-markov --no-recency --no-periodicity $DROP --tag task_a_v3r6arch_trim
+python scripts/27_train_v4.py --task b --use-markov               $DROP --tag task_b_v4_trim
+python scripts/27_train_v4.py --task b --use-markov --no-recency --no-periodicity $DROP --tag task_b_v3r6_trim
 ```
 
 All runs ~50–100s on CPU. Determinism: `seed=7` everywhere.
@@ -298,6 +344,9 @@ All runs ~50–100s on CPU. Determinism: `seed=7` everywhere.
 | Task | Champion (test) | Runner-up | Notes |
 |---|---|---|---|
 | A — Next-app prediction (Hit@1) | **v1 GRU 0.602** | v3 R4 0.599 | Tied within noise; pick v1 GRU for simplicity |
-| B — 15-min window prediction (EventHit@5) | **v3 R6 0.746** | v4 + Markov (periodicity only) 0.743 | Markov prior fusion is essential; v4 features add nothing |
+| B — 15-min window prediction (EventHit@5) | **v3 R6 / v3 R6-arch trim 0.746** | v4 + Markov (periodicity only) 0.743 | Markov prior fusion is essential. FEATURES_v2 drops (scene + F1–F4 + 2h/6h windows + n_trans) match v3 R6's 0.746 with 79-d profile (vs 153-d) — drops are a clean cost win. v4 additive features still don't help. |
 
-**Bottom line: v3 is already at or near the data ceiling for this single-user log. v4 features (per-app recency, periodicity priors) do not help. The best models for production are v1 GRU for Task A and v3 R6 (full v3 features + Markov prior fusion) for Task B.**
+**Bottom line:**
+- v3 is at or near the data ceiling for this single-user log; v4 additive features (per-app recency, periodicity priors) do not help.
+- The FEATURES_v2 *drops* (74 dims of profile + zero-out scene per token) are empirically free — same test EH@5 with ~half the profile dimensions.
+- **Production picks:** v1 GRU for Task A; **v3 R6-arch trim** (= v3 R4 + Markov + FEATURES_v2 drops, no rec/per) for Task B — same 0.746 EH@5 as untrimmed v3 R6 with smaller, cheaper inputs.

@@ -175,7 +175,11 @@ All share v2's three-branch encoder architecture; rounds add features incrementa
 | R6-lite | — (v2 features) | ✓ | — | 0.733 |
 | **R6** | **all v3 features** | ✓ | 0.599 | **0.746** |
 
+| R6-arch trim | R6 minus scene + F1–F4 + 2h/6h windows + n_trans (FEATURES_v2 drops) | ✓ | 0.578 | **0.746** |
+
 Learned α_markov after R6 convergence: **0.517** (init 0.5, clipped to [0, 2]). Confirms the prior is load-bearing without collapsing the learned signal.
+
+R6-arch trim ties R6 on Task B test EH@5 (0.746) with **profile dim 79 vs 153** (~48 % reduction) and ~8 % fewer params — empirically validates the FEATURES_v2 drop list as a no-regret efficiency win. See `REPORT_v4.md` §6.5.
 
 ## Key findings
 

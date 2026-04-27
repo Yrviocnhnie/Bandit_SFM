@@ -8,7 +8,7 @@ This repo contains a Python prototype of a contextual bandit recommender system 
 
 1. **Root-level Dual UCB prototype** — an MLP-based Dual UCB model (726-dim features) that mirrors the C++ app-side implementation for debugging/training outside the app.
 2. **`recommendation_agents/`** — a production-oriented V0 LinUCB scaffold (314-dim features) with two agents: R/O (scenario-specific actions) and App (app category recommendations). This is a *linear* contextual bandit, not an MLP.
-3. **`app_usage_data/`** — single-user next-app prediction demo with two tasks (next-app + 15-min window set prediction) on 42 days of real HarmonyOS data. Independent of the above subsystems; shipped as v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified). Production picks: v1 GRU for Task A; v3 R6 for Task B (test EventHit@5 = 0.746).
+3. **`app_usage_data/`** — single-user next-app prediction demo with two tasks (next-app + 15-min window set prediction) on 42 days of real HarmonyOS data. Independent of the above subsystems; shipped as v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified) → v4-trim (FEATURES_v2 drops: scene + F1-F4 + 2h/6h windows + n_trans, empirically validated as no-cost). Production picks: v1 GRU for Task A; **v3 R6-arch trim** (= v3 R4 + Markov + drops, no rec/per) for Task B — test EH@5 = 0.746, profile dim 79 (vs 153 untrimmed). Multi-user (22 users, separate report): v3 R6 wins Task A and B (mean test Hit@1 0.593, EH@5 0.739).
 
 These are separate model implementations with different feature spaces and architectures.
 
@@ -81,6 +81,11 @@ python scripts/22_train_task_b_v3.py --use-markov --tag task_b_v3_R6   # SOTA Ta
 # v4 — adds per-app recency (8d) + periodicity priors (18d). Did NOT improve over v3.
 python scripts/27_train_v4.py --task a --tag task_a_v4_full
 python scripts/27_train_v4.py --task b --use-markov --tag task_b_v4_full
+
+# v4-trim — applies the FEATURES_v2 drops (scene + F1-F4 + 2h/6h windows + n_trans).
+# Empirically free: same Task B test EH@5 with profile dim 153 -> 79 (no rec/per) or 179 -> 105 (with rec/per).
+DROP="--drop-scene --drop-f1234 --drop-long-windows --drop-n-trans"
+python scripts/27_train_v4.py --task b --use-markov --no-recency --no-periodicity $DROP --tag task_b_v3r6_trim   # production Task B
 ```
 
 Documentation:

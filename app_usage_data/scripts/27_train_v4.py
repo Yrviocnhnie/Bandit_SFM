@@ -190,6 +190,15 @@ def main():
     p.add_argument("--task", choices=["a", "b"], default="a")
     p.add_argument("--no-recency", dest="use_recency", action="store_false")
     p.add_argument("--no-periodicity", dest="use_periodicity", action="store_false")
+    # FEATURES_v2 drops (default off; turn on for trim variants)
+    p.add_argument("--drop-scene", action="store_true",
+                   help="Zero the device_state_scene one-hot in token features (cols 17..21).")
+    p.add_argument("--drop-f1234", action="store_true",
+                   help="Drop the v2 profile F1+F2+F3+F4 blocks (first 32 dims), keeping only F5+F6.")
+    p.add_argument("--drop-long-windows", action="store_true",
+                   help="Use only 15m/30m/1h windows; drop 2h and 6h.")
+    p.add_argument("--drop-n-trans", action="store_true",
+                   help="Zero the n_transitions scalar per window (linear-redundant with n_self+n_switch).")
     p.add_argument("--out", default=None)
     p.add_argument("--tag", default=None)
     p.add_argument("--epochs", type=int, default=25)
@@ -241,9 +250,17 @@ def main():
                                 ("val", val, loc_ids["val"]),
                                 ("test", test, loc_ids["test"])):
         enc = F.encode_events(df, vocab, scaler["mean"], scaler["std"])
+        # FEATURES_v2 drop: scene one-hot is at cols 17..21 of the 28-d numeric pack
+        # (event_type 4 + fourier 4 + weekday 7 + log_dt 1 + session_pos 1 = 17 prefix).
+        if args.drop_scene:
+            enc.feat[:, 17:22] = 0.0
         short = F.build_history_for_targets(enc, history_k=HISTORY_K)
         long = GF.build_long_history_for_targets(enc, k_long=LONG_K)
         v2p = GF.build_profile_for_targets(enc, profile_stats, stream["ts_ns"], stream["app"])
+        # FEATURES_v2 drop: F1+F2+F3+F4 = first 32 dims of the 38-d v2 profile;
+        # keep only F5 (Fourier-hour, 4) + F6 (session signals, 2) = last 6 dims.
+        if args.drop_f1234:
+            v2p = v2p[:, 32:].astype(np.float32)
         target_pos = np.nonzero(enc.is_target)[0]
         a_h = enc.hour[target_pos].astype(int)
         a_w = enc.weekday[target_pos].astype(int)
@@ -267,11 +284,21 @@ def main():
         if args.use_daypart:
             parts.append(daypart_onehot(a_h, a_w))
         if args.use_windows:
-            parts.append(build_window_aggregates(
+            from lib.v3.window_rollups import DEFAULT_WINDOWS_SEC, PER_WINDOW_DIM
+            windows_sec = (900, 1800, 3600) if args.drop_long_windows else DEFAULT_WINDOWS_SEC
+            wagg = build_window_aggregates(
                 anchor_ts_ns=a_ts, stream_ts_ns=stream["ts_ns"],
                 stream_app_idx=stream["app"], stream_cat_idx=stream["cat"],
-                stream_dur_s=stream["dur_s"],
-            ))
+                stream_dur_s=stream["dur_s"], windows_sec=windows_sec,
+            )
+            # FEATURES_v2 drop: n_transitions is the third scalar (offset 2) per window
+            # and equals n_self + n_switch — linear-redundant.
+            if args.drop_n_trans:
+                for wi in range(len(windows_sec)):
+                    wc = wi * 21  # PER_WINDOW_DIM
+                    wc_n_trans_offset = wc + 2
+                    wagg[:, wc_n_trans_offset] = 0.0
+            parts.append(wagg)
         if args.use_recency:
             recency_arr = REC.build_recency_for_anchors(
                 a_ts, stream["ts_ns"], stream["app"], top8_indices,
@@ -347,7 +374,9 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     print(f"[v4 task_{args.task}] params={n_params}  profile_dim={profile_dim}  "
           f"flags: cat={args.use_category} loc={args.use_loc} day={args.use_daypart} "
-          f"win={args.use_windows} rec={args.use_recency} per={args.use_periodicity} mk={args.use_markov}")
+          f"win={args.use_windows} rec={args.use_recency} per={args.use_periodicity} mk={args.use_markov} "
+          f"| drops: scene={args.drop_scene} f1234={args.drop_f1234} "
+          f"long_win={args.drop_long_windows} n_trans={args.drop_n_trans}")
 
     cw = torch.tensor(TR.class_weights(tensors["train"]["target_app"], V)) if args.task == "a" else None
     opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WD)
@@ -405,6 +434,8 @@ def main():
         "use_local": args.use_local, "use_global": args.use_global,
         "use_profile": args.use_profile, "use_markov": args.use_markov,
         "use_recency": args.use_recency, "use_periodicity": args.use_periodicity,
+        "drop_scene": args.drop_scene, "drop_f1234": args.drop_f1234,
+        "drop_long_windows": args.drop_long_windows, "drop_n_trans": args.drop_n_trans,
     }
     torch.save({"state_dict": best_state, "cfg": vars(cfg),
                 "best_score": best_score, "flags": flags_dict}, out_ckpt)
@@ -423,11 +454,7 @@ def main():
         dl_te = DataLoader(ds_te, batch_size=BATCH, shuffle=False)
         test_metrics = evaluate_task_a(model, dl_te)
 
-    flags_dump = {"task": args.task, "use_category": args.use_category, "use_loc": args.use_loc,
-                  "use_daypart": args.use_daypart, "use_windows": args.use_windows,
-                  "use_local": args.use_local, "use_global": args.use_global,
-                  "use_profile": args.use_profile, "use_markov": args.use_markov,
-                  "use_recency": args.use_recency, "use_periodicity": args.use_periodicity}
+    flags_dump = dict(flags_dict)
     results_dir = art / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     out_results = results_dir / f"{args.tag}.json"
