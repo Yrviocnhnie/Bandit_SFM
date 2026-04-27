@@ -141,19 +141,25 @@ def main():
         # MFU: same prediction for every anchor
         scores_mfu = np.broadcast_to(mfu_dist, (n_test, V)).copy()
 
-        # Pure MRU: top-1 = last app; remaining 4 top-K slots are arbitrary
-        # zero-tied indices. Matches the single-user `lib.baselines.MRU`
-        # definition (no MFU tiebreak), so cross-dataset numbers are
-        # apples-to-apples. The earlier `1e-6 * mfu_dist` tiebreak silently
-        # turned this into "last_app + top-4 MFU" and inflated EH@5 by ~0.32.
+        # MRU for Task B: top-5 most recently used DISTINCT apps per anchor,
+        # recency-ranked. This is the natural set-prediction MRU baseline.
+        # Earlier drafts used:
+        #  - "last_app only" (sets 4 zero-tied PAD/UNK indices in top-5),
+        #  - or "last_app + 1e-6 * mfu_dist" tie-break (an MRU+MFU hybrid).
+        # Neither matches what users typically mean by MRU for a top-K set.
+        K_MRU = 5
         scores_mru = np.zeros((n_test, V), dtype=np.float32)
         ins = np.searchsorted(full_ts, te_ts, side="left")
         for i in range(n_test):
-            ip = int(ins[i])
-            if ip > 0:
-                la = int(full_app[ip - 1])
-                if la >= 3:
-                    scores_mru[i, la] = 1.0
+            seen = []
+            j = int(ins[i]) - 1
+            while j >= 0 and len(seen) < K_MRU:
+                a = int(full_app[j])
+                if a >= 3 and a not in seen:
+                    seen.append(a)
+                j -= 1
+            for rank, a in enumerate(seen):
+                scores_mru[i, a] = float(K_MRU - rank)
 
         # HourMFU
         hours_eval = np.array([int(pd.Timestamp(t).hour) for t in te_ts], dtype=np.int64)

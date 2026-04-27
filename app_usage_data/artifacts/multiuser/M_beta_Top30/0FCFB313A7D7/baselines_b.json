@@ -10,9 +10,9 @@
     "n": 32
   },
   "task_b_test_MRU": {
-    "event_hit_at_5": 0.1553398058252427,
-    "recall_at_5": 0.30212053571428577,
-    "coverage_at_5": 0.15625,
+    "event_hit_at_5": 0.5145631067961165,
+    "recall_at_5": 0.5475074404761905,
+    "coverage_at_5": 0.28125,
     "n": 32
   },
   "task_b_test_HourMFU": {

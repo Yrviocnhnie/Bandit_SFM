@@ -52,7 +52,7 @@ We use the original v1/v2/v3/v4 names (consistent with prior reports). The table
 | Name | Generalized description |
 |---|---|
 | **MFU** | Global popularity baseline. Predicts the most-frequent apps from train, regardless of context. |
-| **MRU** | Recency baseline. Predicts the app the user most recently opened. Tests pure self-transition behavior. |
+| **MRU** | Recency baseline. Task A: predict last target app. Task B: top-5 most-recently-used DISTINCT apps (recency-ranked). |
 | **HourMFU** | Hour-conditioned popularity table `P(app \| hour)` with Dirichlet smoothing. First context-aware baseline. |
 | **Markov-1** | First-order transition table `P(next \| last_app)` over the V×V app pairs, fit on train target sequence with α=0.5 smoothing. |
 | **v1 GRU** | 1-layer GRU over the last 16 in-session events; one shared backbone with three heads (softmax for Task A; sigmoid + Poisson for Task B). Per-token input = 32-d learned app embedding ⊕ 28-d numeric pack (event type, Fourier hour, weekday, dt-gap, scene, network, screen, session position). ~40k params. |
@@ -132,7 +132,7 @@ CPU runtime per training round: 50–100 s (small dataset, modest model).
 | Model | Markov? | Val EH@5 | Test EH@5 | Test Recall@5 | Test Coverage@5 |
 |---|---|---|---|---|---|
 | MFU | — | 0.657 | 0.622 | 0.605 | 0.390 |
-| MRU | — | 0.566 | 0.470 | 0.461 | 0.259 |
+| MRU (top-5 most-recent distinct) | — | 0.726 | 0.669 | 0.658 | 0.461 |
 | HourMFU | — | 0.689 | 0.689 | 0.668 | 0.465 |
 | **Markov-1** | n/a | 0.743 | 0.688 | 0.679 | 0.500 |
 | v1 GRU (shared backbone) | — | 0.696 | 0.641 | 0.623 | 0.418 |
@@ -167,7 +167,7 @@ CPU runtime per training round: 50–100 s (small dataset, modest model).
 0.628  v2 GRU
 0.622  MFU
 0.614  v1 TGT-lite
-0.470  MRU
+0.669  MRU (top-5 distinct)
 ```
 
 ### What the numbers say

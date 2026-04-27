@@ -202,6 +202,35 @@ def prev_target_before_anchor(enc, anchor_ts):
     return out
 
 
+def topk_distinct_targets_before_anchor(enc, anchor_ts, k=5):
+    """For each anchor, walk backwards through targets and collect the top-k
+    most recently used DISTINCT app indices (most-recent first)."""
+    ts_i64 = enc.ts.astype("datetime64[ns]").astype(np.int64)
+    a_i64 = pd.to_datetime(anchor_ts).to_numpy().astype("datetime64[ns]").astype(np.int64)
+    ins = np.searchsorted(ts_i64, a_i64, side="left")
+    out = []
+    for ip in ins:
+        seen: list = []
+        j = int(ip) - 1
+        while j >= 0 and len(seen) < int(k):
+            if enc.is_target[j]:
+                a = int(enc.app_idx[j])
+                if a >= RESERVED and a not in seen:
+                    seen.append(a)
+            j -= 1
+        out.append(seen)
+    return out
+
+
+def scores_mru_topk_from_lists(prev_lists, V, k=5):
+    n = len(prev_lists)
+    out = np.zeros((n, V), dtype=np.float32)
+    for i, seen in enumerate(prev_lists):
+        for rank, a in enumerate(seen[:int(k)]):
+            out[i, int(a)] = float(int(k) - rank)
+    return out
+
+
 def anchor_truth(df_split, vocab):
     anchors = D.anchor_grid(df_split, stride_sec=ANCHOR_STRIDE,
                             hour_start=HOUR_START, hour_end=HOUR_END)
@@ -238,6 +267,27 @@ def scores_mru_from_history(history_app, history_mask, V):
             if history_mask[i, j] and history_app[i, j] >= RESERVED:
                 out[i, int(history_app[i, j])] = 1.0
                 break
+    return out
+
+
+def scores_mru_topk_from_history(history_app, history_mask, V, k=5):
+    """For Task B: top-K most recently used DISTINCT apps per anchor,
+    ranked by recency (most-recent gets highest score)."""
+    n = len(history_app)
+    out = np.zeros((n, V), dtype=np.float32)
+    for i in range(n):
+        seen = []
+        for j in range(history_app.shape[1] - 1, -1, -1):
+            if not history_mask[i, j]:
+                continue
+            a = int(history_app[i, j])
+            if a < RESERVED or a in seen:
+                continue
+            seen.append(a)
+            if len(seen) >= int(k):
+                break
+        for rank, a in enumerate(seen):
+            out[i, a] = float(int(k) - rank)
     return out
 
 
@@ -334,7 +384,12 @@ def main():
         print(f"  anchors (non-empty): {n_anc}")
 
         s_mfu_b = np.tile(mfu.probs, (n_anc, 1))
-        s_mru_b = scores_mru_from_prev(pa_anc, V)
+        # MRU for Task B: top-5 most recently used DISTINCT apps per anchor.
+        # Old impl set only last_app=1.0 → 4/5 top-5 slots were zero-tied
+        # PAD/UNK indices, hurting EH@5. Top-K distinct is the natural set
+        # baseline.
+        prev5 = topk_distinct_targets_before_anchor(enc_split, anchor_ts_arr, k=5)
+        s_mru_b = scores_mru_topk_from_lists(prev5, V, k=5)
         s_hm_b = scores_hour(hmfu, anchor_hrs)
         s_mk_b = scores_markov(mk, pa_anc)
 

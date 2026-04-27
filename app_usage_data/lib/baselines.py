@@ -69,8 +69,28 @@ class MRU:
                 return scores
         return scores
 
-    def predict_task_b(self, history_app: np.ndarray, history_mask: np.ndarray, **_unused) -> np.ndarray:
-        return self.predict_task_a(history_app=history_app, history_mask=history_mask)
+    def predict_task_b(self, history_app: np.ndarray, history_mask: np.ndarray,
+                       k_distinct: int = 5, **_unused) -> np.ndarray:
+        """Top-K most recently used DISTINCT apps, ranked by recency.
+
+        For Task B's set prediction (top-5 apps in next 15 min), the natural
+        MRU baseline is the K most-recently-used distinct apps, not just
+        the single last app padded with zero-tied PAD/UNK indices.
+        """
+        scores = np.zeros(self.vocab_size, dtype=np.float32)
+        seen: list = []
+        for i in range(len(history_app) - 1, -1, -1):
+            if not history_mask[i]:
+                continue
+            a = int(history_app[i])
+            if a < RESERVED_SIZE or a in seen:
+                continue
+            seen.append(a)
+            if len(seen) >= int(k_distinct):
+                break
+        for rank, a in enumerate(seen):
+            scores[a] = float(int(k_distinct) - rank)
+        return scores
 
 
 RESERVED_SIZE = RESERVED_END

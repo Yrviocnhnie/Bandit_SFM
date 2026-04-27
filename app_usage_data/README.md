@@ -150,7 +150,7 @@ Profile dim: 38 (v2) → 153 (v3 full). Token dim: 60/68 (v2) → 76/84 (v3) for
 | Model | Task A Hit@1 | Task A Hit@5 | Task B EventHit@5 |
 |---|---|---|---|
 | MFU | 0.240 | 0.679 | 0.622 |
-| MRU | — | — | 0.470 |
+| MRU (top-5 distinct) | — | — | 0.669 |
 | HourMFU | 0.244 | 0.736 | 0.689 |
 | **Markov-1** | 0.496 | 0.808 | 0.688 |
 | v1 GRU | 0.602 | 0.840 | 0.641 |
