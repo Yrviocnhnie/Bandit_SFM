@@ -37,6 +37,8 @@ from lib import train as TR
 from lib.v2 import global_features as GF
 from lib.v3 import categories as CAT
 from lib.v3 import location as LOC
+from lib.v3 import recency as REC
+from lib.v3 import periodicity as PER
 from lib.v3 import models_v3 as M3
 from lib.v3 import features_v3 as FV
 from lib.v3.daypart import daypart_onehot
@@ -168,9 +170,15 @@ def last_app_for_targets(target_ts_ns, stream_ts_ns, stream_app_idx, default_idx
 
 
 def prep_split(df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream,
-               use_category, use_loc, use_daypart, use_windows):
+               use_category, use_loc, use_daypart, use_windows,
+               use_recency=False, use_periodicity=False,
+               drop_scene=False, drop_f1234=False, drop_long_windows=False, drop_n_trans=False,
+               bg_mask_prior=False, bg_scalars=False):
     V = len(vocab)
     enc = F.encode_events(df, vocab, scaler["mean"], scaler["std"])
+    if drop_scene:
+        # Zero device_state_scene one-hot at cols 17..21 of the 28-d numeric pack
+        enc.feat[:, 17:22] = 0.0
     short = F.build_history_for_targets(enc, history_k=HISTORY_K)
     long = GF.build_long_history_for_targets(enc, k_long=LONG_K)
 
@@ -195,19 +203,55 @@ def prep_split(df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream,
     )
 
     v2_profile = GF.build_profile_for_targets(enc, profile_stats, stream["ts_ns"], stream["app"])
+    if drop_f1234:
+        v2_profile = v2_profile[:, 32:].astype(np.float32)  # keep F5+F6 only (6 dims)
     parts = [v2_profile]
     if use_daypart:
-        parts.append(daypart_onehot(enc.hour[np.nonzero(enc.is_target)[0]].astype(int),
-                                    enc.weekday[np.nonzero(enc.is_target)[0]].astype(int)))
+        parts.append(daypart_onehot(a_hour, a_wd))
     if use_windows:
-        parts.append(build_window_aggregates(
+        windows_sec = (900, 1800, 3600) if drop_long_windows else (900, 1800, 3600, 7200, 21600)
+        wagg = build_window_aggregates(
             anchor_ts_ns=a_ts,
             stream_ts_ns=stream["ts_ns"],
             stream_app_idx=stream["app"],
             stream_cat_idx=stream["cat"],
             stream_dur_s=stream["dur_s"],
-        ))
+            windows_sec=windows_sec,
+        )
+        if drop_n_trans:
+            for w_i in range(len(windows_sec)):
+                wagg[:, w_i * 21 + 2] = 0.0
+        parts.append(wagg)
+    if use_recency:
+        from lib.v3 import recency as _REC
+        top8 = profile_stats["global_top8"].astype(np.int64)
+        parts.append(_REC.build_recency_for_anchors(a_ts, stream["ts_ns"], stream["app"], top8))
+    if use_periodicity:
+        from lib.v3 import periodicity as _PER
+        top8 = profile_stats["global_top8"].astype(np.int64)
+        parts.append(_PER.build_periodicity_for_anchors(a_ts, stream["ts_ns"], stream["app"], top8))
     profile = np.concatenate(parts, axis=1).astype(np.float32)
+
+    # ----- v5 BG features (optional) ---------------------------------
+    bg_mask_arr = None
+    if bg_mask_prior or bg_scalars:
+        from lib.v3.bg_state import reconstruct_bg, per_target_arrays
+        snaps = reconstruct_bg(df, vocab)
+        bg_arrs = per_target_arrays(snaps, V)
+        if bg_mask_prior:
+            bg_mask_arr = bg_arrs["bg_mask"]
+        if bg_scalars:
+            rec = bg_arrs["bg_recency"]
+            mask = bg_arrs["bg_mask"]
+            inf_inactive = np.where(mask > 0, rec, np.inf)
+            bg_rec_min = np.where(np.isinf(inf_inactive).all(axis=1),
+                                   0.0, np.min(inf_inactive, axis=1)).astype(np.float32)
+            scalars = np.stack([
+                bg_arrs["bg_count"].astype(np.float32),
+                bg_rec_min,
+                bg_arrs["time_since_screen_on"].astype(np.float32),
+            ], axis=1).astype(np.float32)
+            profile = np.concatenate([profile, scalars], axis=1).astype(np.float32)
 
     last_app = last_app_for_targets(a_ts, stream["ts_ns"], stream["app"])
 
@@ -232,11 +276,13 @@ def prep_split(df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream,
         "win_counts": TR.build_window_target_counts(
             short["target_ts"].astype("datetime64[ns]").astype(np.int64),
             short["target_app"], int(WIN_NS), V),
+        "bg_mask": (bg_mask_arr if bg_mask_arr is not None
+                    else np.zeros((short["target_app"].shape[0], V), dtype=np.float32)),
     }
 
 
 class SharedBackboneV3(nn.Module):
-    def __init__(self, cfg, markov_log_prior=None):
+    def __init__(self, cfg, markov_log_prior=None, bg_mask_prior=False):
         super().__init__()
         self.cfg = cfg
         self.app_emb = nn.Embedding(cfg.vocab_size, cfg.app_emb_dim, padding_idx=0)
@@ -261,6 +307,15 @@ class SharedBackboneV3(nn.Module):
         else:
             self.markov_log_prior = None
             self.alpha_markov = None
+        # v5: BG-mask logit prior
+        self.bg_mask_prior = bool(bg_mask_prior)
+        if self.bg_mask_prior:
+            # Task A: log-prior with strong α; Task B: linear bonus
+            self.alpha_bg_a = nn.Parameter(torch.tensor(0.5))
+            self.alpha_bg_b = nn.Parameter(torch.tensor(0.5))
+        else:
+            self.alpha_bg_a = None
+            self.alpha_bg_b = None
 
     def forward(self, batch):
         h_local = h_global = h_profile = None
@@ -290,6 +345,13 @@ class SharedBackboneV3(nn.Module):
             la = batch["last_app_idx"].long()
             alpha = torch.clamp(self.alpha_markov, 0.0, 2.0)
             sig = sig + alpha * self.markov_log_prior[la]
+        # v5: BG-mask logit prior
+        if self.bg_mask_prior and "bg_mask" in batch:
+            bg = batch["bg_mask"].float()
+            alpha_a = torch.clamp(self.alpha_bg_a, 0.0, 5.0)
+            alpha_b = torch.clamp(self.alpha_bg_b, -2.0, 5.0)
+            logits_a = logits_a + alpha_a * torch.log(bg + 1e-3)
+            sig = sig + alpha_b * bg
         return {"logits_a": logits_a, "logits_b_sig": sig, "log_rate_b": rate}
 
 
@@ -334,13 +396,61 @@ def evaluate(model, t, V):
             task_b_metrics(sb, t["win_counts"].numpy()))
 
 
+def config_flags(config_name):
+    """Resolve a config name to feature/markov flags.
+
+    Configs (matching REPORT_v4 §2 + §6.5):
+      v2              = no v3 features, no Markov
+      v3_r4           = full v3 features (cat+loc+daypart+windows), no Markov
+      v3_r6           = R4 + Markov fusion on Task B head
+      v3_r6_lite      = no v3 features (v2 backbone) + Markov
+      v4              = R4 + recency + periodicity + Markov
+      v4_trim         = v4 with FEATURES_v2 drops (full proposal)
+      v3_r6_arch_trim = R6 with drops only (no rec/per)
+    """
+    v5_set = ("v5_e1", "v5_e2", "v5_e4")
+    is_r4plus = config_name in (("v3_r4", "v3_r6", "v4", "v4_trim", "v3_r6_arch_trim") + v5_set)
+    use_category = is_r4plus
+    use_loc = is_r4plus
+    use_daypart = is_r4plus
+    use_windows = is_r4plus
+    use_markov = config_name in (("v3_r6", "v3_r6_lite", "v4", "v4_trim", "v3_r6_arch_trim") + v5_set)
+    use_recency = config_name in ("v4", "v4_trim")
+    use_periodicity = config_name in ("v4", "v4_trim")
+    drops = config_name in (("v4_trim", "v3_r6_arch_trim") + v5_set)
+    bg_mask_prior = config_name in v5_set
+    bg_scalars = config_name in ("v5_e2", "v5_e4")
+    wider = config_name == "v5_e4"
+    return {
+        "use_category": use_category, "use_loc": use_loc,
+        "use_daypart": use_daypart, "use_windows": use_windows,
+        "use_markov": use_markov,
+        "use_recency": use_recency, "use_periodicity": use_periodicity,
+        "drop_scene": drops, "drop_f1234": drops,
+        "drop_long_windows": drops, "drop_n_trans": drops,
+        "bg_mask_prior": bg_mask_prior,
+        "bg_scalars": bg_scalars,
+        "wider": wider,
+    }
+
+
 def train_user_dir(user_dir, config_name):
-    """config_name in {'v2', 'v3_r4', 'v3_r6'}."""
-    use_category = config_name in ("v3_r4", "v3_r6")
-    use_loc = config_name in ("v3_r4", "v3_r6")
-    use_daypart = config_name in ("v3_r4", "v3_r6")
-    use_windows = config_name in ("v3_r4", "v3_r6")
-    use_markov = (config_name == "v3_r6")
+    """config_name in v2 / v3_r4 / v3_r6 / v3_r6_lite / v4 / v4_trim / v3_r6_arch_trim"""
+    f = config_flags(config_name)
+    use_category = f["use_category"]
+    use_loc = f["use_loc"]
+    use_daypart = f["use_daypart"]
+    use_windows = f["use_windows"]
+    use_markov = f["use_markov"]
+    use_recency = f["use_recency"]
+    use_periodicity = f["use_periodicity"]
+    drop_scene = f["drop_scene"]
+    drop_f1234 = f["drop_f1234"]
+    drop_long_windows = f["drop_long_windows"]
+    drop_n_trans = f["drop_n_trans"]
+    bg_mask_prior = f.get("bg_mask_prior", False)
+    bg_scalars = f.get("bg_scalars", False)
+    wider = f.get("wider", False)
 
     train_df = pd.read_parquet(user_dir / "splits/train.parquet")
     val_df = pd.read_parquet(user_dir / "splits/val.parquet")
@@ -362,12 +472,15 @@ def train_user_dir(user_dir, config_name):
     num_locations = len(loc_stats["vocab"]) if loc_stats is not None else 1
     stream = build_target_stream(train_df, val_df, test_df, vocab, app_to_cat)
 
-    tr = prep_split(train_df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream,
-                    use_category, use_loc, use_daypart, use_windows)
-    va = prep_split(val_df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream,
-                    use_category, use_loc, use_daypart, use_windows)
-    te = prep_split(test_df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream,
-                    use_category, use_loc, use_daypart, use_windows)
+    kw = dict(use_category=use_category, use_loc=use_loc,
+              use_daypart=use_daypart, use_windows=use_windows,
+              use_recency=use_recency, use_periodicity=use_periodicity,
+              drop_scene=drop_scene, drop_f1234=drop_f1234,
+              drop_long_windows=drop_long_windows, drop_n_trans=drop_n_trans,
+              bg_mask_prior=bg_mask_prior, bg_scalars=bg_scalars)
+    tr = prep_split(train_df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream, **kw)
+    va = prep_split(val_df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream, **kw)
+    te = prep_split(test_df, vocab, scaler, profile_stats, app_to_cat, loc_stats, stream, **kw)
 
     if tr["target_app"].shape[0] == 0 or va["target_app"].shape[0] == 0:
         return {"error": "empty split", "V": V}
@@ -389,6 +502,9 @@ def train_user_dir(user_dir, config_name):
         use_profile=True,
         use_markov_prior=use_markov,
     )
+    if wider:
+        cfg.d_local = 128
+        cfg.app_emb_dim = 64
 
     log_prior_tensor = None
     if use_markov:
@@ -396,7 +512,9 @@ def train_user_dir(user_dir, config_name):
         log_prior_tensor = torch.as_tensor(log_prior_np, dtype=torch.float32)
 
     torch.manual_seed(SEED)
-    model = SharedBackboneV3(cfg=cfg, markov_log_prior=log_prior_tensor) if use_markov else SharedBackboneV3(cfg=cfg)
+    model = SharedBackboneV3(cfg=cfg, markov_log_prior=log_prior_tensor,
+                             bg_mask_prior=bg_mask_prior) if use_markov else SharedBackboneV3(
+        cfg=cfg, bg_mask_prior=bg_mask_prior)
 
     n_params = sum(p.numel() for p in model.parameters())
     cw = torch.as_tensor(cw_inv_sqrt(tr["target_app"], V), dtype=torch.float32)
@@ -482,7 +600,10 @@ def train_user_dir(user_dir, config_name):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--config", choices=["v2", "v3_r4", "v3_r6"], required=True)
+    p.add_argument("--config", required=True,
+                   choices=["v2", "v3_r4", "v3_r6", "v3_r6_lite",
+                            "v4", "v4_trim", "v3_r6_arch_trim",
+                            "v5_e1", "v5_e2", "v5_e4"])
     p.add_argument("--out-name", default=None,
                    help="filename suffix; defaults to '<config>.json'")
     p.add_argument("--max-users", type=int, default=None)

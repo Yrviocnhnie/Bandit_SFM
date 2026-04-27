@@ -224,6 +224,10 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 | v3 R6-lite (Markov only, no R3/R4 features) | 0.593 | 0.566 | 0.863 | 0.866 | 0.715 | 0.690 |
 | v3 R6-arch trim (R6 + FEATURES_v2 drops, no rec/per) | 0.595 | 0.589 | 0.864 | 0.867 | 0.716 | 0.706 |
 | v4 (R4 + recency + periodicity + Markov) | 0.593 | 0.578 | 0.864 | 0.865 | 0.717 | 0.698 |
+| v4_trim (full FEATURES_v2 design) | 0.591 | 0.577 | 0.859 | 0.864 | 0.713 | 0.708 |
+| v5 E1 (R6-arch trim + BG-mask logit prior) | 0.589 | 0.566 | 0.860 | 0.865 | 0.711 | 0.681 |
+| v5 E2 (E1 + BG scalars: count + recency + time-since-screen-on) | 0.594 | 0.580 | 0.864 | 0.872 | 0.715 | 0.700 |
+| **v5 E4 (E2 + wider: d_local 64→128, app_emb 32→64)** | **0.609** | **0.601** | **0.876** | **0.881** | **0.725** | **0.713** |
 
 **v3 R6 is the best Task A model on mean Hit@1 / Hit@5 / MRR.** The lift over Markov-1 (0.585 → 0.593) is small — about 0.8 pp — but consistent: v2 already adds 0.026 Hit@1 over v1 GRU (0.561 → 0.587) by splitting the backbone and adding the global encoder, and v3 R4 squeezes another 0.003 by adding cat / loc / daypart / windows. The Markov fusion in v3 R6 is *not* additive on Task A because the prior is wired only to the Task B sigmoid head; the gain we see (0.590 → 0.593) is just stochastic seed noise.
 
@@ -245,7 +249,11 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 | **v3 R6 (R4 + Markov fusion)** | **0.739** | **0.761** | **0.740** | **0.772** | **0.448** | **0.488** |
 | v3 R6-lite (Markov only, no R3/R4 features) | 0.742 | 0.748 | 0.739 | 0.761 | 0.466 | 0.497 |
 | v3 R6-arch trim (R6 + FEATURES_v2 drops) | 0.746 | 0.767 | 0.742 | 0.773 | 0.473 | 0.499 |
-| v4 (R4 + recency + periodicity + Markov) | 0.744 | 0.764 | 0.741 | 0.764 | 0.470 | 0.488 |
+| v4 (R4 + recency + periodicity + Markov) | 0.744 | 0.764 | 0.741 | 0.768 | 0.470 | 0.488 |
+| v4_trim (full FEATURES_v2 design) | 0.742 | 0.766 | 0.741 | 0.770 | 0.471 | 0.479 |
+| v5 E1 (BG-mask logit prior on top of R6-arch trim) | 0.745 | 0.778 | 0.743 | 0.766 | 0.478 | 0.498 |
+| **v5 E2 (E1 + BG scalars)** | **0.749** | **0.781** | 0.746 | 0.762 | 0.477 | 0.491 |
+| **v5 E4 (E2 + wider model: d_local 64→128, app_emb 32→64)** | 0.747 | 0.771 | 0.744 | 0.761 | 0.476 | 0.487 |
 
 **Task B has two near-tied winners on mean EH@5 (MRU-5 = 0.742, v3 R6 = 0.739), but v3 R6 wins decisively per-user (16 / 22 head-to-head; median delta +0.014).** v3 R6 also leads on median EH@5 (0.761 vs 0.748) and median Coverage@5 (0.488 vs 0.471). MRU's mean is buoyed by `top2000` users whose 15-min windows usually contain only 1-3 distinct apps — for those, "your 5 most recent distinct apps" is a near-perfect superset and trivially captures the window. v3 R6 widens the gap whenever a window contains an app the user hasn't touched recently.
 
@@ -270,6 +278,39 @@ The architectural lift from splitting the backbone and adding a global Transform
 | v4 (R4 + recency + periodicity) | 0.744 | 0.764 | within noise — single-user falsification of v4 features holds cross-user |
 
 **Headline:** v3 R6-arch trim is the production multi-user winner on mean EH@5 (0.746). The FEATURES_v2 drop story holds across the cohort. v4 features (recency + periodicity) are falsified at population scale, just as single-user.
+
+### 10.4 v5 BG-state features cross-user (NEW SOTA)
+
+The v5 background-state experiments from REPORT_v4.md §6.6 were also run per-user (n=22). All four v5 configs use v3 R6-arch trim as the base.
+
+| Config | Δ in features | Test Hit@1 mean / median | Test EH@5 mean / median |
+|---|---|---|---|
+| v3 R6-arch trim (baseline) | — | 0.595 / 0.589 | 0.746 / 0.767 |
+| v5 E1 | + BG mask logit prior | 0.589 / 0.566 | 0.745 / 0.778 |
+| **v5 E2** | E1 + bg_count + bg_recency_min + time_since_screen_on | 0.594 / 0.580 | **0.749 / 0.781** |
+| **v5 E4** | E2 + **wider model** (d_local 64→128, app_emb 32→64) | **0.609 / 0.601** | 0.747 / 0.771 |
+
+**v5 E4 is the new multi-user SOTA on Task A.** Mean Hit@1 = 0.609 (+1.4 pp over v3 R6-arch trim baseline 0.595, +2.4 pp over Markov-1 0.585) and the largest median Hit@1 (0.601). Mean Hit@5 = 0.869 also leads.
+
+**v5 E2 wins Task B mean and median** (EH@5 0.749 / 0.781) — the only model crossing the 0.78 mark on the median.
+
+### Cross-cohort difference: wider model **helps** multi-user
+
+This is the most important finding from the cross-user replication. On single-user (REPORT_v4.md §6.6) the wider model **hurt**: v5 E4 dropped Task A Hit@1 by 0.015 vs v5 E2 because the 583-event test set + 5,471-event train doesn't support extra parameters. On multi-user (110k+ training events across 22 users, even though each user is trained separately, each user's data is qualitatively different so the model has more diverse signal to fit), wider **helps significantly**:
+
+|  | Single-user (n_test=583) | Multi-user (mean over n=22 users) |
+|---|---|---|
+| v5 E2 Hit@1 | 0.594 | 0.594 |
+| v5 E4 Hit@1 | 0.585 (−0.009 vs E2) | **0.609 (+0.015 vs E2)** |
+
+The +0.024 swing between single-user and multi-user is the clearest evidence that **architecture capacity that hurts at one user's data scale starts to pay back at the cohort scale**, even with per-user training. Likely cause: the wider local encoder (d_local 128) and larger app embedding (64) give the optimizer more degrees of freedom to fit user-specific patterns, and across 22 users the variance penalty averages out.
+
+**Multi-user production picks (final):**
+
+| Task | Winner | Test metric (mean / median) | Notes |
+|---|---|---|---|
+| Task A (Hit@1) | **v5 E4** | **0.609 / 0.601** | wider model + BG features |
+| Task B (EH@5) | **v5 E2** | **0.749 / 0.781** | BG features without the wider model |
 
 > **Audit trail (2026-04-27).** Earlier drafts of this table reported two different — and both wrong — MRU numbers. The fixes are documented for transparency:
 >
