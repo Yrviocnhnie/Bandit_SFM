@@ -44,7 +44,7 @@ For this report we ran the **closed-form classical baselines** on every user:
 | Name | What it is |
 |---|---|
 | MFU | Global popularity (per user) |
-| MRU | Most-recently-used app |
+| MRU | Most-recently-used. Task A: last app. Task B: top-5 most-recently-used DISTINCT apps, recency-ranked. |
 | HourMFU | `P(app | hour)` Dirichlet-smoothed table |
 | Markov-1 | First-order transition table `P(next | last_app)`, Dirichlet α=0.5 |
 
@@ -146,7 +146,7 @@ All neural models share the same hyperparameters (AdamW lr=1e-3, weight_decay=1e
 1. **The original single-user (Huawei) lies in the harder half.** The single-user Markov-1 test EH@5 we previously cited was 0.688. The 22-user median is 0.748 (62 % of users score *higher* than that). v3 R6's single-user 0.746 sits at the multi-user median — consistent, not anomalous.
 2. **`top2000` users are systematically more predictable than `M_beta_Top30`.** Mean test EH@5 of 0.831 vs 0.610. The hypothesis is that `top2000` users have smaller, more stable app sets (median V = 38 vs 74) and tighter routines.
 3. **Within `M_beta_Top30`, one user (0FCFB313A7D7) is an extreme outlier** (test EH@5 = 0.255, way below median). This user's small test set (217 target events) and small vocab cohort suggests they had unusually noisy / atypical behavior in the test window — a model trained on their early data didn't generalize to their last 3 days. Worth flagging as a data-quality outlier rather than a model failure.
-4. **MRU is competitive with Markov-1 on Task A** for high-engagement users. Median Hit@1 across users: MRU = 0.553, Markov-1 = 0.568 — only 1.5 pp gap. Suggests "they'll do whatever they did last" works decently when sessions are tight. The neural models (which we haven't run multi-user yet) may need to demonstrate they're better than this floor across users.
+4. **MRU is competitive with Markov-1 on Task A** for high-engagement users. Median Hit@1 across users: MRU = 0.553, Markov-1 = 0.568 — only 1.5 pp gap. Suggests "they'll do whatever they did last" works decently when sessions are tight. v3 R6 (the strongest neural model) only edges Markov-1 by +0.013 on median Hit@1 — the multi-user signal-to-noise floor on Task A is genuinely close to the recency floor.
 5. **HourMFU is unreliable across users.** Mean Hit@1 = 0.398, but range [0.000, 0.777] — some users have flat hour distributions. The pattern doesn't hold up well outside this single-user assumption.
 
 ---
@@ -241,16 +241,18 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 | v3 R4 (cat + loc + daypart + windows) | 0.720 | 0.751 | 0.711 | 0.736 | 0.448 | 0.471 |
 | **v3 R6 (R4 + Markov fusion)** | **0.739** | **0.761** | **0.740** | **0.772** | **0.448** | **0.488** |
 
-**v3 R6 is the best Task B model on every metric.** The progression tells a clear story:
+**Task B has two near-tied winners on mean EH@5 (MRU-5 = 0.742, v3 R6 = 0.739), but v3 R6 wins decisively per-user (16 / 22 head-to-head; median delta +0.014).** v3 R6 also leads on median EH@5 (0.761 vs 0.748) and median Coverage@5 (0.488 vs 0.471). MRU's mean is buoyed by `top2000` users whose 15-min windows usually contain only 1-3 distinct apps — for those, "your 5 most recent distinct apps" is a near-perfect superset and trivially captures the window. v3 R6 widens the gap whenever a window contains an app the user hasn't touched recently.
+
+The architectural progression (low → high) is:
 
 - v1 GRU baseline (no Markov): 0.713 EH@5
 - v1 GRU + Markov: 0.726 (+0.013 from a single learnable α)
 - v3 R4 (split backbone + cat + loc + daypart + multi-window rollups, no Markov): 0.720 (+0.007)
 - **v3 R6 (R4 + Markov fusion): 0.739 (+0.026 over v1 GRU; +0.019 over Markov-1; +0.013 over v1 GRU + Markov)**
 
-The architectural lift from splitting the backbone and adding a global Transformer + profile encoder (v2 ≈ v1 GRU on B) is small on its own, but it lets the v3 feature stack land cleanly. Adding the Markov prior on top is what pushes v3 R6 past every closed-form and v1-class baseline.
+The architectural lift from splitting the backbone and adding a global Transformer + profile encoder (v2 ≈ v1 GRU on B) is small on its own, but it lets the v3 feature stack land cleanly. Adding the Markov prior on top is what pushes v3 R6 past **all the v1-class neural baselines** (0.713, 0.683, 0.726) and matches MRU-5 on mean while beating it per-user.
 
-MRU as **top-5 most recently used distinct apps** (recency-ranked) is now competitive — mean test EH@5 = 0.742, very close to v3 R6 mean 0.739 and slightly above Markov-1 mean 0.720. For short anchor-to-target horizons (15 min) and per-user app pools, "the apps you used most recently" is a strong predictor of "the apps you'll use next" — strong enough that beating it with a learned model takes the full v3 R6 stack. v1 TGT-lite remains the under-performer.
+**MRU-5 is the strongest classical baseline** — mean EH@5 0.742 beats Markov-1's 0.720 and HourMFU's 0.687. Markov-1 still wins on Hit@1 (Task A) where the structured `P(next | last_app)` table outperforms recency-ordered top-K. v1 TGT-lite remains the across-the-board under-performer (overfit on ~14k targets per user).
 
 > **Audit trail (2026-04-27).** Earlier drafts of this table reported two different — and both wrong — MRU numbers. The fixes are documented for transparency:
 >
@@ -373,7 +375,7 @@ Aggregate test-set numbers (mean / median across 22 users):
 | v3 R4 | 0.590 / 0.582 | 0.720 / 0.751 | +0.005 / +0.000 |
 | **v3 R6** | **0.593 / 0.581** | **0.739 / 0.761** | **+0.008 / +0.019** |
 
-**v3 R6 is the strongest model overall.** Its lift is concentrated on Task B (where the Markov prior is wired in): EH@5 0.720 → 0.739 vs Markov-1, and 0.713 → 0.739 vs v1 GRU (+2.6 pp). Task A gains are smaller (0.585 → 0.593) — the Markov prior never touches the Task A softmax head; what helps is the global Transformer + profile encoder.
+**v3 R6 is the strongest model overall** but the picture is more nuanced once MRU-5 is in the leaderboard. Mean test EH@5: MRU-5 0.742, v3 R6 0.739, Markov-1 0.720, v1 GRU 0.713. Per-user, v3 R6 ≥ MRU-5 on **16 / 22** users (median delta +0.014) — MRU only wins the mean because of `top2000` users where it saturates near 0.95. v3 R6 also wins median EH@5 (0.761 vs 0.748) and Coverage@5 (0.488 vs 0.471). On Task A, v3 R6 leads outright (Hit@1 0.593, the only learned model that beats Markov-1's 0.585 across all metrics).
 
 **Learned α_markov per user** (v3 R6): mean **0.528**, median 0.548, range [0.305, 0.601]. About 2× the v1 GRU + Markov alphas (mean 0.254) — the v3 model has a richer representation that doesn't compete with the Markov prior, so the optimizer assigns the prior more weight.
 
@@ -395,12 +397,14 @@ Aggregate test-set numbers (mean / median across 22 users):
 
 ## 12. Future work
 
-v3 R6 is the production winner per §10 (best on every metric we report). Open questions for follow-up:
+v3 R6 is the production pick per §10 — strict Task A winner; decisive Task B winner on per-user comparison (16/22), median EH@5 (0.761), and Coverage@5 (0.488). On the Task B *mean*, MRU-5 (0.742) effectively ties v3 R6 (0.739), driven by `top2000` users where MRU saturates. Open questions for follow-up:
 
 1. **v4 ablation per user.** Single-user v4 (recency + periodicity priors) did not beat v3 R6. Cross-user validation would confirm the negative result generalizes, or surface a sub-population where the extra priors actually help.
 2. **Pooled cross-user training.** Each user has its own vocab and ~14 k targets. A pooled-vocab v3 architecture with shared category-level structure could learn cohort rhythms that per-user models miss — particularly for the under-trained `M_beta_Top30` users.
 3. **Per-user blocked 5-fold CV** would tighten the Hit@1 / EH@5 confidence intervals; we currently report a single test split per user (test sizes 217–~1k targets).
-4. **Why v3 R6's Task A lift is small** (+0.008 mean Hit@1 over Markov-1). Either the leaner multi-user schema (no scene/networktype) caps the neural advantage, or Task A genuinely saturates near the Markov-1 ceiling — a wider local encoder or richer per-token features would test which.
+4. **Why v3 R6's Task A lift is small** (+0.008 mean Hit@1 over Markov-1). Either the leaner multi-user schema (no scene/networktype) caps the neural advantage, or Task A genuinely saturates near Markov-1 — a wider local encoder or richer per-token features would test which.
+5. **`top2000`-only refinement.** MRU-5 saturates near 0.95 EH@5 for most `top2000` users — the metric ceiling is essentially reached. v3 R6's per-user gains on this cohort are pinned. A more discriminating Task B metric (e.g. tighter window, top-3 instead of top-5, or per-app NDCG) would give us more headroom to tell models apart on tight-routine users.
+6. **Hybrid baseline — MRU-5 + Markov fusion.** Since MRU-5 is so strong, a non-neural ensemble that scores `α · MRU-5 + (1-α) · Markov-1` with `α` tuned on val may close most of the gap to v3 R6 without any training. Worth running as a reference point.
 
 ---
 
@@ -437,7 +441,8 @@ python scripts/46_multiuser_v2_v3.py --config v3_r6
 
 ## 14. Honest limitations
 
-- **All neural baselines now have cross-user numbers.** v1 GRU, v1 TGT-lite, v1 GRU+Markov, v2, v3 R4, and v3 R6 are all run per user (§11.1, §11.4). v3 R6 is the per-cohort winner.
+- **All neural baselines have cross-user numbers** (v1 GRU, v1 TGT-lite, v1 GRU+Markov, v2, v3 R4, v3 R6 — §11.1, §11.4). v3 R6 is the per-cohort winner; MRU-5 ties on Task B mean and is the strongest closed-form baseline.
+- **MRU is now defined as top-K most-recently-used distinct apps for Task B** (K=5). Earlier drafts of this report used "last_app only with zero-padding" and got an artificially low EH@5 of 0.539. The corrected definition gives 0.742 mean — see §10.2 audit trail.
 - **Per-user vocab.** Each user has their own vocab, so cross-user transfer learning isn't possible without unifying. A pooled vocab over all 22 users would have ≈ 130 distinct apps.
 - **Schema differences.** The multi-user data lacks the device_state_scene / networktype / source_event columns that single-user had. This makes the neural pipeline easier (fewer features to load) but precludes some v3 features (loc_id is still extractable from the payload).
 - **Test set sizes vary widely.** From 217 to 8,400 target events. Small-test users have ±10 pp CIs on Hit@1 / EH@5; the headline aggregate is dominated by larger users.
@@ -447,10 +452,10 @@ python scripts/46_multiuser_v2_v3.py --config v3_r6
 
 ## 15. Takeaways
 
-1. **v3 R6 is the cross-user winner.** Test Hit@1 mean **0.593** (median 0.581) and test EH@5 mean **0.739** (median 0.761) — best on every reported metric among 10 baselines.
-2. **The win comes from two stacked architectural moves.** v1 GRU → v2 (split + global Transformer + profile encoder + 3-way gated fusion) lifts Hit@1 by +0.026 (the single biggest jump on the leaderboard). v2 → v3 R4 (per-token category + location embeddings, daypart, multi-window rollups) adds +0.003 Hit@1 / +0.008 EH@5. v3 R4 → v3 R6 (Markov-1 prior fused into the Task B sigmoid) adds +0.019 EH@5 with one learnable α per user.
-3. **Markov-1 is still the strongest classical baseline** (Hit@1 0.585, EH@5 0.720). v3 R6 beats it by +0.008 Hit@1, +0.019 EH@5. Smaller margin than single-user, but consistent across the cohort.
-4. **Markov-prior fusion is the cleanest single lever.** v1 GRU → v1 GRU+Markov: +0.013 EH@5. v3 R4 → v3 R6: +0.019 EH@5. The richer v3 features absorb a stronger α (mean 0.528 vs 0.254 in v1 GRU+Markov) without fighting the prior.
+1. **v3 R6 is the cross-user production pick.** Best test Hit@1 (mean **0.593**, median 0.581) — strict winner on Task A. On Task B, v3 R6 mean EH@5 = 0.739 is *narrowly behind MRU-5's 0.742 on mean*, but **wins per-user (16 / 22 head-to-head, median delta +0.014)** and dominates on median EH@5 (0.761 vs 0.748) and median Coverage@5 (0.488 vs 0.471). The mean is dragged down by `top2000` users where MRU saturates near the per-user ceiling.
+2. **The architectural progression has two big wins and one small one.** v1 GRU → v2 (split backbone + global Transformer + profile encoder) lifts Hit@1 by +0.026 — the single biggest jump on Task A. v3 R4 → v3 R6 (Markov-1 prior fused into Task B sigmoid, one learnable α) lifts EH@5 by +0.019 — the single biggest jump on Task B. The middle step (v2 → v3 R4 adding cat / loc / daypart / multi-window features) only adds +0.003 Hit@1 / +0.008 EH@5 on its own; its real value is creating representational headroom for the Markov prior to land.
+3. **MRU-5 is the strongest classical Task B baseline** (mean EH@5 0.742) — better than Markov-1 (0.720), MFU (0.699), HourMFU (0.687). For 15-min set prediction the user's recently-used apps are a near-perfect superset whenever the window contains few distinct apps; v3 R6 only widens the gap when a window contains an app the user hasn't touched recently. **Markov-1 still wins Task A among classical baselines** (Hit@1 0.585, MRR 0.710): the transition structure of `P(next | last_app)` outperforms a recency-only ranking when you only get one prediction.
+4. **Markov-prior fusion is the cleanest single lever** — both for the v1 backbone (+0.013 EH@5 with one α) and for v3 R4 (+0.019 EH@5). The richer v3 representation absorbs a roughly 2× stronger α (mean 0.528 vs 0.254 in v1 GRU+Markov) without competing with it.
 5. **v1 TGT-lite under-performs everything else** (Hit@1 0.519, EH@5 0.683). 2-layer Transformers overfit per-user training sets of ~14 k targets.
 6. **Per-user variance dwarfs model choice.** Test EH@5 ranges 0.10 → 0.96 across users for v3 R6; the cohort split (`top2000` ≈ 0.85 mean vs `M_beta_Top30` ≈ 0.62) is the dominant axis. The model bumps the user up by a few points; the cohort sets the absolute level.
 7. **The schema gap from single- to multi-user matters.** The multi-user XLSX lacks `device_state_scene/networktype/*_info` (≈ 9/28 numeric features are all-UNK), which dampens v1 GRU more than Markov-1 (the latter only uses `last_app`). v3 R6's Hit@1 lift over Markov-1 (+0.008) is much smaller than the single-user lift (+10.6 pp) — most of the gap is the schema, not the cohort.
