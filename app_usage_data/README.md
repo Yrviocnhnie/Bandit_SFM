@@ -72,6 +72,7 @@ app_usage_data/
 ├─ REPORT_v2.md                               # v2 writeup (per-task + global + profile)
 ├─ REPORT_v3.md                               # v3 writeup (feature enrichment + Markov prior)
 ├─ REPORT_v4.md                               # v4 writeup (recency + periodicity ablation, full baseline comparison)
+├─ REPORT_v5_multiuser.md                     # multi-user (22 users) closed-form baseline benchmark + neural future work
 ├─ FEATURES.md                                # complete feature reference (every dim explained)
 ├─ FEATURES_v2.md                             # next-iteration feature proposal (audit + recommended drops/adds)
 │
@@ -191,4 +192,5 @@ Learned α_markov after R6 convergence: **0.517** (init 0.5, clipped to [0, 2]).
 - `REPORT_v2.md` — per-task architecture (Local + Global + Profile encoders, gated fusion), v2 ablations
 - `REPORT_v3.md` — full v3 writeup: feature schemas, ablation rounds R0–R6, overfit audit, Markov prior design, limitations
 - `REPORT_v4.md` — comprehensive comparison: all baselines (MFU / MRU / HourMFU / Markov-1 / v1 GRU / v1 TGT-lite / v2 GRU / v3 R0 / v3 R4 / v3 R6 / v4 / v4 + Markov) for both tasks; tests two new features (per-app recency, periodicity priors) and falsifies them on this dataset; **production picks**: v1 GRU for Task A, v3 R6 for Task B
+- `REPORT_v5_multiuser.md` — extends the benchmark to **22 distinct users** with their own real HarmonyOS logs (data at `/data00/ruiqing/app_forecasting/data/cleaned/`). Reports closed-form baselines (MFU/MRU/HourMFU/Markov-1) per user. Headline: Markov-1 test EH@5 ranges 0.255 → 0.950 across users with median 0.748; the original Huawei single-user we used through v1–v4 was among the harder users in this distribution.
 - `paper_deep_dive.md` — literature context (MISApp, TGT, Appformer, MAPLE, ATPP, and why we chose what we chose)

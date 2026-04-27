@@ -19,6 +19,8 @@ lib/
 !app_usage_data/lib/**
 app_usage_data/lib/**/__pycache__/
 app_usage_data/lib/**/*.py[codz]
+# Multi-user parquet splits — bulky; can be regenerated via scripts/40_prep_multiuser.py
+app_usage_data/artifacts/multiuser/**/*.parquet
 lib64/
 parts/
 sdist/

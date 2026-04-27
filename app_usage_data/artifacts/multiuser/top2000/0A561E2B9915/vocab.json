@@ -1,0 +1,18 @@
+{
+  "<PAD>": 0,
+  "<UNK>": 1,
+  "<RARE>": 2,
+  "WECHAT": 3,
+  "SHELLASSISTANT": 4,
+  "HMNEBULA": 5,
+  "MMS": 6,
+  "CONTACTS": 7,
+  "CALCULATOR": 8,
+  "SETTINGS": 9,
+  "CONTACTSSTATICSUBSCRIBER": 10,
+  "CALLUI": 11,
+  "FILES": 12,
+  "CALENDAR": 13,
+  "CONTACTSFORM": 14,
+  "VASSISTANT": 15
+}
