@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repo contains a Python prototype of a contextual bandit recommender system for HarmonyOS app scenarios. There are two subsystems:
+This repo contains a Python prototype of a contextual bandit recommender system for HarmonyOS app scenarios. There are three subsystems:
 
 1. **Root-level Dual UCB prototype** — an MLP-based Dual UCB model (726-dim features) that mirrors the C++ app-side implementation for debugging/training outside the app.
 2. **`recommendation_agents/`** — a production-oriented V0 LinUCB scaffold (314-dim features) with two agents: R/O (scenario-specific actions) and App (app category recommendations). This is a *linear* contextual bandit, not an MLP.
+3. **`app_usage_data/`** — single-user next-app prediction demo with two tasks (next-app + 15-min window set prediction) on 42 days of real HarmonyOS data. Independent of the above subsystems; shipped as v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified). Production picks: v1 GRU for Task A; v3 R6 for Task B (test EventHit@5 = 0.746).
 
 These are separate model implementations with different feature spaces and architectures.
 
@@ -55,6 +56,42 @@ python3 -m recommendation_agents.cli choose-v0 --artifact <model_dir> --metadata
 
 See `recommendation_agents/run.sh` for a ready-made dual training invocation.
 
+### app_usage_data (next-app prediction demo)
+
+All commands run from inside `app_usage_data/`:
+
+```bash
+# v1 — baselines + shared-backbone GRU/TGT-lite
+python scripts/01_prep_data.py        # build splits, vocab, sessions
+python scripts/02_run_baselines.py    # MFU / MRU / HourMFU / Markov-1
+python scripts/03_train_gru.py        # GRU-64 checkpoint
+python scripts/04_train_tgt.py        # TGT-lite checkpoint
+python scripts/05_window_eval.py      # neural Task A + Task B on the anchor grid
+
+# v2 — per-task models (Local + Global + Profile, gated fusion)
+python scripts/10_train_task_a_v2.py
+python scripts/11_train_task_b_v2.py
+python scripts/12_eval_v2.py
+
+# v3 — v2 + feature enrichment (category, location, daypart, multi-window) + Markov prior fusion
+python scripts/20_build_v3_features.py            # train-only fits: cat map, loc vocab, Markov table
+python scripts/21_train_task_a_v3.py --tag task_a_v3_R4
+python scripts/22_train_task_b_v3.py --use-markov --tag task_b_v3_R6   # SOTA Task B (test EH@5 = 0.746)
+
+# v4 — adds per-app recency (8d) + periodicity priors (18d). Did NOT improve over v3.
+python scripts/27_train_v4.py --task a --tag task_a_v4_full
+python scripts/27_train_v4.py --task b --use-markov --tag task_b_v4_full
+```
+
+Documentation:
+- `app_usage_data/README.md` — entry point with layout, reproduction, headline numbers
+- `app_usage_data/REPORT.md` — v1 (baselines + shared backbone)
+- `app_usage_data/REPORT_v2.md` — v2 (per-task hierarchical encoder)
+- `app_usage_data/REPORT_v3.md` — v3 (feature enrichment + Markov prior)
+- `app_usage_data/REPORT_v4.md` — v4 ablation experiment, full baseline comparison, production picks
+- `app_usage_data/FEATURES.md` — every input feature explained (current v3 implementation)
+- `app_usage_data/FEATURES_v2.md` — proposed feature redesign (audit + drops + adds)
+
 ### Tests
 
 ```bash
@@ -97,6 +134,20 @@ cd recommendation_agents && python -m pytest tests/test_catalog.py -k "test_name
 - A **default bonus** gives the scenario's default action an extra score prior, but other actions can still win with enough evidence
 - Dual training shares the same shuffled sample stream for R/O and App agents with interleaved train/eval windows
 - `data/generate_bandit_v0_firststep_no_triggers.py` generates synthetic training data
+
+### Data Flow (app_usage_data — next-app prediction)
+
+`app_usage_cleaned_dictionary_mapped.xlsx` (raw, 47k events / 7k targets) → `lib/data.py` (dedup, sessionize 300s idle cutoff with 32-event cap, chronological split 30/5/5 with 60-min embargo) → `artifacts/splits/{train,val,test}.parquet` → encoders → models → `artifacts/results/*.json`.
+
+Layered architecture by version (each layer adds to the previous):
+
+- `lib/` (v1): `data.py` (load XLSX, dedup, sessionize, vocab — collapse <5-event apps to <RARE>), `features.py` (per-event 28-d numeric + 32-d learned app embedding), `baselines.py` (MFU/MRU/HourMFU/Markov-1), `models.py` (GRU-64 and TGT-lite shared backbone, dual head), `train.py` (class weights, window counts), `metrics.py` (Hit@K, MRR, P/R/F1, EventHit@K, Wilson/bootstrap CI)
+- `lib/v2/`: per-task models with three branches (LocalEncoder over last 16 in-session events + GlobalEncoder over last 64 cross-session target events + ProfileEncoder over 38-d hand-crafted statistics), combined via 3-way softmax-gated fusion. Profile stats fit on train only via `fit_profile_stats`.
+- `lib/v3/`: feature enrichment — `categories.py` (11-class hand-built app taxonomy), `location.py` (parses WiFi SSID / Cell ID from `device_state_update_payload` with train-only vocab), `daypart.py` (10 hour×weekday bins), `window_rollups.py` (causal multi-window aggregates), `markov_prior.py` (V×V log P(next|last) on train), `models_v3.py` (TaskBModelV3 adds frozen Markov-prior buffer with one learnable α scalar). Also `recency.py` + `periodicity.py` for the v4 ablation.
+
+All train-only stats are marked `fit_split="train"` and asserted on load — that's the leakage barrier. Causality is enforced via strict `<` comparison in `searchsorted` for all multi-window aggregates and recency lookups.
+
+The next-app subsystem is **independent** of the bandit/recommendation_agents subsystems above: different data source, different eval protocol, different model. Unrelated to the LinUCB or Dual UCB pipelines.
 
 ## Data Generation
 

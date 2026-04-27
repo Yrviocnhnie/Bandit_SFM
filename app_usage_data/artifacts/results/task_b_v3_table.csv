@@ -1,0 +1,8 @@
+round,flags,val_eh5,val_r5,val_cov5,test_eh5,test_r5,test_cov5,alpha_markov,params,profile_dim
+R0,"use_local,use_global,use_profile",0.6932,0.6844,0.3996,0.7031,0.6891,0.4185,,91543,38
+R1,"use_category,use_local,use_global,use_profile",0.6533,0.6829,0.408,0.702,0.687,0.3997,,92527,38
+R2,"use_category,use_loc,use_local,use_global,use_profile",0.6477,0.6579,0.3847,0.6939,0.6719,0.3808,,93567,38
+R3,"use_category,use_loc,use_daypart,use_local,use_global,use_profile",0.6541,0.6501,0.3735,0.7242,0.6883,0.4117,,94207,48
+R4,"use_category,use_loc,use_daypart,use_windows,use_local,use_global,use_profile",0.6253,0.5943,0.3203,0.7139,0.6504,0.3568,,100927,153
+R6,"use_category,use_loc,use_daypart,use_windows,use_local,use_global,use_profile,use_markov",0.6987,0.7076,0.409,0.746,0.7278,0.4408,0.5197967886924744,100928,153
+R6lite,"use_local,use_global,use_profile,use_markov",0.7027,0.7134,0.422,0.7332,0.7293,0.4648,0.547078549861908,91544,38

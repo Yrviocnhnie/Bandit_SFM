@@ -1,0 +1,45 @@
+{
+  "tag": "task_a_v3_R0_smoke",
+  "flags": {
+    "use_category": true,
+    "use_loc": true,
+    "use_daypart": true,
+    "use_windows": true,
+    "use_local": true,
+    "use_global": true,
+    "use_profile": true
+  },
+  "n_params": 97677,
+  "profile_dim": 153,
+  "val": {
+    "hit_at_1": 0.484593837535014,
+    "hit_at_5": 0.7899159663865546,
+    "mrr": 0.6266221520775855
+  },
+  "val_final_reloaded": {
+    "hit_at_1": 0.484593837535014,
+    "hit_at_5": 0.7899159663865546,
+    "mrr": 0.6266221520775855
+  },
+  "test": {
+    "hit_at_1": 0.46826758147512865,
+    "hit_at_5": 0.7855917667238422,
+    "mrr": 0.6147889169169851
+  },
+  "train_log": [
+    {
+      "epoch": 1,
+      "train_loss": 3.902421463619579,
+      "hit_at_1": 0.38375350140056025,
+      "hit_at_5": 0.7142857142857143,
+      "mrr": 0.5377715761840225
+    },
+    {
+      "epoch": 2,
+      "train_loss": 3.225546349178661,
+      "hit_at_1": 0.484593837535014,
+      "hit_at_5": 0.7899159663865546,
+      "mrr": 0.6266221520775855
+    }
+  ]
+}

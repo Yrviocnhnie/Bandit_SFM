@@ -1,0 +1,65 @@
+Total prompt_dataset rows: 7127
+Valid answer rows: 5179
+================================================================================
+
+EXAMPLE 1
+
+================================================================================
+
+[QUESTION]
+Based on the user context and app usage history, predict the next apps the user will use within the next 15 minutes.
+
+[CURRENT APP]
+WECHAT
+
+[GROUND-TRUTH NEXT APP]
+MALL
+
+[GROUND-TRUTH APP SET IN HORIZON]
+["MALL", "AWEME", "XHS_HOS"]
+
+[DELAY TO NEXT APP (sec)]
+51.0
+
+[SHORT CONTEXT SUMMARY]
+- event_ts: 2026-03-06 21:04:45
+- app_category: social_messaging
+- location_proxy: WIFI:X:iB09
+- hour_of_day: 21
+- daypart_bin: evening_work
+
+--- WINDOW: last 15 minutes ---
+recent unique apps: ["WECHAT", "HOS", "IDLEFISH4OHOS"]
+recent unique categories: ["social_messaging", "other_app", "account_identity"]
+recent app durations: {"IDLEFISH4OHOS": 295.0, "LITE": 282.0, "WECHAT": 199.0, "HOS": 77.0}
+recent state sequence: [{"ts": "2026-03-06 20:54:27", "event": "APP_BACKGROUND", "app": "LITE", "category": "news_feed_content"}, {"ts": "2026-03-06 20:54:48", "event": "APP_FOREGROUND", "app": "WECHAT", "category": "social_messaging"}, {"ts": ...
+num transitions: 14
+num self repeats: 7
+num switches: 7
+
+--- WINDOW: last 30 minutes ---
+recent unique apps: ["LITE", "CALLUI", "WECHAT", "HOS", "IDLEFISH4OHOS"]
+recent unique categories: ["news_feed_content", "telephony_calling", "social_messaging", "other_app", "account_identity"]
+recent app durations: {"LITE": 1105.0, "IDLEFISH4OHOS": 295.0, "WECHAT": 199.0, "HOS": 77.0, "CALLUI": 20.0}
+recent state sequence: [{"ts": "2026-03-06 20:35:42", "event": "APP_FOREGROUND", "app": "LITE", "category": "news_feed_content"}, {"ts": "2026-03-06 20:35:48", "event": "APP_START", "app": "LITE", "category": "news_feed_content"}, {"ts": ...
+num transitions: 20
+num self repeats: 10
+num switches: 10
+
+--- WINDOW: last 120 minutes ---
+recent unique apps: ["WECHAT", "LITE", "PHONE_CONTACTS", "CALLUI", "VISIONGLASS", "XXXXXX", "TAKEAWAY", "MALL", "HOS", "IDLEFISH4OHOS"]
+recent unique categories: ["social_messaging", "news_feed_content", "contacts_address_book", "telephony_calling", "other_app", "shopping_marketplace", "account_identity"]
+recent app durations: {"LITE": 3896.0, "TAKEAWAY": 429.0, "CALLUI": 425.0, "XXXXXX": 396.0, "IDLEFISH4OHOS": 295.0, "WECHAT": 275.0, "HOS": 77.0, "VISIONGLASS": 54.0, "MALL": 37.0, "PHONE_CONTACTS": 10.0}
+recent state sequence: [{"ts": "2026-03-06 19:14:47", "event": "APP_FOREGROUND", "app": "WECHAT", "category": "social_messaging"}, {"ts": "2026-03-06 19:14:47", "event": "APP_BACKGROUND", "app": "LITE", "category": "news_feed_content"}, {"ts": ...
+num transitions: 84
+num self repeats: 45
+num switches: 39
+
+[FULL LLM CONTEXT TEXT]
+CURRENT CONTEXT
+- Current timestamp: 2026-03-06 21:04:45
+- Current app: WECHAT
+- Current app category: social_messaging
+- Temporal context: hour=21, weekday=4, weekend=False, daypart=evening_work
+- Location proxy: WIFI:X:iB09
+- Location granu...

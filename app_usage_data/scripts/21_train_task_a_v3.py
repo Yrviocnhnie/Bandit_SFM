@@ -1,0 +1,351 @@
+"""Train TaskAModelV3 with v3 feature enrichment."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn.functional as Fnn
+from torch.utils.data import DataLoader
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from lib import features as F
+from lib import train as TR
+from lib.v2 import global_features as GF
+from lib.v3 import categories as CAT
+from lib.v3 import features_v3 as FV
+from lib.v3 import models_v3 as M3
+from lib.v3 import prep as PREP
+from lib.v3.daypart import daypart_onehot
+from lib.v3.datasets_v3 import TaskADatasetV3
+from lib.v3.location import load_location_vocab
+from lib.v3.window_rollups import build_window_aggregates
+
+HISTORY_K = 16
+LONG_K = 64
+BATCH = 256
+LR = 1e-3
+WD = 1e-4
+PATIENCE = 6
+SEED = 7
+LABEL_SMOOTHING = 0.05
+
+
+def prep_split(df, loc_ids, vocab, scaler, profile_stats, stream, app_to_cat,
+               use_category, use_loc, use_daypart, use_windows):
+    enc = F.encode_events(df, vocab, scaler["mean"], scaler["std"])
+    short = F.build_history_for_targets(enc, history_k=HISTORY_K)
+    long = GF.build_long_history_for_targets(enc, k_long=LONG_K)
+    v2p = GF.build_profile_for_targets(enc, profile_stats, stream["ts_ns"], stream["app"])
+
+    target_pos = np.nonzero(enc.is_target)[0]
+    a_h = enc.hour[target_pos].astype(int)
+    a_w = enc.weekday[target_pos].astype(int)
+    a_ts = enc.ts[target_pos].astype("datetime64[ns]").astype(np.int64)
+
+    cat_pr = app_to_cat[np.clip(enc.app_idx, 0, len(app_to_cat) - 1)]
+    if not use_category:
+        cat_pr = np.zeros_like(cat_pr)
+    if use_loc:
+        loc_pr = np.asarray(loc_ids, dtype=np.int64)
+    else:
+        loc_pr = np.zeros(len(enc.app_idx), dtype=np.int64)
+
+    hist_cat, hist_loc = FV.build_history_cat_loc_for_targets(
+        enc, cat_per_row=cat_pr, loc_per_row=loc_pr, history_k=HISTORY_K,
+    )
+    long_cl = FV.build_long_cat_loc_for_targets(
+        enc, cat_per_row=cat_pr, loc_per_row=loc_pr, k_long=LONG_K,
+    )
+    parts = [v2p]
+    if use_daypart:
+        parts.append(daypart_onehot(a_h, a_w))
+    if use_windows:
+        parts.append(build_window_aggregates(
+            anchor_ts_ns=a_ts, stream_ts_ns=stream_ts_ns,
+            stream_app_idx=stream_app, stream_cat_idx=stream_cat, stream_dur_s=stream_dur,
+        ))
+    profile = np.concatenate(parts, axis=1).astype(np.float32)
+    return prep_return_block(short, long, hist_cat, hist_loc, long_cl, profile, last_app=last_app)
+
+
+def prep_return_block(short, long, hist_cat, hist_loc, long_cl, profile, last_app):
+    return {
+        "history_app": short["history_app"],
+        "history_feat": short["history_feat"],
+        "history_mask": short["history_mask"],
+        "history_category": hist_cat,
+        "history_loc": hist_loc,
+        "long_app": long["long_app"],
+        "long_feat": long["long_feat"],
+        "long_mask": long["long_mask"],
+        "long_dt_bin": long["long_dt_bin"],
+        "long_category": long_cl["long_category"],
+        "long_loc": long_cl["long_loc"],
+        "profile": profile,
+        "last_app_idx": last_app,
+        "target_app": short["target_app"],
+        "side_hour_fourier": short["target_hour_fourier"],
+    }
+
+
+def evaluate_task_a(model, loader, device):
+    model.eval()
+    probs_list, targets_list = [], []
+    with torch.no_grad():
+        for b in loader:
+            b = {k: v.to(device) for k, v in b.items()}
+            logits = model(b)
+            probs_list.append(torch.softmax(logits, dim=-1).cpu().numpy())
+            targets_list.append(b["target_app"].cpu().numpy())
+    probs = np.concatenate(probs_list, axis=0)
+    targets = np.concatenate(targets_list, axis=0)
+    order = np.argsort(-probs, axis=1)
+    hit1 = float((order[:, 0] == targets).mean())
+    hit5 = float((order[:, :5] == targets[:, None]).any(axis=1).mean())
+    ranks = np.array([int(np.where(order[i] == t)[0][0]) for i, t in enumerate(targets)])
+    mrr = float((1.0 / (ranks + 1.0)).mean())
+    return {"hit_at_1": hit1, "hit_at_5": hit5, "mrr": mrr, "n_samples": int(len(targets))}
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--no-category", dest="use_category", action="store_false")
+    p.add_argument("--no-loc", dest="use_loc", action="store_false")
+    p.add_argument("--no-daypart", dest="use_daypart", action="store_false")
+    p.add_argument("--no-windows", dest="use_windows", action="store_false")
+    p.add_argument("--no-local", dest="use_local", action="store_false")
+    p.add_argument("--no-global", dest="use_global", action="store_false")
+    p.add_argument("--no-profile", dest="use_profile", action="store_false")
+    p.add_argument("--out", default="task_a_v3.pt")
+    p.add_argument("--tag", default="task_a_v3")
+    p.add_argument("--epochs", type=int, default=25)
+    p.set_defaults(
+        use_category=True, use_loc=True, use_daypart=True, use_windows=True,
+        use_local=True, use_global=True, use_profile=True,
+    )
+    args = p.parse_args()
+
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
+
+    art = ROOT / "artifacts"
+    v3d = art / "v3"
+
+    train = pd.read_parquet(art / "splits" / "train.parquet").sort_values("event_ts").reset_index(drop=True)
+    val = pd.read_parquet(art / "splits" / "val.parquet").sort_values("event_ts").reset_index(drop=True)
+    test = pd.read_parquet(art / "splits" / "test.parquet").sort_values("event_ts").reset_index(drop=True)
+
+    vocab = PREP.load_vocab(art)
+    V = len(vocab)
+
+    scaler = F.fit_dt_scaler(train)
+    profile_stats = GF.fit_profile_stats(train, vocab)
+    app_to_cat = CAT.build_app_to_cat_idx(vocab)
+    loc_stats = load_location_vocab(v3d / "loc_vocab.pkl")
+    num_locations = len(loc_stats["vocab"])
+
+    loc_ids = {
+        "train": np.load(v3d / "loc_ids_train.npy"),
+        "val": np.load(v3d / "loc_ids_val.npy"),
+        "test": np.load(v3d / "loc_ids_test.npy"),
+    }
+
+    stream = PREP.build_target_stream(train, val, test, vocab, app_to_cat)
+
+    # build tensors per split (using the same prep logic inline, no closures)
+    tensors = {}
+    for split_name, df, ids in (("train", train, loc_ids["train"]),
+                                ("val", val, loc_ids["val"]),
+                                ("test", test, loc_ids["test"])):
+        enc = F.encode_events(df, vocab, scaler["mean"], scaler["std"])
+        short = F.build_history_for_targets(enc, history_k=HISTORY_K)
+        long = GF.build_long_history_for_targets(enc, k_long=LONG_K)
+        v2p = GF.build_profile_for_targets(enc, profile_stats, stream["ts_ns"], stream["app"])
+        target_pos = np.nonzero(enc.is_target)[0]
+        a_h = enc.hour[target_pos].astype(int)
+        a_w = enc.weekday[target_pos].astype(int)
+        a_ts = enc.ts[target_pos].astype("datetime64[ns]").astype(np.int64)
+
+        cat_per_row = app_to_cat[np.clip(enc.app_idx, 0, len(app_to_cat) - 1)]
+        if not args.use_category:
+            cat_per_row = np.zeros_like(cat_per_row)
+        if args.use_loc:
+            loc_per_row = np.asarray(ids, dtype=np.int64)
+        else:
+            loc_per_row = np.zeros(len(enc.app_idx), dtype=np.int64)
+
+        hist_cat, hist_loc = FV.build_history_cat_loc_for_targets(
+            enc, cat_per_row=cat_per_row, loc_per_row=loc_per_row, history_k=HISTORY_K,
+        )
+        long_cl = FV.build_long_cat_loc_for_targets(
+            enc, cat_per_row=cat_per_row, loc_per_row=loc_per_row, k_long=LONG_K,
+        )
+        parts = [v2p]
+        if args.use_daypart:
+            parts.append(daypart_onehot(a_h, a_w))
+        if args.use_windows:
+            parts.append(build_window_aggregates(
+                anchor_ts_ns=a_ts, stream_ts_ns=stream["ts_ns"],
+                stream_app_idx=stream["app"], stream_cat_idx=stream["cat"],
+                stream_dur_s=stream["dur_s"],
+            ))
+        profile_full = np.concatenate(parts, axis=1).astype(np.float32) if False else np.concatenate(parts, axis=1).astype(np.float32)
+        last_app = PREP.last_target_app_for_anchors(a_ts_view(a_ts), stream["ts_ns"], stream["app"])
+        tensors[split_name] = {
+            "history_app": short["history_app"],
+            "history_feat": short["history_feat"],
+            "history_mask": short["history_mask"],
+            "history_category": hist_cat,
+            "history_loc": np.asarray(hist_loc, dtype=np.int64),
+            "long_app": long["long_app"],
+            "long_feat": long["long_feat"],
+            "long_mask": long["long_mask"],
+            "long_dt_bin": long["long_dt_bin"],
+            "long_category": long_cl["long_category"],
+            "long_loc": long_cl["long_loc"],
+            "profile": profile_full,
+            "last_app_idx": last_app,
+            "target_app": short["target_app"],
+            "side_hour_fourier": short["target_hour_fourier"],
+        }
+
+    profile_dim = tensors["train"]["profile"].shape[1]
+    cfg = M3.ConfigV3(
+        vocab_size=V,
+        num_categories=CAT.NUM_CATEGORIES,
+        num_locations=num_locations,
+        profile_dim=profile_dim,
+        use_category=args.use_category,
+        use_loc=args.use_loc,
+        use_local=args.use_local,
+        use_global=args.use_global,
+        use_profile=args.use_profile,
+    )
+
+    ds_tr = TaskADatasetV3(tensors_train := tensors["train"])
+    ds_va = TaskADatasetV3(tensors["val"])
+    dl_tr = DataLoader(ds_tr, batch_size=BATCH, shuffle=True)
+    dl_va = DataLoader(ds_va, batch_size=BATCH, shuffle=False)
+
+    model = M3.make_task_a(cfg)
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"[task_a_v3] params={n_params}  profile_dim={profile_dim}  "
+          f"flags: cat={args.use_category} loc={args.use_loc} "
+          f"daypart={args.use_daypart} windows={args.use_windows}")
+
+    cw = torch.tensor(TR.class_weights(tensors["train"]["target_app"], V))
+    opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WD)
+    device = "cpu"
+    best_hit5 = 0.0
+    best_state = None
+    patience = 0
+    log = []
+    t0 = time.time()
+    for epoch in range(1, args.epochs + 1):
+        model.train()
+        train_loss = 0.0
+        n_batches = 0
+        for b in dl_tr:
+            b = {k: v.to("cpu") for k, v in b.items()}
+            logits = model(b)
+            loss = Fnn.cross_entropy(logits, b["target_app"], weight=cw, label_smoothing=LABEL_SMOOTHING)
+            opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            opt.step()
+            train_loss += float(loss.item())
+            n_batches += 1
+        eval_metrics = evaluate_task_a(model, dl_va)
+        log.append({"epoch": epoch, "train_loss": train_loss / max(1, n_batches), **eval_metrics})
+        print(f"  ep{epoch:02d}  loss={train_loss / max(1, n_batches):.4f}  val hit@1={eval_metrics['hit_at_1']:.4f}  hit@5={eval_metrics['hit_at_5']:.4f}  mrr={eval_metrics['mrr']:.4f}")
+        if eval_metrics["hit_at_5"] > best_hit5 + 1e-6:
+            best_hit5 = eval_metrics["hit_at_5"]
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            patience = 0
+        else:
+            patience += 1
+            if patience >= PATIENCE:
+                print("  early-stop")
+                break
+
+    # Save checkpoint & results
+    out_ckpt = art / "checkpoints" / args.out
+    out_ckpt.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({"state_dict": best_state, "cfg": vars(cfg), "best_hit5": best_hit5,
+                "flags": {"use_category": args.use_category, "use_loc": args.use_loc,
+                           "use_daypart": args.use_daypart, "use_windows": args.use_windows,
+                           "use_local": args.use_local, "use_global": args.use_global, "use_profile": args.use_profile}},
+               out_ckpt)
+    print(f"[train_task_a_v3] saved {out_ckpt}  best val hit@5={best_hit5:.4f}  elapsed={time.time() - t0:.1f}s")
+
+    # Eval on val + test with best weights (loaded back)
+    model.load_state_dict(best_state)
+    val_metrics = evaluate_task_a(model, dl_va)
+    ds_te = TaskADatasetV3(tensors["test"])
+    dl_te = DataLoader(ds_te, batch_size=BATCH, shuffle=False)
+    test_metrics = evaluate_task_a(model, dl_te)
+
+    results_dir = art / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    out_results = results_dir / f"{args.tag}.json"
+    with open(out_results, "w") as f:
+        json.dump({
+            "tag": args.tag,
+            "flags": {"use_category": args.use_category, "use_loc": args.use_loc,
+                      "use_daypart": args.use_daypart, "use_windows": args.use_windows,
+                      "use_local": args.use_local, "use_global": args.use_global,
+                      "use_profile": args.use_profile},
+            "n_params": n_params,
+            "profile_dim": profile_dim,
+            "val": eval_metrics,
+            "val_final_reloaded": val_metrics,
+            "test": test_metrics,
+            "train_log": log,
+        }, f, indent=2)
+    print(f"[train_task_a_v3] best val hit@5={best_hit5:.4f}  test hit@1={test_metrics['hit_at_1']:.4f}")
+    return 0
+
+
+def a_ts_from_enc(enc):
+    pos = np.nonzero(enc.is_target)[0]
+    return enc.ts[pos].astype("datetime64[ns]").astype(np.int64)
+
+
+def a_ts_view(at):
+    return at
+
+
+def evaluate_task_a(model, loader, device="cpu"):
+    model.eval()
+    probs_list = []
+    target_list = []
+    with torch.no_grad():
+        for b in loader:
+            b = {k: v.to(device) for k, v in b.items()}
+            logits = model(b)
+            probs_list.append(torch.softmax(logits, dim=-1).cpu().numpy())
+            target_list.append(b["target_app"].cpu().numpy())
+    S = np.concatenate(probs_list, axis=0)
+    T = np.concatenate(target_list := target_list, axis=0)
+    order = np.argsort(-S, axis=1)
+    hit1 = float((order[:, 0] == T).mean())
+    hit5 = float((order[:, :5] == T[:, None]).any(axis=1).mean())
+    ranks = np.zeros(len(T), dtype=int)
+    for i in range(len(T)):
+        r = np.where(order[i] == T[i])[0]
+        ranks[i] = int(r[0]) if len(r) else int(S.shape[1] - 1)
+    mrr = float((1.0 / (ranks + 1.0)).mean())
+    return {"hit_at_1": hit1, "hit_at_5": hit5, "mrr": mrr}
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

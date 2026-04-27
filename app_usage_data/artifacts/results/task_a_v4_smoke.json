@@ -1,0 +1,55 @@
+{
+  "tag": "task_a_v4_smoke",
+  "flags": {
+    "task": "a",
+    "use_category": true,
+    "use_loc": true,
+    "use_daypart": true,
+    "use_windows": true,
+    "use_local": true,
+    "use_global": true,
+    "use_profile": true,
+    "use_markov": false,
+    "use_recency": true,
+    "use_periodicity": true
+  },
+  "n_params": 99341,
+  "profile_dim": 179,
+  "val": {
+    "hit_at_1": 0.46405228758169936,
+    "hit_at_5": 0.7796451914098973,
+    "mrr": 0.6103220243732189,
+    "n_samples": 1071
+  },
+  "val_final_reloaded": {
+    "hit_at_1": 0.46405228758169936,
+    "hit_at_5": 0.7796451914098973,
+    "mrr": 0.6103220243732189,
+    "n_samples": 1071
+  },
+  "test": {
+    "hit_at_1": 0.4631217838765009,
+    "hit_at_5": 0.7598627787307033,
+    "mrr": 0.6016768295075532,
+    "n_samples": 583
+  },
+  "train_log": [
+    {
+      "epoch": 1,
+      "train_loss": 3.904385284944014,
+      "hit_at_1": 0.37628384687208216,
+      "hit_at_5": 0.6937441643323996,
+      "mrr": 0.5220164861749403,
+      "n_samples": 1071
+    },
+    {
+      "epoch": 2,
+      "train_loss": 3.2384701533751055,
+      "hit_at_1": 0.46405228758169936,
+      "hit_at_5": 0.7796451914098973,
+      "mrr": 0.6103220243732189,
+      "n_samples": 1071
+    }
+  ],
+  "alpha_markov_final": null
+}

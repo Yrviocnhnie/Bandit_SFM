@@ -1,0 +1,14 @@
+{
+  "rows_raw": 47237,
+  "rows_deduped": 43964,
+  "targets": 7125,
+  "sessions": 2557,
+  "vocab_size": 50,
+  "train_targets": 5471,
+  "val_targets": 1071,
+  "test_targets": 583,
+  "test_vocab_coverage": 0.9931389365351629,
+  "session_idle_sec": 300,
+  "session_max_events": 32,
+  "rare_min_count": 5
+}

@@ -1,0 +1,6 @@
+round,flags,val_hit1,val_hit5,val_mrr,test_hit1,test_hit5,test_mrr,params,profile_dim
+R0,"use_local,use_global,use_profile",0.619,0.8711,0.7303,0.5832,0.8576,0.7017,88293,38
+R1,"use_category,use_local,use_global,use_profile",0.6022,0.8665,0.72,0.578,0.8696,0.6966,89277,38
+R2,"use_category,use_loc,use_local,use_global,use_profile",0.5938,0.8646,0.7161,0.5557,0.8422,0.6822,90317,38
+R3,"use_category,use_loc,use_daypart,use_local,use_global,use_profile",0.5929,0.8674,0.7143,0.566,0.8491,0.6894,90957,48
+R4,"use_category,use_loc,use_daypart,use_windows,use_local,use_global,use_profile",0.6097,0.8627,0.7229,0.5986,0.8508,0.707,97677,153

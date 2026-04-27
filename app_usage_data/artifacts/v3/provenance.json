@@ -1,0 +1,12 @@
+{
+  "train_rows": 34691,
+  "val_rows": 5521,
+  "test_rows": 3752,
+  "V": 50,
+  "num_categories": 11,
+  "loc_vocab_size": 18,
+  "markov_alpha": 0.5,
+  "train_loc_resolved_frac": 0.9766510045833213,
+  "val_loc_resolved_frac": 0.9884078971200869,
+  "test_loc_resolved_frac": 0.9901385927505331
+}
