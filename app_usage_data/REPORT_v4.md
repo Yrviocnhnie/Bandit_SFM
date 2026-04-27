@@ -116,8 +116,8 @@ CPU runtime per training round: 50–100 s (small dataset, modest model).
 | **v4 (full: + recency + periodicity)** | 0.594 | **0.885** | 0.722 | 0.573 | 0.851 | 0.695 |
 | v4 (recency only) | 0.607 | 0.879 | 0.726 | 0.566 | 0.849 | 0.689 |
 | v4 (periodicity only) | 0.575 | 0.861 | 0.707 | 0.563 | 0.840 | 0.687 |
-| **v4-trim** (v4 with FEATURES_v2 drops: scene + F1–F4 + 2h/6h windows + n_trans; profile 179 → 105) | 0.611 | 0.876 | 0.727 | 0.571 | 0.849 | 0.690 |
-| **v3 R6-arch trim** (= v3 R4 + Markov + drops, no rec/per; profile 153 → 79) | 0.593 | 0.870 | 0.714 | 0.578 | 0.837 | 0.695 |
+| **v4-trim** (= full FEATURES_v2 design: drops scene + F1–F4 + 2h/6h windows + n_trans **and** keeps recency + periodicity; profile 179 → 105) | 0.611 | 0.876 | 0.727 | 0.571 | 0.849 | 0.690 |
+| **v3 R6-arch trim** (= v3 R4 + Markov + drops, **no** rec/per; profile 153 → 79) | 0.593 | 0.870 | 0.714 | 0.578 | 0.837 | 0.695 |
 
 **Reading the numbers:**
 - The top three test Hit@1 results — **v1 GRU 0.602, v3 R4 0.599, v2 GRU 0.593** — are statistically tied within the ±3 pp CI of a 583-event test set. All three are clear wins over Markov-1 (0.496) and the popularity baselines (MFU 0.240, HourMFU 0.244).
@@ -147,7 +147,7 @@ CPU runtime per training round: 50–100 s (small dataset, modest model).
 | **v4 + Markov (full: + recency + periodicity)** | ✓ | 0.707 | 0.729 | 0.720 | 0.437 |
 | v4 + Markov (recency only) | ✓ | 0.703 | 0.739 | 0.726 | 0.437 |
 | v4 + Markov (periodicity only) | ✓ | 0.704 | 0.743 | 0.732 | 0.456 |
-| **v4-trim + Markov** (FEATURES_v2 drops; profile 179 → 105) | ✓ | 0.709 | **0.737** | 0.728 | 0.416 |
+| **v4-trim + Markov** (= full FEATURES_v2 design: drops + rec + per; profile 179 → 105) | ✓ | 0.709 | **0.737** | 0.728 | 0.416 |
 | **v3 R6-arch-trim + Markov** (no rec/per; profile 153 → 79) | ✓ | 0.696 | **0.746** | 0.730 | 0.443 |
 
 ### Top of the leaderboard
@@ -224,12 +224,16 @@ The v4 baseline as originally run (and reported in §4-§5) was *strictly additi
 
 `scripts/27_train_v4.py` now exposes four CLI flags (`--drop-scene --drop-f1234 --drop-long-windows --drop-n-trans`) that apply post-hoc on the numpy arrays before they enter the encoders, so the rest of the v3/v4 wiring is unchanged. Trim runs apply all four drops together; recency and periodicity can be toggled independently.
 
-| Variant | Profile dim | Token dims dropped | Params | Test Hit@1 (A) | Test EH@5 (B) |
+| Variant | Drops applied? | Adds rec+per? | Profile dim | Test Hit@1 (A) | Test EH@5 (B) |
 |---|---|---|---|---|---|
-| v4 full + Markov (no drops) | 179 | 0 | 99k / 102k | 0.573 | 0.729 |
-| **v4-trim + Markov** (all 4 drops) | 105 | 5 zero'd | 95k / 98k | **0.571** | **0.737** |
-| v3 R6 full (no rec/per, no drops) | 153 | 0 | 98k / 100k | 0.599 | 0.746 |
-| **v3 R6-arch trim** (drops, no rec/per) | 79 | 5 zero'd | 93k / 96k | 0.578 | **0.746** |
+| v4 full + Markov (no drops) | — | ✓ | 179 | 0.573 | 0.729 |
+| **v4-trim + Markov** (= full FEATURES_v2 design) | ✓ | ✓ | 105 | **0.571** | **0.737** |
+| v3 R6 full (no rec/per, no drops) | — | — | 153 | 0.599 | 0.746 |
+| **v3 R6-arch trim** (drops only, no rec/per) | ✓ | — | 79 | 0.578 | **0.746** |
+
+The two "trim" rows answer different questions:
+- **v4-trim + Markov** is the *complete* FEATURES_v2 proposal — it both drops the redundant blocks (scene + F1–F4 + 2h/6h windows + n_trans) **and** keeps the new additions (recency 8-d + periodicity 18-d). Profile dim = 6 + 10 + 63 + 8 + 18 = 105.
+- **v3 R6-arch trim** isolates the drops alone — it removes the same blocks but does *not* include the new rec/per features. Profile dim = 6 + 10 + 63 = 79.
 
 **Key findings:**
 
