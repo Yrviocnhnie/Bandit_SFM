@@ -231,7 +231,7 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 | Model | Test EH@5 mean | Test EH@5 median | Test Recall@5 mean | Test Recall@5 median | Test Coverage@5 mean | Test Coverage@5 median |
 |---|---|---|---|---|---|---|
 | MFU | 0.699 | 0.725 | 0.665 | 0.695 | 0.398 | 0.445 |
-| MRU | 0.731 | 0.760 | 0.724 | 0.746 | 0.451 | 0.477 |
+| MRU | 0.539 | 0.522 | 0.530 | 0.547 | 0.253 | 0.205 |
 | HourMFU | 0.687 | 0.729 | 0.655 | 0.677 | 0.386 | 0.397 |
 | Markov-1 | 0.720 | 0.748 | 0.715 | 0.736 | 0.436 | 0.479 |
 | v1 GRU | 0.713 | 0.736 | 0.699 | 0.723 | — | — |
@@ -250,7 +250,9 @@ Estimated compute: 22 users × ~80 s/user ≈ 30 min on CPU for v3 R6. v1 GRU ad
 
 The architectural lift from splitting the backbone and adding a global Transformer + profile encoder (v2 ≈ v1 GRU on B) is small on its own, but it lets the v3 feature stack land cleanly. Adding the Markov prior on top is what pushes v3 R6 past every closed-form and v1-class baseline.
 
-MRU's mean EH@5 (0.731) is artifactual: in the multi-user multi-app vocabulary it benefits from the rank tie-break with MFU on a long top-5 list. v1 TGT-lite remains an under-performer.
+MRU is the weakest Task B baseline (mean EH@5 = 0.539, median 0.522). Predicting `last_app` alone leaves 4 of the top-5 slots as zero-tied PAD/UNK/RARE indices that are never in the window's ground-truth set, so the metric penalizes hard. v1 TGT-lite remains an under-performer relative to v1 GRU.
+
+> **Bug fix (2026-04-27):** an earlier version of this table reported MRU EH@5 = 0.731 / 0.760. That was wrong. The Task B scoring code in `scripts/43_aggregate_multiuser.py` included a `1e-6 * mfu_dist` tiebreak that silently turned MRU's top-5 into `[last_app, mfu_top1, mfu_top2, mfu_top3, mfu_top4]` — an "MRU + MFU" hybrid, not pure MRU. The single-user MRU implementation (`lib/baselines.py`) has no MFU padding. The fix removes the tiebreak, recomputes, and brings multi-user MRU in line with the single-user definition (single-user MRU EH@5 = 0.470 → multi-user pure MRU mean = 0.539).
 
 ### 10.3 Cross-cohort breakdown — Markov-1 (Task B test EH@5)
 

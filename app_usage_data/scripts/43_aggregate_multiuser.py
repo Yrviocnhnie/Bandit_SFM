@@ -141,7 +141,11 @@ def main():
         # MFU: same prediction for every anchor
         scores_mfu = np.broadcast_to(mfu_dist, (n_test, V)).copy()
 
-        # MRU: top-1 = last app, others zero
+        # Pure MRU: top-1 = last app; remaining 4 top-K slots are arbitrary
+        # zero-tied indices. Matches the single-user `lib.baselines.MRU`
+        # definition (no MFU tiebreak), so cross-dataset numbers are
+        # apples-to-apples. The earlier `1e-6 * mfu_dist` tiebreak silently
+        # turned this into "last_app + top-4 MFU" and inflated EH@5 by ~0.32.
         scores_mru = np.zeros((n_test, V), dtype=np.float32)
         ins = np.searchsorted(full_ts, te_ts, side="left")
         for i in range(n_test):
@@ -150,8 +154,6 @@ def main():
                 la = int(full_app[ip - 1])
                 if la >= 3:
                     scores_mru[i, la] = 1.0
-        # tie-break with mfu
-        scores_mru = scores_mru + 1e-6 * mfu_dist[None, :]
 
         # HourMFU
         hours_eval = np.array([int(pd.Timestamp(t).hour) for t in te_ts], dtype=np.int64)
