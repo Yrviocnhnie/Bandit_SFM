@@ -49,16 +49,26 @@
     "n": 32
   },
   "task_b_val_Markov-1": {
+    "event_hit_at_1": 0.5107142857142857,
+    "event_hit_at_3": 0.525,
     "event_hit_at_5": 0.6035714285714285,
+    "event_hit_at_dyn": 0.5142857142857142,
     "recall_at_5": 0.7321428571428571,
+    "recall_at_dyn": 0.6279761904761906,
     "coverage_at_5": 0.625,
-    "n": 56
+    "n": 56,
+    "avg_g_size": 1.5714285714285714
   },
   "task_b_test_Markov-1": {
+    "event_hit_at_1": 0.17475728155339806,
+    "event_hit_at_3": 0.25,
     "event_hit_at_5": 0.25485436893203883,
+    "event_hit_at_dyn": 0.25970873786407767,
     "recall_at_5": 0.3886532738095238,
+    "recall_at_dyn": 0.33452380952380956,
     "coverage_at_5": 0.15625,
-    "n": 32
+    "n": 32,
+    "avg_g_size": 3.84375
   },
   "uid": "0FCFB313A7D7",
   "set": "M_beta_Top30"

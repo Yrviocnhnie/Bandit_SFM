@@ -73,33 +73,80 @@ def task_a_metrics(probs, targets):
 
 
 def task_b_metrics(sigs, win_counts):
+    base = {
+        "event_hit_at_1": 0.0,
+        "event_hit_at_3": 0.0,
+        "event_hit_at_5": 0.0,
+        "event_hit_at_dyn": 0.0,
+        "recall_at_5": 0.0,
+        "recall_at_dyn": 0.0,
+        "coverage_at_5": 0.0,
+        "n": 0,
+        "n_anchors": 0,
+        "avg_g_size": 0.0,
+    }
     n = len(win_counts)
     if n == 0:
-        return {"event_hit_at_5": 0.0, "recall_at_5": 0.0, "coverage_at_5": 0.0, "n": 0}
-    topk = np.argsort(-sigs, axis=1)[:, :5]
+        return base
+    V = win_counts.shape[1]
+    order = np.argsort(-sigs, axis=1)
     total_events = 0
-    total_hit = 0
-    recs = []
-    covs = []
+    hit1 = 0
+    hit3 = 0
+    hit5 = 0
+    hit_dyn = 0
+    rec5_list = []
+    rec_dyn_list = []
+    cov5_list = []
+    g_sizes = []
     for i in range(n):
-        tot = int(win_counts[i].sum())
+        ws = win_counts[i]
+        tot = int(ws.sum())
         if tot == 0:
             continue
-        tset = set(int(x) for x in topk[i])
+        gt = set()
+        for a in range(V):
+            if ws[a] > 0:
+                gt.add(int(a))
+        if len(gt) == 0:
+            continue
+        gsize = len(gt)
+        g_sizes.append(gsize)
         total_events += tot
-        for a in range(win_counts.shape[1]):
-            if a in tset:
-                total_hit += int(win_counts[i, a])
-        gt = set(int(a) for a in range(win_counts.shape[1]) if win_counts[i, a] > 0)
-        if gt:
-            recs.append(len(tset & gt) / max(1, len(gt)))
-            covs.append(1.0 if gt.issubset(tset) else 0.0)
-    eh5 = total_hit / max(1, total_events)
+        ord_i = order[i]
+        top1 = ord_i[:1]
+        top3 = ord_i[:3]
+        top5 = ord_i[:5]
+        kd = max(1, gsize)
+        td = ord_i[:kd]
+        for a in top1:
+            hit1 += int(ws[int(a)])
+        for a in top3:
+            hit3 += int(ws[int(a)])
+        for a in top5:
+            hit5 += int(ws[int(a)])
+        for a in td:
+            hit_dyn += int(ws[int(a)])
+        top5_set = set(int(a) for a in top5)
+        td_set = set(int(a) for a in td)
+        denom = float(gsize)
+        rec5_list.append(len(top5_set & gt) / denom)
+        rec_dyn_list.append(len(td_set & gt) / denom)
+        cov5_list.append(1.0 if gt.issubset(top5_set) else 0.0)
+    if total_events == 0:
+        base["n"] = int(n)
+        return base
     return {
-        "event_hit_at_5": float(eh5),
-        "recall_at_5": float(np.mean(recs)) if recs else 0.0,
-        "coverage_at_5": float(np.mean(covs)) if covs else 0.0,
+        "event_hit_at_1": float(hit1 / total_events),
+        "event_hit_at_3": float(hit3 / total_events),
+        "event_hit_at_5": float(hit5 / total_events),
+        "event_hit_at_dyn": float(hit_dyn / total_events),
+        "recall_at_5": float(np.mean(rec5_list)) if rec5_list else 0.0,
+        "recall_at_dyn": float(np.mean(rec_dyn_list)) if rec_dyn_list else 0.0,
+        "coverage_at_5": float(np.mean(cov5_list)) if cov5_list else 0.0,
         "n": int(n),
+        "n_anchors": int(len(g_sizes)),
+        "avg_g_size": float(np.mean(g_sizes)) if g_sizes else 0.0,
     }
 
 
@@ -378,8 +425,8 @@ def evaluate(model, t, V):
     model.eval()
     n = int(t["target_app"].shape[0])
     if n == 0:
-        return ({"hit_at_1": 0.0, "hit_at_5": 0.0, "mrr": 0.0, "n": 0},
-                {"event_hit_at_5": 0.0, "recall_at_5": 0.0, "coverage_at_5": 0.0, "n": 0})
+        return (task_a_metrics(np.zeros((0, V), dtype=np.float32), np.zeros(0, dtype=int)),
+                task_b_metrics(np.zeros((0, V), dtype=np.float32), np.zeros((0, V), dtype=np.float32)))
     pa_chunks = []
     sb_chunks = []
     with torch.no_grad():

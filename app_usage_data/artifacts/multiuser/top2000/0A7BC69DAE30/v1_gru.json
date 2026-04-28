@@ -11,9 +11,16 @@
     "n": 1214
   },
   "val_b": {
+    "event_hit_at_1": 0.5248563218390805,
+    "event_hit_at_3": 0.7913793103448276,
     "event_hit_at_5": 0.9242097701149425,
+    "event_hit_at_dyn": 0.9107040229885057,
     "recall_at_5": 0.8943437671609006,
-    "n": 1214
+    "recall_at_dyn": 0.8495881383855025,
+    "coverage_at_5": 0.7561779242174629,
+    "n": 1214,
+    "n_anchors": 1214,
+    "avg_g_size": 2.7364085667215816
   },
   "test_a": {
     "hit_at_1": 0.6685934489402697,
@@ -22,21 +29,35 @@
     "n": 1557
   },
   "test_b": {
+    "event_hit_at_1": 0.5063729934403498,
+    "event_hit_at_3": 0.7482800917284411,
     "event_hit_at_5": 0.864593888325956,
+    "event_hit_at_dyn": 0.8460348781398326,
     "recall_at_5": 0.8662920145579105,
-    "n": 1557
+    "recall_at_dyn": 0.8198886748019696,
+    "coverage_at_5": 0.6416184971098265,
+    "n": 1557,
+    "n_anchors": 1557,
+    "avg_g_size": 2.919717405266538
   },
   "log": [
     {
       "epoch": 1,
-      "loss": 4.149653818549179,
+      "loss": 4.149653888330227,
       "val_a_hit_at_1": 0.7158154859967051,
       "val_a_hit_at_5": 0.9637561779242174,
       "val_a_mrr": 0.8122846464654369,
       "val_a_n": 1214,
+      "val_b_event_hit_at_1": 0.5248563218390805,
+      "val_b_event_hit_at_3": 0.7913793103448276,
       "val_b_event_hit_at_5": 0.9242097701149425,
+      "val_b_event_hit_at_dyn": 0.9107040229885057,
       "val_b_recall_at_5": 0.8943437671609006,
-      "val_b_n": 1214
+      "val_b_recall_at_dyn": 0.8495881383855025,
+      "val_b_coverage_at_5": 0.7561779242174629,
+      "val_b_n": 1214,
+      "val_b_n_anchors": 1214,
+      "val_b_avg_g_size": 2.7364085667215816
     },
     {
       "epoch": 2,
@@ -45,42 +66,70 @@
       "val_a_hit_at_5": 0.9579901153212521,
       "val_a_mrr": 0.8179880485286648,
       "val_a_n": 1214,
+      "val_b_event_hit_at_1": 0.5798132183908046,
+      "val_b_event_hit_at_3": 0.8005028735632184,
       "val_b_event_hit_at_5": 0.9229885057471264,
+      "val_b_event_hit_at_dyn": 0.9160919540229885,
       "val_b_recall_at_5": 0.8975288303130148,
-      "val_b_n": 1214
+      "val_b_recall_at_dyn": 0.8678061504667764,
+      "val_b_coverage_at_5": 0.7578253706754531,
+      "val_b_n": 1214,
+      "val_b_n_anchors": 1214,
+      "val_b_avg_g_size": 2.7364085667215816
     },
     {
       "epoch": 3,
-      "loss": 3.317394849730701,
+      "loss": 3.3173948729910503,
       "val_a_hit_at_1": 0.7257001647446458,
       "val_a_hit_at_5": 0.9563426688632619,
       "val_a_mrr": 0.8235819862724306,
       "val_a_n": 1214,
+      "val_b_event_hit_at_1": 0.5676005747126437,
+      "val_b_event_hit_at_3": 0.8129310344827586,
       "val_b_event_hit_at_5": 0.9193965517241379,
+      "val_b_event_hit_at_dyn": 0.9128591954022989,
       "val_b_recall_at_5": 0.8945634266886326,
-      "val_b_n": 1214
+      "val_b_recall_at_dyn": 0.862300933552993,
+      "val_b_coverage_at_5": 0.7561779242174629,
+      "val_b_n": 1214,
+      "val_b_n_anchors": 1214,
+      "val_b_avg_g_size": 2.7364085667215816
     },
     {
       "epoch": 4,
-      "loss": 3.226249148206013,
+      "loss": 3.2262491307607513,
       "val_a_hit_at_1": 0.7438220757825371,
       "val_a_hit_at_5": 0.9588138385502472,
       "val_a_mrr": 0.83339890924853,
       "val_a_n": 1214,
+      "val_b_event_hit_at_1": 0.5750718390804598,
+      "val_b_event_hit_at_3": 0.8201149425287356,
       "val_b_event_hit_at_5": 0.9219827586206897,
+      "val_b_event_hit_at_dyn": 0.9136494252873564,
       "val_b_recall_at_5": 0.9011669412410763,
-      "val_b_n": 1214
+      "val_b_recall_at_dyn": 0.861216364634816,
+      "val_b_coverage_at_5": 0.7635914332784185,
+      "val_b_n": 1214,
+      "val_b_n_anchors": 1214,
+      "val_b_avg_g_size": 2.7364085667215816
     },
     {
       "epoch": 5,
-      "loss": 3.159721892054488,
+      "loss": 3.159721874609226,
       "val_a_hit_at_1": 0.7446457990115322,
       "val_a_hit_at_5": 0.9612850082372323,
       "val_a_mrr": 0.8369288923366289,
       "val_a_n": 1214,
+      "val_b_event_hit_at_1": 0.576867816091954,
+      "val_b_event_hit_at_3": 0.8176005747126437,
       "val_b_event_hit_at_5": 0.9237068965517241,
+      "val_b_event_hit_at_dyn": 0.9166666666666666,
       "val_b_recall_at_5": 0.9051070840197695,
-      "val_b_n": 1214
+      "val_b_recall_at_dyn": 0.8717462932454697,
+      "val_b_coverage_at_5": 0.7668863261943987,
+      "val_b_n": 1214,
+      "val_b_n_anchors": 1214,
+      "val_b_avg_g_size": 2.7364085667215816
     }
   ],
   "set": "top2000",
