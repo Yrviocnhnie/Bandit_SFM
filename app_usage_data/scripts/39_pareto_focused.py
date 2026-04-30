@@ -76,7 +76,9 @@ def plot_one(split):
     plt.title(f"H = 60 min Pareto frontier — {split.upper()}\n"
               f"4 best trained models vs Random / LRU / Markov-inv  ·  ideal corner = lower-right",
               fontsize=11)
-    plt.gca().invert_yaxis()
+    # y-axis is NOT inverted: numbers increase top→bottom naturally.
+    # Low FK still ends up at the bottom because FK values are smaller for the
+    # better models, which puts them in the lower portion of the plot.
     plt.legend(loc="upper right", fontsize=9, framealpha=0.95)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
