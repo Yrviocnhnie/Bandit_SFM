@@ -133,3 +133,92 @@ def compute_metrics(
         "n_anchors": int(df["anchor_id"].nunique()),
         "n_rows": int(len(df)),
     }
+
+
+def compute_positive_only_metrics(
+    df: pd.DataFrame,
+    score_col: str,
+    y_col: str,
+    r_values: Sequence[float] = R_DEFAULT,
+) -> dict:
+    """Metrics computed using ONLY the positive-labeled (y == 1) rows.
+
+    Three metrics:
+
+    * **WAKR@r — Wanted-App Kill Rate at r** *(lower is better)*
+      For each anchor with ≥ 1 positive: fraction of positives that fall in
+      the top-⌈r·|B(t)|⌉ kill list. Anchor-mean.
+
+      Differs from FK@r in the *denominator*:
+        - FK@r   = positives_in_kill_list / size_of_kill_list
+        - WAKR@r = positives_in_kill_list / total_positives_in_anchor
+      → WAKR@r is the "missed safety" rate from the user's perspective:
+      "of the apps you wanted, what fraction would the model have killed?"
+
+    * **PosRank — mean rank-percentile of positives within B(t)**
+      *(higher is better; range [0, 1])*
+      For each positive (anchor, app):
+        PosRank_per = (# apps in B(t) with strictly higher kill-score
+                       than this positive  +  0.5 × # ties) / (|B(t)| − 1)
+      Higher PosRank = positive sits low in kill priority = model thinks it
+      is "safe to keep". Random baseline ≈ 0.5; perfect = 1.0.
+      Scale-free (works for any kill-score units) and anchor-aware.
+
+    * **PosScoreNorm — anchor-normalised mean kill-score on positives**
+      *(lower is better; range [0, 1])*
+      For each anchor: min-max scale scores to [0, 1]. Average that over the
+      positives in the anchor. Then average across anchors. This is the
+      "literal mean kill-score on positives" idea, made comparable across
+      models with different score scales.
+
+    Anchors with 0 positives or with |B(t)| < 2 are skipped (PosRank /
+    PosScoreNorm are undefined). Anchors with all-equal scores are skipped
+    from PosScoreNorm (zero-range).
+    """
+    r_list = list(r_values)
+    pos_ranks: List[float] = []
+    pos_score_norms: List[float] = []
+    wakr = {r: [] for r in r_list}
+    n_anchors_with_pos = 0
+
+    for _, g in df.groupby("anchor_id", sort=False):
+        scores = g[score_col].to_numpy(dtype=np.float64)
+        y = g[y_col].to_numpy(dtype=np.int64)
+        n = len(y)
+        n_pos = int((y == 1).sum())
+        if n_pos == 0:
+            continue
+        n_anchors_with_pos += 1
+
+        # WAKR@r — fraction of positives ending up in top-r kill list
+        order = np.argsort(-scores, kind="mergesort")
+        for r in r_list:
+            k = max(1, min(int(np.ceil(r * n)), n))
+            top_k = order[:k]
+            killed_pos = int((y[top_k] == 1).sum())
+            wakr[r].append(killed_pos / n_pos)
+
+        # PosRank and PosScoreNorm need |B(t)| ≥ 2
+        if n < 2:
+            continue
+        s_min = float(scores.min())
+        s_range = float(scores.max() - s_min)
+        for i in np.where(y == 1)[0]:
+            s_i = float(scores[i])
+            others_mask = np.ones(n, dtype=bool)
+            others_mask[i] = False
+            others = scores[others_mask]
+            n_higher = int((others > s_i).sum())
+            n_equal  = int((others == s_i).sum())
+            pos_ranks.append((n_higher + 0.5 * n_equal) / (n - 1))
+            if s_range > 0:
+                pos_score_norms.append((s_i - s_min) / s_range)
+
+    return {
+        "pos_rank_mean":      float(np.mean(pos_ranks))      if pos_ranks      else float("nan"),
+        "pos_score_norm_mean": float(np.mean(pos_score_norms)) if pos_score_norms else float("nan"),
+        "wakr": {str(r): float(np.mean(wakr_r)) if wakr_r else float("nan")
+                 for r, wakr_r in wakr.items()},
+        "n_positive_samples": int(len(pos_ranks)),
+        "n_anchors_with_positives": int(n_anchors_with_pos),
+    }

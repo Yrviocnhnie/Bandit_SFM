@@ -140,7 +140,7 @@ Conventions for every table below:
 
 (*italic* = best closed-form baseline · **bold** = best trained model in that column)
 
-**Val read-out:** the trained models all beat every closed-form baseline on PR-AUC and ROC-AUC. Best baseline is `markov_inv` (PR-AUC 0.864, NDCG 0.834) and `lfu_hour` (ROC-AUC 0.747). Best learned on val is `Pro-Ens/c3.2` (5-seed ensemble) — but the gap to single-seed C3-Pro variants is small (≤ 0.005 PR-AUC) and the ranking flips on test. Use the bootstrap CIs in §5.5 to read these gaps.
+**Val read-out:** the trained models all beat every closed-form baseline on PR-AUC and ROC-AUC. Best baseline is `markov_inv` (PR-AUC 0.864, NDCG 0.834) and `lfu_hour` (ROC-AUC 0.747). Best learned on val is `Pro-Ens/c3.2` (5-seed ensemble) — but the gap to single-seed C3-Pro variants is small (≤ 0.005 PR-AUC) and the ranking flips on test. Use the bootstrap CIs in §5.6 to read these gaps.
 
 ### 5.2  Test (`bg_test.parquet`)  (n = 817 anchors)
 
@@ -219,11 +219,71 @@ C3-Pro variants together gain only ~ 0.1–0.2 pp test PR-AUC over plain C3.3 �
 
 **Reading the test figure:** the four trained models (green / purple / olive / brown) cluster tightly in the upper-right region. At the deployment-relevant operating point (r = 0.5, the middle marker), they reach ≈ (MSR 0.66, kill-precision 0.84) — i.e. ≈ 84 % of their kills are correct. Markov-inverse sits below at (0.64, 0.82); LRU is further below at (0.61, 0.80). The gap widens at the conservative end (r = 0.25) where the trained models reach kill-precision ≈ 0.90 vs Markov-inverse's 0.86 and LRU's 0.84. At the most aggressive end (r = 0.9) every model — including baselines — converges to (≈ 0.92, ≈ 0.76), because at that point almost every app in `B(t)` is killed and ranking quality is moot.
 
-**Reading the val figure:** same ordering, but the gaps are visibly tighter. Markov-inverse lies *just below* the trained-model cluster across the (MSR 0.55 – 0.65) range, reflecting the bootstrap-CI overlap noted in §5.5. LRU performs noticeably worse on val than on test — the val week has more "rare-app reuse" patterns that LRU misses.
+**Reading the val figure:** same ordering, but the gaps are visibly tighter. Markov-inverse lies *just below* the trained-model cluster across the (MSR 0.55 – 0.65) range, reflecting the bootstrap-CI overlap noted in §5.6. LRU performs noticeably worse on val than on test — the val week has more "rare-app reuse" patterns that LRU misses.
 
 The wider H = 5 / H = 10 figures referenced from earlier H=5/H=10 reports (`figures/bg/pareto_H_300_*.png`, `pareto_H_600_*.png`) are kept in the repo for historical comparison; they are not the live numbers.
 
-### 5.5  Bootstrap CIs (B = 1000 anchor-resamples, seed 7)
+### 5.5  Positive-only metrics (focus on the wanted apps)
+
+The metrics in §5.1 / §5.2 are computed over the *full* `(anchor, app)` set. A reviewer asked: is there a metric that uses **only the positive samples** — i.e. only the `(anchor, app)` rows where the user actually foregrounded the app? Three candidate metrics, all scale-free and anchor-aware:
+
+| Metric | Direction | Formula |
+|---|---|---|
+| **WAKR@r** — Wanted-App Kill Rate at top-r | lower is better | (# positives that fall in the top-`⌈r·\|B(t)\|⌉` kill list) / (# positives in this anchor), then anchor-mean |
+| **PosRank** — mean rank-percentile of positives within `B(t)` | higher is better | for each positive: (# apps in `B(t)` strictly more kill-worthy + 0.5 × ties) / (`\|B(t)\|` − 1), averaged over all positives |
+| **PosScoreNorm** — anchor-normalised mean kill-score on positives | lower is better | for each anchor: min-max scale `score` to [0, 1]; average over positives in that anchor; then mean across anchors |
+
+Each metric answers a different question:
+
+* **WAKR@r** is the deployment-relevant "user pain rate": at this aggressiveness, what fraction of the user's wanted apps would be killed? It complements `FK@r` — same numerator (positives in top-r) but the denominator is "total wanted apps" not "kill list size".
+* **PosRank** asks "where in `B(t)` does the typical wanted app sit?". A perfect model puts every positive at the bottom of the kill list (PosRank = 1.0). Random puts them in the middle (≈ 0.5). It is essentially a per-positive Mann-Whitney rank statistic; numerically very close to ROC-AUC restricted to anchors with both classes, but with a per-positive interpretation.
+* **PosScoreNorm** is the user's literal "mean kill-score on positives" idea, made comparable across models with different score scales by min-max normalising within each anchor first. Lower = positives sit lower in the per-anchor score distribution.
+
+Why we did not include raw "mean kill-score on positives": it pools across anchors and across models with completely different score scales (LRU ∈ [0, 100k] sec vs Markov-inverse ∈ [0, 1] vs sigmoid ∈ [0, 1]), so the cross-model comparison would be uninterpretable.
+
+#### Test (n = 817 anchors with `\|B(t)\| ≥ 1`)
+
+| Model | PosRank ↑ | PosScoreNorm ↓ | WAKR@.25 ↓ | WAKR@.5 ↓ | WAKR@.75 ↓ |
+|---|---:|---:|---:|---:|---:|
+| random          | 0.528 | 0.485 | 0.401 | 0.608 | 0.869 |
+| lru             | 0.636 | 0.368 | 0.277 | 0.497 | 0.750 |
+| tibg            | 0.637 | 0.393 | 0.284 | 0.499 | 0.731 |
+| lfu_hour        | 0.664 | 0.411 | 0.285 | 0.464 | 0.781 |
+| **markov_inv**  | 0.674 | 0.517 | 0.251 | 0.446 | 0.752 |
+| hybrid_lru_mk   | 0.648 | 0.448 | 0.289 | 0.461 | 0.753 |
+| C3.3            | 0.724 | 0.233 | 0.207 | 0.383 | 0.764 |
+| **Pro-Reg / c3.3**  | 0.727 | **0.219** | 0.203 | 0.390 | **0.743** |
+| **Pro-List / c3.3** | **0.728** | 0.240 | **0.203** | 0.381 | 0.750 |
+| **Pro-Wide / c3.3** | 0.725 | 0.231 | 0.208 | **0.379** | 0.745 |
+
+#### Val  (n = 877 anchors)
+
+| Model | PosRank ↑ | PosScoreNorm ↓ | WAKR@.25 ↓ | WAKR@.5 ↓ | WAKR@.75 ↓ |
+|---|---:|---:|---:|---:|---:|
+| random          | 0.501 | 0.497 | 0.360 | 0.565 | 0.837 |
+| lru             | 0.591 | 0.348 | 0.264 | 0.419 | 0.728 |
+| tibg            | 0.584 | 0.393 | 0.279 | 0.426 | 0.728 |
+| lfu_hour        | 0.663 | 0.412 | 0.199 | 0.364 | 0.722 |
+| *markov_inv*    | 0.661 | 0.536 | *0.168* | *0.339* | *0.690* |
+| hybrid_lru_mk   | 0.617 | 0.433 | 0.209 | 0.408 | 0.707 |
+| C3.3            | 0.672 | 0.291 | 0.154 | **0.353** | 0.703 |
+| **Pro-Reg / c3.3**  | 0.669 | 0.284 | **0.151** | 0.375 | 0.704 |
+| **Pro-List / c3.3** | 0.665 | 0.304 | 0.174 | 0.364 | 0.710 |
+| **Pro-Wide / c3.3** | **0.674** | 0.284 | **0.151** | 0.355 | **0.692** |
+
+#### Read-out
+
+* **WAKR@.5 (the headline)** — Random would kill ~61 % of the user's wanted apps if you killed half of `B(t)`. Markov-inverse is at 44.6 %. The four trained models cluster around **38 %** — a ~6 percentage-point absolute reduction in user-pain over the strongest baseline at the deployment-relevant operating point. The trained models are roughly tied with each other (within 1 pp WAKR@.5), confirming the §5.3 finding that feature schema beats architecture.
+
+* **PosRank** — Random sits at 0.5 (positives equally distributed top-to-bottom of the kill list), as expected. Markov-inverse and LFU-hour reach 0.66–0.67 (positives at the 67th percentile of safety). Trained models reach **0.72–0.73** — the typical wanted app sits in the bottom ~28 % of `B(t)`'s kill priority. This roughly tracks the per-anchor ROC-AUC numbers, just expressed per-positive instead of per-pair.
+
+* **PosScoreNorm** — Markov-inverse's 0.52 vs the trained models' ≈ 0.23 illustrates how *aggressively* the trained models depress kill-scores on wanted apps. Closed-form baselines that produce many similar scores (markov_inv) put positives near the median; learned models actively push positive scores toward the anchor minimum.
+
+**Pick interpretation:** all four trained models are roughly tied at ~0.38 WAKR@.5; Pro-Wide / c3.3 has a tiny edge on the safety metric and Pro-Reg / c3.3 on the score-aggression metric. Compared to the strongest baseline (Markov-inverse), trained models save ≈ 7 % more wanted apps at the r = 0.5 deployment ratio while keeping the deployment-rate constant.
+
+The script that generates this table is `scripts/40_positive_metrics.py`; the JSON dump lives at `artifacts/bg/results/positive_metrics.json`.
+
+### 5.6  Bootstrap CIs (B = 1000 anchor-resamples, seed 7)
 
 `scripts/35_eval_h60.py` re-scores every model (baselines + trained) per anchor, then resamples anchors with replacement 1 000 times to produce 95 % CIs on each metric mean. Only the headline metrics shown — full table in `artifacts/bg/results/h60_leaderboard_ci.json`.
 
@@ -248,7 +308,7 @@ Bottom line: ROC-AUC and PR-AUC gains over Markov-inv are robust; FK@0.5 and NDC
 
 **Val** (n = 877 anchors): same ordering as test but the gaps are smaller and almost all CIs overlap. The 28 % positive rate on val genuinely makes this a harder problem than test.
 
-### 5.6  Leave-one-out ablation on the C3.1 hourly-habit features
+### 5.7  Leave-one-out ablation on the C3.1 hourly-habit features
 
 To quantify which of the 5 added features carry weight, each was zeroed out individually (with a fresh seed-7 retrain). All numbers are H = 60 min, val/test split, single sigmoid head.
 
@@ -270,11 +330,11 @@ To quantify which of the 5 added features carry weight, each was zeroed out indi
 
 **Verified the tightened schema (C3.2):** keep `was_fg_24h_ago`, `was_fg_7d_ago`, `log_fg_count_last_24h` (3 hourly-habit features); drop `overdue_ratio` and `log_fg_count_last_7d`. Trained model (5 345 params, 18 features) gives test PR-AUC 0.914 (−0.4 pp vs full C3.1), test ROC-AUC 0.803 (+0.3 pp), test FK@0.5 0.173 (+1.3 pp — *worse*). The +1.3 pp PR-AUC gain from the single-feature drop of `log_fg_count_last_7d` does **not** compound with `overdue_ratio` removal. Within training-seed noise. **Recommendation: keep all 5 hourly-habit features in C3.1.**
 
-### 5.7  Old Pareto curves (FK on x, MSR on y) — kept for reference
+### 5.8  Old Pareto curves (FK on x, MSR on y) — kept for reference
 
 The earlier figures with the axes flipped (FK on x-axis, MSR on y-axis) are kept under `figures/bg/pareto_h60_{val,test}.png` for backward compatibility. They show the same data as §5.4's focused figure but include all 6 baseline curves and only C1 / C2 / C3.1; the focused figure in §5.4 is the canonical one.
 
-### 5.8  Full feature-ablation grid (C3.2 → C3.4) and architectural variants (C3-Pro)
+### 5.9  Full feature-ablation grid (C3.2 → C3.4) and architectural variants (C3-Pro)
 
 Running the full plan from `REPORT_bgkill_model_plan.md`. Each row is a separate trained model, single sigmoid head on `y_3600`, train/val/test splits as in §2. C3.5 (session state) and C3.6 (active-burst intensity) are deferred — they require backward event-stream lookups not exposed by the current parquet pipeline; flagged in §7.
 
@@ -337,7 +397,7 @@ Each schema *adds* its features on top of the previous (C2 → C3.1 → C3.2 →
 
 **Yes, with caveats.** At the deployment-relevant operating point (kill the half of `B(t)` you're least likely to need in the next hour), C3.1 falsely-kills 16.1 % of "wanted" apps vs Markov-inverse's 18.0 %. That is a real but not transformative improvement. The bigger win is at the aggressive end (FK@0.25 = 0.107 vs Markov 0.141, **−3.4 pp**), suggesting C2 is meaningfully better at picking the *most-clearly-stale* apps to drop early.
 
-The bootstrap CIs in §5.5 sharpen the picture:
+The bootstrap CIs in §5.6 sharpen the picture:
 
 * **Ranking-quality gains are statistically robust.** C2's test ROC-AUC CI [0.781, 0.829] does not overlap Markov-inv's [0.711, 0.773] → significant at 95 %.
 * **FK@0.5 / NDCG gains are within bootstrap noise on the current single-user test set.** The means clearly favour the trained models, but the 95 % CIs overlap Markov-inv's CI band. The 817-anchor test set is the limiting factor here.
