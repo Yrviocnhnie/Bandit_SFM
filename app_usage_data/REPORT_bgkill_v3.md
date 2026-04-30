@@ -212,14 +212,14 @@ C3-Pro variants together gain only ~ 0.1–0.2 pp test PR-AUC over plain C3.3 �
 
 **How to read this figure.**
 - **x-axis = Memory-save rate (MSR)** — fraction of safely-killable apps actually killed; **higher is better** (more RAM freed without harm).
-- **y-axis = False-kill rate (FK)** — fraction of killed apps that the user actually wanted; **lower is better** (fewer wrongly-killed apps). The y-axis is *inverted* so that "good" = down.
+- **y-axis = Kill precision  =  1 − False-kill rate** — fraction of killed apps the user does NOT need; **higher is better** (fewer wrongly-killed apps). We plot `1 − FK` rather than `FK` directly so both axes are "higher is better" and the figure reads naturally bottom-up / left-right.
 - Each point is one operating point r ∈ {0.1, 0.25, 0.5, 0.75, 0.9} (the fraction of `B(t)` killed). The five r-values are annotated on the C3.3 curve.
-- The **bottom-right corner is ideal**: maximum memory saved, minimum false kills.
-- A curve that lies *strictly below and to the right of another* is Pareto-dominant on every operating point.
+- The **upper-right corner is ideal**: maximum memory saved, maximum kill precision.
+- A curve that sits **above and to the right** of another is Pareto-dominant on every operating point.
 
-**Reading the test figure:** the four trained models (green / purple / olive / brown) form a tight cluster well below the three baseline curves (gray / blue / red). At the deployment-relevant operating point (r = 0.5, the middle marker), the trained models are clustered around (MSR ≈ 0.66, FK ≈ 0.16) whereas Markov-inverse sits at (MSR ≈ 0.64, FK ≈ 0.18). The trained models also dominate at the safer end (r = 0.25), where the gap to LRU widens to several percentage points of FK. At the most aggressive end (r = 0.9), every model — including baselines — converges because almost every app in `B(t)` is killed.
+**Reading the test figure:** the four trained models (green / purple / olive / brown) cluster tightly in the upper-right region. At the deployment-relevant operating point (r = 0.5, the middle marker), they reach ≈ (MSR 0.66, kill-precision 0.84) — i.e. ≈ 84 % of their kills are correct. Markov-inverse sits below at (0.64, 0.82); LRU is further below at (0.61, 0.80). The gap widens at the conservative end (r = 0.25) where the trained models reach kill-precision ≈ 0.90 vs Markov-inverse's 0.86 and LRU's 0.84. At the most aggressive end (r = 0.9) every model — including baselines — converges to (≈ 0.92, ≈ 0.76), because at that point almost every app in `B(t)` is killed and ranking quality is moot.
 
-**Reading the val figure:** same ordering, but the gaps are visibly tighter. Markov-inverse lies *just above* the trained models in the (MSR ∈ [0.55, 0.65]) range, reflecting the bootstrap-CI overlap noted in §5.5. LRU performs noticeably worse on val than test — the val week has more "rare-app reuse" patterns that LRU misses.
+**Reading the val figure:** same ordering, but the gaps are visibly tighter. Markov-inverse lies *just below* the trained-model cluster across the (MSR 0.55 – 0.65) range, reflecting the bootstrap-CI overlap noted in §5.5. LRU performs noticeably worse on val than on test — the val week has more "rare-app reuse" patterns that LRU misses.
 
 The wider H = 5 / H = 10 figures referenced from earlier H=5/H=10 reports (`figures/bg/pareto_H_300_*.png`, `pareto_H_600_*.png`) are kept in the repo for historical comparison; they are not the live numbers.
 

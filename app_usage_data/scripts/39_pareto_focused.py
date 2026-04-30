@@ -62,24 +62,25 @@ def plot_one(split):
     for label, kind, key, color, ls in ROWS:
         m = metrics_for(kind, key, split)
         msr, fk = points(m)
-        plt.plot(msr, fk, marker="o", color=color, linestyle=ls,
+        # Plot 1 - FK on the y-axis so both axes are "higher is better"
+        kp = [1.0 - v for v in fk]   # kill-precision = fraction of kills that were safe
+        plt.plot(msr, kp, marker="o", color=color, linestyle=ls,
                  linewidth=2.0, markersize=6, label=label)
         if label == "C3.3":
-            for r, x, y in zip(R_SWEEP, msr, fk):
+            for r, x, y in zip(R_SWEEP, msr, kp):
                 plt.annotate(f"r={r}", xy=(x, y),
-                             xytext=(6, -8), textcoords="offset points",
+                             xytext=(6, -10), textcoords="offset points",
                              fontsize=8, color="dimgray")
-    plt.xlabel("Memory-save rate (MSR)  →  higher = more RAM freed safely",
+    plt.xlabel("Memory-save rate (MSR)\n"
+               "fraction of safely-killable apps actually killed  (higher = better)",
                fontsize=10)
-    plt.ylabel("False-kill rate (FK)  →  lower = fewer wrongly killed",
+    plt.ylabel("Kill precision  =  1 − False-kill rate\n"
+               "fraction of killed apps the user does NOT need  (higher = better)",
                fontsize=10)
     plt.title(f"H = 60 min Pareto frontier — {split.upper()}\n"
-              f"4 best trained models vs Random / LRU / Markov-inv  ·  ideal corner = lower-right",
+              f"4 best trained models vs Random / LRU / Markov-inverse  ·  ideal corner = upper-right",
               fontsize=11)
-    # y-axis is NOT inverted: numbers increase top→bottom naturally.
-    # Low FK still ends up at the bottom because FK values are smaller for the
-    # better models, which puts them in the lower portion of the plot.
-    plt.legend(loc="upper right", fontsize=9, framealpha=0.95)
+    plt.legend(loc="lower left", fontsize=9, framealpha=0.95)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     out = FIG / f"pareto_h60_focused_{split}.png"
