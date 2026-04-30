@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -61,14 +62,22 @@ def flatten_rows(collected: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def render_pareto(collected: dict, split: str, h_key: str, out_path: Path) -> None:
+def render_pareto(collected: dict, split: str, h_key: str, out_path: Path,
+                   annotate_model: Optional[str] = None) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     r_list = [0.1, 0.25, 0.5, 0.75, 0.9]
     models = sorted(collected[split][h_key].keys())
-    annotate_model = "C1" if "C1" in models else (models[0] if models else None)
+    if annotate_model is None:
+        # Default policy: prefer the latest learned model for r-value annotations.
+        if "C2" in models:
+            annotate_model = "C2"
+        elif "C1" in models:
+            annotate_model = "C1"
+        else:
+            annotate_model = models[0] if models else None
 
     fig, ax = plt.subplots(figsize=(8.2, 5.4))
     for name in models:
@@ -111,6 +120,65 @@ def render_pareto(collected: dict, split: str, h_key: str, out_path: Path) -> No
     plt2.close(fig)
 
 
+def render_pareto_focused(collected: dict, split: str, h_key: str,
+                           out_path: Path,
+                           include_models=("C2", "markov_inv", "lru", "random")):
+    """Compact Pareto with only the headline model + key baselines for clarity."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    r_list = [0.1, 0.25, 0.5, 0.75, 0.9]
+    avail = collected[split][h_key]
+    models = [m for m in include_models if m in avail]
+    if not models:
+        return
+
+    fig, ax = plt.subplots(figsize=(7.5, 5.0))
+    color_map = {"C2": "tab:orange", "markov_inv": "tab:olive",
+                 "lru": "tab:gray", "random": "tab:purple"}
+    for name in models:
+        m = avail[name]
+        fk = m.get("false_kill_rate", {})
+        sr = m.get("memory_save_rate", {})
+        xs = [sr.get(str(r), 0.0) for r in r_list]
+        ys = [1.0 - fk.get(str(r), 0.0) for r in r_list]
+        line, = ax.plot(xs, ys, marker="o", linewidth=2.0,
+                         label=name, markersize=7,
+                         color=color_map.get(name))
+        # annotate r-values on the headline model only
+        if name == "C2" or (name == models[0] and "C2" not in models):
+            for r, x, y in zip(r_list, xs, ys):
+                ax.annotate(f"r={r}", xy=(x, y),
+                             xytext=(7, -11), textcoords="offset points",
+                             fontsize=9, color=line.get_color(),
+                             fontweight="bold")
+
+    ax.set_xlabel(
+        "SafeKillRecall@r  =  |killed ∩ safe-to-kill| / |safe-to-kill|\n"
+        "(higher → more reclaimable RAM is actually reclaimed)",
+        fontsize=9,
+    )
+    ax.set_ylabel(
+        "1 − FalseKillRate@r  =  1 − |killed ∩ will-be-used| / |killed|\n"
+        "(higher → fewer apps killed that the user actually opened)",
+        fontsize=9,
+    )
+    h_sec = int(h_key.split("_")[1])
+    ax.set_title(
+        f"Task C — C2 vs strongest baselines | {split.upper()} split, H = {h_sec} s",
+        fontsize=11,
+    )
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(0.92, 1.005)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=10, loc="lower left", framealpha=0.95)
+    fig.tight_layout()
+    fig.savefig(str(out_path), dpi=150)
+    import matplotlib.pyplot as plt_close
+    plt_close.close(fig)
+
+
 def h_key_local_strip(h_key: str) -> int:
     return int(h_key.split("_")[1])
 
@@ -138,12 +206,30 @@ def main() -> int:
 
     for split in ("val", "test"):
         for h in ("H_300", "H_600"):
-            out = FIG_DIR / f"pareto_{h}_{split}.png"
+            # Default Pareto: annotate C2 (current headline). Filename
+            # `pareto_<H>_<split>.png` matches the v2 report's references.
+            out_c2 = FIG_DIR / f"pareto_{h}_{split}.png"
             try:
-                render_pareto(collected, split=split, h_key=h, out_path=out)
-                print(f"[bg/33] wrote {out}")
+                render_pareto(collected, split=split, h_key=h, out_path=out_c2,
+                               annotate_model="C2")
+                print(f"[bg/33] wrote {out_c2}")
             except Exception as exc:
-                print(f"[bg/33] figure skipped ({out.name}): {exc}")
+                print(f"[bg/33] figure skipped ({out_c2.name}): {exc}")
+            # Legacy Pareto preserved: annotate C1, save under `_c1annot` suffix.
+            out_c1 = FIG_DIR / f"pareto_{h}_{split}_c1annot.png"
+            try:
+                render_pareto(collected, split=split, h_key=h, out_path=out_c1,
+                               annotate_model="C1")
+                print(f"[bg/33] wrote {out_c1}")
+            except Exception as exc:
+                print(f"[bg/33] legacy figure skipped ({out_c1.name}): {exc}")
+            # Focused 4-model variant (always C2-annotated; nothing to keep "old" of).
+            out_focus = FIG_DIR / f"pareto_focused_{h}_{split}.png"
+            try:
+                render_pareto_focused(collected, split=split, h_key=h, out_path=out_focus)
+                print(f"[bg/33] wrote {out_focus}")
+            except Exception as exc:
+                print(f"[bg/33] focused figure skipped ({out_focus.name}): {exc}")
 
     print("\n=== TEST SPLIT HEADLINE ===")
     test_df = df[df["split"] == "test"].sort_values(["horizon_sec", "ROC_AUC"],

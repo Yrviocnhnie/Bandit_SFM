@@ -29,8 +29,11 @@ FG_NAMES = frozenset({"APP_FOREGROUND", "APP_START"})
 BG_NAMES = frozenset({"APP_BACKGROUND"})
 EXIT_NAMES = frozenset({"PROCESS_EXIT"})
 START_NAMES = frozenset({"PROCESS_START"})
+SCREEN_ON_NAMES = frozenset({"SCREENON_EVENT"})
+SCREEN_OFF_NAMES = frozenset({"SCREENOFF_EVENT"})
 
 T_STALE_SEC_DEFAULT = 6 * 3600
+KILL_RECENT_WINDOW_SEC = 10 * 60   # how long we treat a PROCESS_EXIT as "recent"
 NS_PER_SEC = 1_000_000_000
 NS_PER_DAY = 86_400 * NS_PER_SEC
 
@@ -57,6 +60,11 @@ class BGSnapshot:
     last_fg_loc_id: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int32))
     last_fg_daypart: np.ndarray = field(default_factory=lambda: np.full(0, -1, dtype=np.int32))
     last_fg_app: Optional[str] = None
+    # NEW for v2: anchor-level scalars (broadcast to all rows in the anchor)
+    time_since_screen_on_sec: float = -1.0
+    last_kill_app: Optional[str] = None     # most recent PROCESS_EXIT'd app (within KILL_RECENT_WINDOW_SEC)
+    last_kill_age_sec: float = -1.0          # seconds since that kill; -1 if no recent kill
+    bg_recency_min_sec: float = -1.0         # min time_in_bg_sec across B(t); -1 if empty
 
 
 def _ensure(state, app):
@@ -67,7 +75,9 @@ def _ensure(state, app):
     return s
 
 
-def _build_snapshot(state, anchor_ts_ns, t_stale_ns, last_fg_app):
+def _build_snapshot(state, anchor_ts_ns, t_stale_ns, last_fg_app,
+                    last_screen_on_ts_ns=-1,
+                    last_kill_app=None, last_kill_ts_ns=-1):
     apps, tbg, tfg, fct, loc, dp = [], [], [], [], [], []
     for app, s in state.items():
         if s.status != "BG" or s.last_bg_ts_ns < 0:
@@ -84,6 +94,25 @@ def _build_snapshot(state, anchor_ts_ns, t_stale_ns, last_fg_app):
         fct.append(int(s.fg_count_today))
         loc.append(int(s.last_fg_loc_id))
         dp.append(int(s.last_fg_daypart))
+
+    # anchor-level scalars
+    if last_screen_on_ts_ns > 0:
+        tso = max(0.0, (anchor_ts_ns - last_screen_on_ts_ns) / NS_PER_SEC)
+    else:
+        tso = -1.0
+    if last_kill_app is not None and last_kill_ts_ns > 0:
+        kill_age = (anchor_ts_ns - last_kill_ts_ns) / NS_PER_SEC
+        if kill_age <= KILL_RECENT_WINDOW_SEC:
+            kill_app_out = last_kill_app
+            kill_age_out = float(kill_age)
+        else:
+            kill_app_out = None
+            kill_age_out = -1.0
+    else:
+        kill_app_out = None
+        kill_age_out = -1.0
+    bg_min = float(min(tbg)) if tbg else -1.0
+
     return BGSnapshot(
         anchor_ts_ns=int(anchor_ts_ns),
         apps=apps,
@@ -93,6 +122,10 @@ def _build_snapshot(state, anchor_ts_ns, t_stale_ns, last_fg_app):
         last_fg_loc_id=np.asarray(loc, dtype=np.int32),
         last_fg_daypart=np.asarray(dp, dtype=np.int32),
         last_fg_app=last_fg_app,
+        time_since_screen_on_sec=tso,
+        last_kill_app=kill_app_out,
+        last_kill_age_sec=kill_age_out,
+        bg_recency_min_sec=bg_min,
     )
 
 
@@ -146,6 +179,9 @@ def replay_and_snapshot(
     t_stale_ns = int(t_stale_sec * NS_PER_SEC)
     state = {}
     last_fg_app = None
+    last_screen_on_ts_ns = -1
+    last_kill_app: Optional[str] = None
+    last_kill_ts_ns = -1
     sorted_snaps = []
     e_i = 0
 
@@ -185,13 +221,23 @@ def replay_and_snapshot(
                 s = state.get(app)
                 if s is not None:
                     s.status = "DEAD"
+                # Always record the latest kill, even if app wasn't in our state
+                last_kill_app = app
+                last_kill_ts_ns = t_ns
             elif name in START_NAMES and app:
                 s = _ensure(state, app)
                 s.last_start_ts_ns = t_ns
+            elif name in SCREEN_ON_NAMES:
+                last_screen_on_ts_ns = t_ns
 
             e_i += 1
 
-        sorted_snaps.append(_build_snapshot(state, a_ns, t_stale_ns, last_fg_app))
+        sorted_snaps.append(_build_snapshot(
+            state, a_ns, t_stale_ns, last_fg_app,
+            last_screen_on_ts_ns=last_screen_on_ts_ns,
+            last_kill_app=last_kill_app,
+            last_kill_ts_ns=last_kill_ts_ns,
+        ))
 
     out = [None] * len(anchors_i64)
     for sorted_pos, orig_pos in enumerate(a_order):

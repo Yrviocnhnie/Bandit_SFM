@@ -31,15 +31,21 @@ if str(ROOT) not in sys.path:
 from lib.bg.background_state import (
     FG_NAMES, replay_and_snapshot, T_STALE_SEC_DEFAULT,
 )
-from lib.bg.features_bg import compute_labels, flatten_to_rows
+from lib.bg.features_bg import (
+    compute_labels, compute_rolling_fg_counts, compute_recency_ranks,
+    flatten_to_rows,
+)
 from lib import data as D
 
 
 ANCHOR_STRIDE_SEC = 300
 HOUR_START = 6
 HOUR_END = 24
-HORIZONS_SEC = (300, 600)
-T_STALE_SEC = T_STALE_SEC_DEFAULT
+# Multi-horizon: 5/10/30/60 min. H=3600 (1 hour) is the new headline.
+HORIZONS_SEC = (300, 600, 1800, 3600)
+ROLLING_WINDOWS_SEC = (3600, 21600)   # 1 h, 6 h per-app FG counts
+# 2-hour staleness window (was 6h in v1) — see REPORT_bgkill_data.md §0.
+T_STALE_SEC = 2 * 3600
 
 
 def main() -> int:
@@ -62,10 +68,13 @@ def main() -> int:
     print(f"[bg/30] FG events: {all_df['name_norm'].isin(FG_NAMES).sum()}")
     print(f"[bg/30] PROCESS_EXIT events: {(all_df['name_norm'] == 'PROCESS_EXIT').sum()}")
 
-    # Foreground stream for label computation — one vector across all splits.
-    fg_mask = all_df["name_norm"].isin(list(FG_NAMES))
-    fg_ts_ns = pd.to_datetime(all_df.loc[fg_mask, "event_ts"]).to_numpy().astype("datetime64[ns]").view("int64")
-    fg_app = all_df.loc[fg_mask, "app_label_clean"].fillna("<UNK>").astype(str).to_numpy()
+    # NOTE: B(t) state machine uses the FULL event stream (all_df) for cross-split
+    # context. Labels are computed using SAME-SPLIT FG events only to avoid
+    # cross-split leakage at H=60 (horizon equals embargo width).
+    # Rolling-count features use the full FG stream (always backward-looking, safe).
+    fg_mask_all = all_df["name_norm"].isin(list(FG_NAMES))
+    fg_ts_all = pd.to_datetime(all_df.loc[fg_mask_all, "event_ts"]).to_numpy().astype("datetime64[ns]").view("int64")
+    fg_app_all = all_df.loc[fg_mask_all, "app_label_clean"].fillna("<UNK>").astype(str).to_numpy()
 
     split_summary = {}
     for split_name, split_df in (("train", train), ("val", val), ("test", test)):
@@ -75,7 +84,12 @@ def main() -> int:
         anchor_ts = anchors["anchor_ts"].to_numpy()
         print(f"[bg/30]   raw anchors = {len(anchor_ts)}")
 
-        # Replay state using the FULL stream, but snapshot only at this split's anchors.
+        # Per-split FG events for label computation — avoids cross-split leakage.
+        fg_mask = split_df["name_norm"].isin(list(FG_NAMES))
+        fg_ts_split = pd.to_datetime(split_df.loc[fg_mask, "event_ts"]).to_numpy().astype("datetime64[ns]").view("int64")
+        fg_app_split = split_df.loc[fg_mask, "app_label_clean"].fillna("<UNK>").astype(str).to_numpy()
+
+        # Replay state using the FULL stream (no leakage — only past), snapshot at split anchors.
         snaps = replay_and_snapshot(all_df, anchor_ts, t_stale_sec=T_STALE_SEC)
 
         # Keep only anchors with |B(t)| >= 1
@@ -83,11 +97,23 @@ def main() -> int:
         dropped = len(snaps) - len(keep)
         print(f"[bg/30]   dropped {dropped} anchors with |B(t)| == 0; kept {len(keep)}")
 
-        # Labels at H=5 / H=10
-        labels = compute_labels(keep, fg_event_ts_ns=fg_ts_ns, fg_event_app=fg_app,
-                                horizons_sec=(300, 600))
+        # Labels at H=5 / H=10 / H=30 / H=60 — same-split FG events only
+        labels = compute_labels(keep, fg_event_ts_ns=fg_ts_split,
+                                fg_event_app=fg_app_split,
+                                horizons_sec=HORIZONS_SEC)
 
-        df = flatten_to_rows(keep, labels, vocab=load_vocab(art), horizons_sec=(300, 600))
+        # Per-app rolling FG counts: full stream (backward-looking is safe)
+        rolling_counts = compute_rolling_fg_counts(
+            keep, fg_event_ts_ns=fg_ts_all, fg_event_app=fg_app_all,
+            windows_sec=ROLLING_WINDOWS_SEC,
+        )
+        ranks = compute_recency_ranks(keep)
+
+        df = flatten_to_rows(keep, labels, vocab=load_vocab(art),
+                             horizons_sec=HORIZONS_SEC,
+                             rolling_counts_by_window=rolling_counts,
+                             recency_ranks=ranks,
+                             rolling_windows_sec=ROLLING_WINDOWS_SEC)
         out_path = bg_art / "splits" / f"bg_{split_name}.parquet"
         df.to_parquet(out_path, index=False)
         print(f"[bg/30]   wrote {out_path}  rows={len(df):,}")
@@ -99,8 +125,10 @@ def main() -> int:
             "bg_size_p50": int(np.median([len(s.apps) for s in keep])),
             "bg_size_p95": int(np.quantile([len(s.apps) for s in keep], 0.95)),
             "bg_size_max": int(max((len(s.apps) for s in keep), default=0)),
-            "pos_rate_5": float(df["y_300"].mean()),
-            "pos_rate_10": float(df["y_600"].mean()),
+            "pos_rate_300": float(df["y_300"].mean()),
+            "pos_rate_600": float(df["y_600"].mean()),
+            "pos_rate_1800": float(df["y_1800"].mean()),
+            "pos_rate_3600": float(df["y_3600"].mean()),
             "dropped_empty_anchors": int(dropped),
         }
         print(f"[bg/30]   summary: {split_summary[split_name]}")

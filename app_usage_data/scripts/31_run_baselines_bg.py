@@ -32,11 +32,14 @@ from lib.bg.baselines_bg import (
     add_time_in_bg_score,
     add_lfu_hour_score,
     add_markov_inverse,
+    add_lfu_today_score,
+    add_lfu_1h_score,
+    add_hybrid_lru_markov,
 )
 from lib.v3 import markov_prior as MK
 
 
-HORIZONS_SEC = (300, 600)
+HORIZONS_SEC = (300, 600, 1800, 3600)   # H=5/10/30/60 min; H=3600 is the new headline
 R_SWEEP = (0.1, 0.25, 0.5, 0.75, 0.9)
 
 
@@ -61,8 +64,10 @@ def fit_hour_freq(train_df: pd.DataFrame, vocab: dict) -> np.ndarray:
 
 def summarize(df: pd.DataFrame, score_cols: list) -> dict:
     out = {}
-    for h in (300, 600):
+    for h in HORIZONS_SEC:
         y_col = f"y_{h}"
+        if y_col not in df.columns:
+            continue
         out[f"H_{h}"] = {}
         for sc in score_cols:
             m = _compute_metrics_ex(df, sc, y_col)
@@ -97,9 +102,11 @@ def main() -> int:
         df = add_time_in_bg_score(df)
         df = add_lfu_hour_score(df, hour_freq=hour_freq)
         df = add_markov_inverse(df, markov_prior=markov_probs)
+        df = add_hybrid_lru_markov(df, markov_prior=markov_probs, alpha=0.5)
 
+        # The 6 baselines committed to in REPORT_bgkill_model_plan.md §10.
         score_cols = ["score_random", "score_lru", "score_tibg",
-                      "score_lfu_hour", "score_markov_inv"]
+                      "score_lfu_hour", "score_markov_inv", "score_hybrid_lru_mk"]
         s = summarize(df, score_cols)
         results[split] = {
             "n_anchors": int(df["anchor_id"].nunique()),
@@ -117,16 +124,21 @@ def main() -> int:
         }, f, indent=2)
     print(f"[bg/31] wrote {out_path}")
 
-    # Headline print (test-only)
-    print("\n=== TEST ===")
-    for h in HORIZONS_SEC:
-        print(f"  H={h} sec")
-        for name, m in results["test"]["metrics"][f"H_{h}"].items():
-            fk = m["false_kill_rate"]["0.5"]
-            msr = m["memory_save_rate"]["0.5"]
-            print(f"    {name:16s}  FK@0.5={fk:.4f}  MSR@0.5={msr:.4f}  "
-                  f"PR-AUC={m['pr_auc_mean']:.4f}  ROC-AUC={m['roc_auc_mean']:.4f}  "
-                  f"NDCG@half={m['ndcg_half']:.4f}")
+    # Headline: report H=60 (primary) + H=5 (secondary) on val and test.
+    for split in ("val", "test"):
+        for h in (3600, 300):
+            key = f"H_{h}"
+            metrics = results[split]["metrics"].get(key)
+            if not metrics:
+                continue
+            print(f"\n=== {split.upper()}  H={h} sec ===")
+            for name, m in metrics.items():
+                fk = m["false_kill_rate"]["0.5"]
+                msr = m["memory_save_rate"]["0.5"]
+                print(f"  {name:18s}  FK@0.5={fk:.4f}  MSR@0.5={msr:.4f}  "
+                      f"PR-AUC={m['pr_auc_mean']:.4f}  "
+                      f"ROC-AUC={m['roc_auc_mean']:.4f}  "
+                      f"NDCG={m['ndcg_half']:.4f}")
     return 0
 
 

@@ -77,20 +77,76 @@ def add_markov_inverse(
     return df
 
 
-# ---------------- heavy-baseline: TaskB-inverse using v3 R6 ----------------
+# ---------------- new v2 baselines ----------------
+
+def add_lfu_today_score(df: pd.DataFrame, col: str = "score_lfu_today") -> pd.DataFrame:
+    """Kill apps with the lowest fg_count_today. Reward apps used many times today.
+
+    score = 1 / (1 + fg_count_today). Apps never used today (count=0) get
+    score 1.0; constantly-used apps approach 0.
+    """
+    fg_today = df["fg_count_today"].to_numpy(dtype=np.float64)
+    df = df.copy()
+    df[col] = 1.0 / (1.0 + np.maximum(fg_today, 0.0))
+    return df
+
+
+def add_lfu_1h_score(df: pd.DataFrame, col: str = "score_lfu_1h") -> pd.DataFrame:
+    """Kill apps with the lowest fg_count in the last 1h."""
+    fg_1h = df["fg_count_last_3600s"].to_numpy(dtype=np.float64)
+    df = df.copy()
+    df[col] = 1.0 / (1.0 + np.maximum(fg_1h, 0.0))
+    return df
+
+
+def add_hybrid_lru_markov(
+    df: pd.DataFrame,
+    markov_prior: np.ndarray,
+    alpha: float = 0.5,
+    col: str = "score_hybrid_lru_mk",
+) -> pd.DataFrame:
+    """Per-anchor min-max-normalized weighted blend of LRU + Markov-inverse.
+
+    Within each anchor, normalize each input score to [0, 1] across the
+    apps in that anchor's B(t), then return ``α · LRU_norm + (1-α) · Markov_inv_norm``.
+    Per-anchor normalization keeps the two signals on the same scale even
+    when anchor sets vary in size.
+    """
+    last = df["last_fg_app_idx"].to_numpy().astype(int)
+    apps = df["app_idx"].to_numpy().astype(int)
+    V = markov_prior.shape[0]
+    last = np.clip(last, 0, V - 1)
+    apps = np.clip(apps, 0, V - 1)
+    markov_inv = 1.0 - markov_prior[last, apps]
+    tfg = df["time_since_fg_sec"].to_numpy(dtype=np.float64)
+    tfg = np.where(tfg < 0, 1e9, tfg)
+
+    df = df.copy()
+    out = np.zeros(len(df), dtype=np.float64)
+    for _, g in df.groupby("anchor_id", sort=False):
+        idx = g.index.to_numpy()
+        l_vals = tfg[idx]
+        m_vals = markov_inv[idx]
+        # min-max normalize within anchor (constant arrays → all-zeros, then averaged)
+        def _norm(x):
+            mn, mx = x.min(), x.max()
+            return np.zeros_like(x) if mx == mn else (x - mn) / (mx - mn)
+        out[idx] = alpha * _norm(l_vals) + (1.0 - alpha) * _norm(m_vals)
+    df[col] = out
+    return df
+
+
+# ---------------- (deferred) TaskB-inverse using v3 R6 ----------------
 
 def add_taskb_inverse_score(
     df: pd.DataFrame,
     taskb_probs: np.ndarray,   # (n_anchors, V) sigmoid(TaskBModelV3)
     col: str = "score_taskb_inv",
 ) -> pd.DataFrame:
-    """Caller is responsible for producing a per-anchor×app probability matrix
-    using the v3 model (see scripts/31_run_baselines_bg.py for the glue)."""
+    """Caller produces a (n_anchors, V) sigmoid matrix from a Task-B model.
+    Deferred to follow-up; see REPORT_bgkill_v2.md §10."""
     df = df.copy()
     idx_anchor = df["anchor_id"].to_numpy().astype(int)
     idx_app = df["app_idx"].to_numpy().astype(int)
     df[col] = 1.0 - taskb_probs[idx_anchor, idx_app]
     return df
-
-
-import numpy as np

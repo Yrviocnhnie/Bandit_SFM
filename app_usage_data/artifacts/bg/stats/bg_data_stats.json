@@ -1,5 +1,5 @@
 {
-  "t_stale_sec": 21600,
+  "t_stale_sec": 7200,
   "anchor_stride_sec": 300,
   "hour_range": [
     6,
@@ -7,37 +7,43 @@
   ],
   "splits": {
     "train": {
-      "n_anchors_kept": 6903,
-      "n_rows": 47507,
-      "bg_size_mean": 6.882080254961611,
-      "bg_size_p50": 7,
-      "bg_size_p95": 13,
-      "bg_size_max": 22,
-      "pos_rate_5": 0.027616982760435303,
-      "pos_rate_10": 0.048077125476245604,
-      "dropped_empty_anchors": 225
+      "n_anchors_kept": 6164,
+      "n_rows": 25013,
+      "bg_size_mean": 4.057916937053861,
+      "bg_size_p50": 4,
+      "bg_size_p95": 9,
+      "bg_size_max": 13,
+      "pos_rate_300": 0.042497901091432456,
+      "pos_rate_600": 0.07160276656138807,
+      "pos_rate_1800": 0.15779794506856434,
+      "pos_rate_3600": 0.25230879942429935,
+      "dropped_empty_anchors": 964
     },
     "val": {
-      "n_anchors_kept": 1004,
-      "n_rows": 7181,
-      "bg_size_mean": 7.152390438247012,
-      "bg_size_p50": 7,
-      "bg_size_p95": 13,
-      "bg_size_max": 16,
-      "pos_rate_5": 0.034396323631806155,
-      "pos_rate_10": 0.05834841944018939,
-      "dropped_empty_anchors": 76
+      "n_anchors_kept": 877,
+      "n_rows": 4061,
+      "bg_size_mean": 4.630558722919043,
+      "bg_size_p50": 4,
+      "bg_size_p95": 9,
+      "bg_size_max": 11,
+      "pos_rate_300": 0.04974144299433637,
+      "pos_rate_600": 0.08150701797586801,
+      "pos_rate_1800": 0.17508002954937207,
+      "pos_rate_3600": 0.28096527948781086,
+      "dropped_empty_anchors": 203
     },
     "test": {
-      "n_anchors_kept": 975,
-      "n_rows": 6012,
-      "bg_size_mean": 6.166153846153846,
-      "bg_size_p50": 6,
-      "bg_size_p95": 10,
-      "bg_size_max": 12,
-      "pos_rate_5": 0.02594810379241517,
-      "pos_rate_10": 0.044244843646041254,
-      "dropped_empty_anchors": 105
+      "n_anchors_kept": 817,
+      "n_rows": 3121,
+      "bg_size_mean": 3.820073439412485,
+      "bg_size_p50": 4,
+      "bg_size_p95": 8,
+      "bg_size_max": 10,
+      "pos_rate_300": 0.0387696251201538,
+      "pos_rate_600": 0.06280038449214995,
+      "pos_rate_1800": 0.13329061198333866,
+      "pos_rate_3600": 0.21691765459788528,
+      "dropped_empty_anchors": 263
     }
   }
 }

@@ -1,14 +1,15 @@
-"""Train and evaluate the per-pair MLP for Task C.
+"""Train + evaluate the per-pair MLP for Task C.
 
-Reads bg_{train,val,test}.parquet, builds a 14-d continuous feature matrix
-per (anchor, app) pair (see lib.bg.models_bg.FEATURE_NAMES), trains with
-dual-horizon BCE + pos_weight, and reports:
+Two model schemas supported:
+  * --schema v1   (default; legacy C1: cat_emb + 14 features, mirrors original)
+  * --schema v2   (new C2: 15 Task-C-relevant features, no cat_emb,
+                   optional app_emb via --no-app-emb)
 
-  - FalseKillRate@r for r in {0.1, 0.25, 0.5, 0.75, 0.9}, each horizon
-  - MemorySaveRate@r
-  - PR-AUC (anchor-meaned), ROC-AUC (anchor-meaned), NDCG@half
+Loss: dual-horizon BCE with pos_weight from train. Selection on val PR-AUC(H=5).
 
-Saves checkpoint + JSON results with tag = args.tag.
+Outputs:
+  artifacts/bg/checkpoints/task_c_<tag>.pt
+  artifacts/bg/results/task_c_<tag>.json
 """
 from __future__ import annotations
 
@@ -27,7 +28,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from lib.bg import metrics_bg as MET
-from lib.bg.models_bg import BgMLPConfig, BgPairMLP, FEATURE_NAMES, bce_dual
+from lib.bg.models_bg import (
+    BgMLPConfig, BgPairMLP, FEATURE_NAMES, bce_dual,
+    BgMLPv2Config, BgPairMLPv2, FEATURE_NAMES_V2,
+)
 from lib.v3 import categories as CAT
 from lib.v3 import markov_prior as MK
 
@@ -54,57 +58,13 @@ def fit_hour_freq(train_df: pd.DataFrame, vocab: dict) -> np.ndarray:
             table[int(h), int(a)] += 1.0
     table += 0.5
     table[:, :3] = 0.0
-    row_sum = table.sum(axis=1, keepdims=True)
-    row_sum[row_sum == 0] = 1.0
-    return (table / row_sum).astype(np.float32)
+    s = table.sum(axis=1, keepdims=True)
+    s[s == 0] = 1.0
+    return (table / s).astype(np.float32)
 
 
-def build_features(
-    df: pd.DataFrame,
-    hour_freq: np.ndarray,
-    markov_probs: np.ndarray,
-    app_to_cat: np.ndarray,
-) -> dict:
-    tib = np.clip(df["time_in_bg_sec"].to_numpy(dtype=np.float64), 0, None)
-    tsf = np.clip(df["time_since_fg_sec"].to_numpy(dtype=np.float64), 0, None)
-    fg_ct = df["fg_count_today"].to_numpy(dtype=np.float64)
-    bg_sz = df["bg_set_size"].to_numpy(dtype=np.float64)
-    h = df["anchor_hour"].to_numpy(dtype=np.float64)
-    w = df["anchor_weekday"].to_numpy(dtype=np.float64)
-    dp_anchor = df["anchor_daypart"].to_numpy(dtype=np.int64)
-    dp_last = df["last_fg_daypart"].to_numpy(dtype=np.int64)
-    loc = df["last_fg_loc_id"].to_numpy(dtype=np.int64)
-
-    last_fg_clamp = np.clip(df["last_fg_app_idx"].to_numpy(dtype=np.int64),
-                            0, markov_probs.shape[0] - 1)
-    app_clamp = np.clip(df["app_idx"].to_numpy(dtype=np.int64),
-                        0, markov_probs.shape[1] - 1)
-    markov_col = markov_probs[last_fg_clamp, app_clamp].astype(np.float32)
-
-    hour_col = np.clip(h.astype(np.int64) % 24, 0, 23)
-    hour_cond = hour_freq[hour_col, app_clamp].astype(np.float32)
-
-    feats = np.stack([
-        np.log1p(tib_arr := tib),
-        np.log1p(tfg_arr := tsf),
-        np.log1p(fg_ct),
-        np.clip(tib / (6 * 3600.0), 0, 2),
-        np.sin(2 * np.pi * h / 24.0),
-        np.cos(2 * np.pi * h / 24.0),
-        np.sin(2 * np.pi * w / 7.0),
-        np.cos(2 * np.pi * w / 7.0),
-        np.log1p(bg_sz := bg_sz if False else np.log1p(bg_sz)),
-        # (above line is a mistake -- rewritten in clean impl below)
-    ], axis=1).astype(np.float32)  # type: ignore
-    raise NotImplementedError("see build_features_v2 below")
-
-
-def build_features_v2(
-    df: pd.DataFrame,
-    hour_freq: np.ndarray,
-    markov_probs: np.ndarray,
-    app_to_cat: np.ndarray,
-) -> dict:
+def build_features_v1(df, hour_freq, markov_probs, app_to_cat):
+    """Legacy 14-feature build for C1 reproducibility."""
     n = len(df)
     tib = np.clip(df["time_in_bg_sec"].to_numpy(dtype=np.float64), 0, None)
     tsf = np.clip(df["time_since_fg_sec"].to_numpy(dtype=np.float64), 0, None)
@@ -115,22 +75,18 @@ def build_features_v2(
     dp_anchor = df["anchor_daypart"].to_numpy(dtype=np.int64)
     dp_last = df["last_fg_daypart"].to_numpy(dtype=np.int64)
     loc = df["last_fg_loc_id"].to_numpy(dtype=np.int64)
-
-    V_m = markov_probs.shape[0]
-    V_a = markov_probs.shape[1]
-    last = np.clip(df["last_fg_app_idx"].to_numpy(dtype=np.int64), 0, V_m - 1)
-    app = np.clip(df["app_idx"].to_numpy(dtype=np.int64), 0, V_a - 1)
+    last = np.clip(df["last_fg_app_idx"].to_numpy(dtype=np.int64), 0, markov_probs.shape[0] - 1)
+    app = np.clip(df["app_idx"].to_numpy(dtype=np.int64), 0, markov_probs.shape[1] - 1)
     markov_col = markov_probs[last, app].astype(np.float32)
-
     hr_idx = np.clip(h.astype(np.int64) % 24, 0, 23)
-    hour_col = hour_freq_g[hr_idx, app].astype(np.float32) if False else hour_freq[hr_idx, app].astype(np.float32)
+    hour_col = hour_freq[hr_idx, app].astype(np.float32)
 
     cols = [
         np.log1p(tib),
         np.log1p(tsf),
         np.log1p(fg_ct),
         np.clip(tib / (6 * 3600), 0, 2),
-        np.sin(2 * np.pi * h24_arr(h) / 24.0),
+        np.sin(2 * np.pi * h / 24.0),
         np.cos(2 * np.pi * h / 24.0),
         np.sin(2 * np.pi * w / 7.0),
         np.cos(2 * np.pi * w / 7.0),
@@ -142,7 +98,6 @@ def build_features_v2(
         hour_col.astype(np.float64),
     ]
     feats = np.stack(cols, axis=1).astype(np.float32)
-
     app_idx = df["app_idx"].to_numpy(dtype=np.int64)
     cat_idx = app_to_cat[np.clip(app_idx, 0, len(app_to_cat) - 1)].astype(np.int64)
     return {
@@ -155,83 +110,139 @@ def build_features_v2(
     }
 
 
-def h24_arr(x):
-    return x
+def build_features_v2(df, hour_freq, markov_probs):
+    """Task-C-relevant 15-feature build (C2). See REPORT_bgkill_v2.md §4."""
+    tib = np.clip(df["time_in_bg_sec"].to_numpy(dtype=np.float64), 0, None)
+    tsf = np.clip(df["time_since_fg_sec"].to_numpy(dtype=np.float64), 0, None)
+    fg_today = df["fg_count_today"].to_numpy(dtype=np.float64)
+    fg_1h = df["fg_count_last_3600s"].to_numpy(dtype=np.float64)
+    fg_6h = df["fg_count_last_21600s"].to_numpy(dtype=np.float64)
+    rec_rank = df["recency_rank_in_bg"].to_numpy(dtype=np.float32)
+    h = df["anchor_hour"].to_numpy(dtype=np.float64)
+    w = df["anchor_weekday"].to_numpy(dtype=np.float64)
+    dp_anchor = df["anchor_daypart"].to_numpy(dtype=np.int64)
+    dp_last = df["last_fg_daypart"].to_numpy(dtype=np.int64)
 
+    last = np.clip(df["last_fg_app_idx"].to_numpy(dtype=np.int64),
+                   0, markov_probs.shape[0] - 1)
+    app = np.clip(df["app_idx"].to_numpy(dtype=np.int64),
+                  0, markov_probs.shape[1] - 1)
+    markov_col = markov_probs[last, app].astype(np.float32)
+    hr_idx = np.clip(h.astype(np.int64) % 24, 0, 23)
+    hour_col = hour_freq[hr_idx, app].astype(np.float32)
 
-class PairDataset(Dataset):
-    def __init__(self, d: dict):
-        self.feat = torch.as_tensor(d["features"], dtype=torch.float32)
-        self.app = torch.as_tensor(d["app_idx"], dtype=torch.long)
-        self.cat = torch.as_tensor(d["cat_idx"], dtype=torch.long)
-        self.y5 = torch.as_tensor(d["y_5"], dtype=torch.float32)
-        self.y10 = torch.as_tensor(d["y_10"], dtype=torch.float32)
+    # bg_recency_min normalized by log1p(6h) → value in [0, 1]
+    bg_rec_min = np.clip(df["bg_recency_min_sec"].to_numpy(dtype=np.float64), 0, None)
+    bg_rec_min_norm = (np.log1p(bg_rec_min) / np.log1p(6 * 3600.0)).astype(np.float32)
 
-    def __len__(self):
-        return int(self.feat.shape[0])
+    # time_since_screen_on_sec: clip to 1h, normalize by log1p(1h)
+    tso = df["time_since_screen_on_sec"].to_numpy(dtype=np.float64)
+    tso_clip = np.where(tso < 0, 3600.0, np.clip(tso, 0, 3600.0))
+    tso_norm = (np.log1p(tso_clip) / np.log1p(3600.0)).astype(np.float32)
 
-    def __getitem__(self, i):
-        return {
-            "features": self.feat(i) if False else self.feat[i],
-            "app_idx": self.app[i],
-            "cat_idx": self.cat[i],
-            "y_5": self.y5[i],
-            "y_10": self.y10[i],
-        }
+    # prev_killed_app_match: 1 if this row's app is the most recently OS-killed
+    # (within the 10-min window already enforced by the state machine).
+    pk_idx = df["prev_killed_app_idx"].to_numpy(dtype=np.int64)
+    pk_age = df["prev_killed_age_sec"].to_numpy(dtype=np.float64)
+    prev_kill_match = np.where((pk_idx > 0) & (pk_age >= 0) &
+                                (df["app_idx"].to_numpy(dtype=np.int64) == pk_idx),
+                                1.0, 0.0).astype(np.float32)
 
-
-def evaluate(model, dataset_df: pd.DataFrame, split_d: dict) -> dict:
-    """Return a merged df with score_model_5 / score_model_10 and the per-anchor metrics."""
-    model.eval()
-    loader = DataLoader(
-        TensorDataset_from_dict(split_d),
-        batch_size=1024, shuffle=False,
-    )
-    all_p5, all_p10 = [], []
-    with torch.no_grad():
-        for b in loader:
-            out = model(b["app_idx"], b["cat_idx"], b["features"])
-            all_p5.append(torch.sigmoid(out["logit_5"]).cpu().numpy())
-            all_p10.append(torch.sigmoid(out["logit_10"]).cpu().numpy())
-    p5 = np.concatenate(all_p5)
-    p10 = np.concatenate(all_p10)
-    merged = dataset_df.copy()
-    merged["score_model_5"] = 1.0 - p5
-    merged["score_model_10"] = 1.0 - p10
-    out = {
-        "H_300": MET.compute_metrics(merged, "score_model_5", "y_300", r_values=R_SWEEP),
-        "H_600": MET.compute_metrics(merged, "score_model_10", "y_600", r_values=R_SWEEP),
+    cols = [
+        np.log1p(tib),                               # log_time_in_bg
+        np.log1p(tsf),                               # log_time_since_fg
+        rec_rank.astype(np.float64),                 # recency_rank_in_bg
+        np.log1p(fg_today),                          # log_fg_count_today
+        np.log1p(fg_1h),                             # log_fg_count_last_1h
+        np.log1p(fg_6h),                             # log_fg_count_last_6h
+        markov_col.astype(np.float64),               # markov_prob
+        hour_col.astype(np.float64),                 # hour_cond_prob
+        bg_rec_min_norm.astype(np.float64),          # bg_recency_min_norm
+        tso_norm.astype(np.float64),                 # time_since_screen_on_norm
+        prev_kill_match.astype(np.float64),          # prev_killed_app_match
+        np.sin(2 * np.pi * h / 24.0),                # hour_sin_24
+        np.cos(2 * np.pi * h / 24.0),                # hour_cos_24
+        (dp_anchor == dp_last).astype(np.float64),   # daypart_match_flag
+        (w >= 5).astype(np.float64),                 # is_weekend
+    ]
+    feats = np.stack(cols, axis=1).astype(np.float32)
+    app_idx = df["app_idx"].to_numpy(dtype=np.int64)
+    return {
+        "features": feats,
+        "app_idx": app_idx,
+        "y_5": df["y_300"].to_numpy(dtype=np.int64),
+        "y_10": df["y_600"].to_numpy(dtype=np.int64),
+        "anchor_id": df["anchor_id"].to_numpy(dtype=np.int64),
     }
-    return out, merged
 
 
 class PairDS(Dataset):
-    def __init__(self, d):
-        self.f = torch.as_tensor(d["features"], dtype=torch.float32)
-        self.ai = torch.as_tensor(d["app_idx"], dtype=torch.long)
-        self.ci = torch.as_tensor(d["cat_idx"], dtype=torch.long)
-        self.y5 = torch.as_tensor(d["y_5"], dtype=torch.float32)
-        self.y10 = torch.as_tensor(d["y_10"], dtype=torch.float32)
+    def __init__(self, d, schema):
+        self.f = torch.as_tensor(d["features"].copy(), dtype=torch.float32)
+        self.ai = torch.as_tensor(d["app_idx"].copy(), dtype=torch.long)
+        self.y5 = torch.as_tensor(d["y_5"].copy(), dtype=torch.float32)
+        self.y10 = torch.as_tensor(d["y_10"].copy(), dtype=torch.float32)
+        self.schema = schema
+        if schema == "v1":
+            self.ci = torch.as_tensor(d["cat_idx"].copy(), dtype=torch.long)
+        else:
+            self.ci = None
 
-    def __len__(self): return int(self.f.shape[0])
+    def __len__(self):
+        return int(self.f.shape[0])
+
     def __getitem__(self, i):
-        return {"features": self.f[i], "app_idx": self.ai[i], "cat_idx": self.ci[i],
-                "y_5": self.y5[i], "y_10": self.y10[i]}
+        item = {
+            "features": self.f[i],
+            "app_idx": self.ai[i],
+            "y_5": self.y5[i],
+            "y_10": self.y10[i],
+        }
+        if self.ci is not None:
+            item["cat_idx"] = self.ci[i]
+        return item
 
 
-def TensorDataset_from_dict(d):
-    return PairDS(d)
+def evaluate(model, dataset_df, split_d, schema):
+    model.eval()
+    loader = DataLoader(PairDS(split_d, schema=schema), batch_size=1024, shuffle=False)
+    p5_list, p10_list = [], []
+    with torch.no_grad():
+        for b in loader:
+            if schema == "v1":
+                out = model(b["app_idx"], b["cat_idx"], b["features"])
+            else:
+                out = model(b["app_idx"], b["features"])
+            p5_list.append(torch.sigmoid(out["logit_5"]).cpu().numpy())
+            p10_list.append(torch.sigmoid(out["logit_10"]).cpu().numpy())
+    p5 = np.concatenate(p5_list)
+    p10 = np.concatenate(p10_list)
+    merged = dataset_df.copy()
+    merged["score_model_5"] = 1.0 - p5
+    merged["score_model_10"] = 1.0 - p10
+    return {
+        "H_300": MET.compute_metrics(merged, "score_model_5", "y_300", r_values=R_SWEEP),
+        "H_600": MET.compute_metrics(merged, "score_model_10", "y_600", r_values=R_SWEEP),
+    }
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tag", default="C1")
-    parser.add_argument("--epochs", type=int, default=25)
+    parser.add_argument("--schema", choices=["v1", "v2"], default="v2",
+                        help="v1=legacy C1 (14 features + cat_emb); v2=new C2 (15 features, no cat_emb)")
+    parser.add_argument("--no-app-emb", dest="use_app_emb", action="store_false",
+                        help="(v2 only) disable the 16-d app embedding")
+    parser.set_defaults(use_app_emb=True)
+    parser.add_argument("--tag", default=None)
+    parser.add_argument("--epochs", type=int, default=EPOCHS_DEFAULT)
     parser.add_argument("--d-hidden", type=int, default=64)
     parser.add_argument("--lr", type=float, default=LR)
-    parser.add_argument("--pos-weight-5", type=float, default=-1.0, help="<0 => computed from train")
-    parser.add_argument("--pos-weight-10", type=float, default=-1.0)
     args = parser.parse_args()
+
+    if args.tag is None:
+        args.tag = "C2" if args.schema == "v2" else "C1_repro"
+        if args.schema == "v2" and not args.use_app_emb:
+            args.tag = "C2_noemb"
 
     torch.manual_seed(SEED)
     np.random.seed(SEED)
@@ -241,37 +252,41 @@ def main():
     with open(art / "vocab.json") as f:
         vocab = json.load(f)
 
-    # Train-only tables
     train_raw = pd.read_parquet(art / "splits" / "train.parquet")
     hour_freq = fit_hour_freq(train_raw, vocab)
     mk_stats = MK.load_markov_prior(art / "v3" / "markov_prior.pkl")
     markov_probs = mk_stats["probs"].astype(np.float32)
-    app_to_cat = CAT.build_app_to_cat_idx(vocab)
 
     bg_train = pd.read_parquet(bg_art / "splits" / "bg_train.parquet")
     bg_val = pd.read_parquet(bg_art / "splits" / "bg_val.parquet")
     bg_test = pd.read_parquet(bg_art / "splits" / "bg_test.parquet")
 
-    build = lambda df: build_features_v2(df, hour_freq, markov_probs, app_to_cat)
-    d_tr = build(bg_train)
-    d_va = build(bg_val)
-    d_te = build(bg_test)
+    if args.schema == "v1":
+        app_to_cat = CAT.build_app_to_cat_idx(vocab)
+        build = lambda df: build_features_v1(df, hour_freq, markov_probs, app_to_cat)
+    else:
+        build = lambda df: build_features_v2(df, hour_freq, markov_probs)
 
-    # pos_weight for imbalance
-    p_tr_5 = float(d_tr_y_5 := d_tr["y_5"].mean())
-    p_tr_10 = float(d_tr_y_10 := d_tr["y_10"].mean())
-    pw5 = torch.tensor([(1 - p_tr_5) / max(1e-6, p_tr_5)]) if args.pos_weight_5 < 0 else torch.tensor([args.pos_weight_5])
-    pw10 = torch.tensor([(1 - p_tr_10) / max(1e-6, p_tr_10)]) if args.pos_weight_10 < 0 else torch.tensor([args.pos_weight_10])
-    print(f"[task_c] train pos_rate_5 = {p_tr_5:.4f}  pos_rate_10 = {p_tr_10:.4f}")
-    print(f"[task_c] pos_weight_5 = {pw5.item():.2f}  pos_weight_10 = {pw10.item():.2f}")
+    d_tr, d_va, d_te = build(bg_train), build(bg_val), build(bg_test)
 
-    cfg = BgMLPConfig(d_hidden=args.d_hidden)
-    model = BgPairMLP(cfg)
+    p_tr_5 = float(d_tr["y_5"].mean())
+    p_tr_10 = float(d_tr["y_10"].mean())
+    pw5 = torch.tensor([(1 - p_tr_5) / max(1e-6, p_tr_5)])
+    pw10 = torch.tensor([(1 - p_tr_10) / max(1e-6, p_tr_10)])
+    print(f"[task_c] schema={args.schema}  use_app_emb={args.use_app_emb}  "
+          f"pos_rate_5={p_tr_5:.4f}  pos_weight_5={pw5.item():.2f}")
+
+    if args.schema == "v1":
+        cfg = BgMLPConfig(d_hidden=args.d_hidden)
+        model = BgPairMLP(cfg)
+    else:
+        cfg = BgMLPv2Config(d_hidden=args.d_hidden, use_app_emb=args.use_app_emb)
+        model = BgPairMLPv2(cfg)
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"[task_c] params = {n_params}")
+    print(f"[task_c] params={n_params}  feature_dim={d_tr['features'].shape[1]}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=WD)
-    dl_tr = DataLoader(TensorDataset_from_dict(d_tr), batch_size=BATCH, shuffle=True)
+    dl_tr = DataLoader(PairDS(d_tr, schema=args.schema), batch_size=BATCH, shuffle=True)
 
     best_pr5 = -1.0
     best_state = None
@@ -282,8 +297,12 @@ def main():
         model.train()
         tot, n = 0.0, 0
         for b in dl_tr:
-            out = model(b["app_idx"], b["cat_idx"], b["features"])
-            loss, _, _ = bce_dual(out, b["y_5"], b["y_10"], pos_weight_5=pw5, pos_weight_10=pw10)
+            if args.schema == "v1":
+                out = model(b["app_idx"], b["cat_idx"], b["features"])
+            else:
+                out = model(b["app_idx"], b["features"])
+            loss, _, _ = bce_dual(out, b["y_5"], b["y_10"],
+                                   pos_weight_5=pw5, pos_weight_10=pw10)
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -291,19 +310,16 @@ def main():
             tot += float(loss.item()) * len(b["y_5"])
             n += len(b["y_5"])
 
-        val_metrics, _ = evaluate(model, bg_val, d_va)
-        row = {
-            "epoch": epoch,
-            "train_loss": tot / max(1, n),
-            "val_pr_auc_5": val_metrics["H_300"]["pr_auc_mean"],
-            "val_fk5_0.5": val_metrics["H_300"]["false_kill_rate"]["0.5"],
-            "val_pr_auc_10": val_metrics["H_600"]["pr_auc_mean"],
-            "val_roc_auc_5": val_metrics["H_300"]["roc_auc_mean"],
-        }
-        log.append(row)
-        print(f"  ep{epoch:02d}  loss={row['loss' if 'loss' in row else 'train_loss'] if False else row.get('train_loss', tot/max(1,n)):.4f}  val_PR@H5={row['val_pr_auc_5']:.4f}  val_FK5={row['val_fk5' if False else 'val_fk5_at_half' if False else 'val_fk5'] if False else row.get('val_fk5_0.5'):.4f}  val_ROC@H5={row.get('val_roc_auc_5', 0):.4f}")
-        if val_metrics["H_300"]["pr_auc_mean"] > best_pr5 + 1e-6:
-            best_pr5 = val_metrics["H_300"]["pr_auc_mean"]
+        val_metrics = evaluate(model, bg_val, d_va, schema=args.schema)
+        pr5 = val_metrics["H_300"]["pr_auc_mean"]
+        roc5 = val_metrics["H_300"]["roc_auc_mean"]
+        fk5 = val_metrics["H_300"]["false_kill_rate"]["0.5"]
+        log.append({"epoch": epoch, "train_loss": tot / max(1, n),
+                    "val_pr_auc_5": pr5, "val_roc_auc_5": roc5, "val_fk5_at_half": fk5})
+        print(f"  ep{epoch:02d}  loss={tot/max(1,n):.4f}  val_PR@H5={pr5:.4f}  "
+              f"val_ROC@H5={roc5:.4f}  val_FK@0.5={fk5:.4f}")
+        if pr5 > best_pr5 + 1e-6:
+            best_pr5 = pr5
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             patience = 0
         else:
@@ -312,28 +328,28 @@ def main():
                 print("  early stop")
                 break
 
-    # Restore best
     if best_state is not None:
         model.load_state_dict(best_state)
+    val_m = evaluate(model, bg_val, d_va, schema=args.schema)
+    test_m = evaluate(model, bg_test, d_te, schema=args.schema)
 
-    # Eval on val + test
-    val_m, val_df = evaluate(model, pd.read_parquet(bg_art / "splits" / "bg_val.parquet") if False else bg_val, d_va := d_va if False else build(bg_val))
-    test_m, test_df = evaluate(model, bg_test, build(bg_test))
-
-    # Persist results
     out_ckpt = bg_art / "checkpoints" / f"task_c_{args.tag}.pt"
     out_ckpt.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"state_dict": model.state_dict(), "cfg": vars(cfg := BgMLPConfig(d_hidden=args.d_hidden))}, out_ckpt)
-    print(f"[task_c] saved {out_ckpt}  elapsed {time.time() - t0:.1f}s")
-
+    torch.save({"state_dict": model.state_dict(), "schema": args.schema,
+                "use_app_emb": args.use_app_emb,
+                "feature_names": (FEATURE_NAMES_V2 if args.schema == "v2" else FEATURE_NAMES)},
+               out_ckpt)
     out_path = bg_art / "results" / f"task_c_{args.tag}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
-        json.dump({"tag": args.tag, "n_params": n_params,
+        json.dump({"tag": args.tag, "schema": args.schema,
+                   "use_app_emb": bool(args.use_app_emb),
+                   "n_params": n_params,
+                   "feature_dim": int(d_tr["features"].shape[1]),
                    "train_log": log,
                    "val": val_m, "test": test_m,
                    "r_sweep": list(R_SWEEP)}, f, indent=2)
-    print(f"[task_c] wrote {out_path}")
+    print(f"[task_c] saved {out_ckpt}  results -> {out_path}  elapsed {time.time()-t0:.1f}s")
     return 0
 
 

@@ -8,7 +8,9 @@ This repo contains a Python prototype of a contextual bandit recommender system 
 
 1. **Root-level Dual UCB prototype** — an MLP-based Dual UCB model (726-dim features) that mirrors the C++ app-side implementation for debugging/training outside the app.
 2. **`recommendation_agents/`** — a production-oriented V0 LinUCB scaffold (314-dim features) with two agents: R/O (scenario-specific actions) and App (app category recommendations). This is a *linear* contextual bandit, not an MLP.
-3. **`app_usage_data/`** — single-user next-app prediction demo with two tasks (next-app + 15-min window set prediction) on 42 days of real HarmonyOS data. Independent of the above subsystems; shipped as v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified) → v4-trim (FEATURES_v2 drops: scene + F1-F4 + 2h/6h windows + n_trans, empirically validated as no-cost). Production picks: v1 GRU for Task A; **v3 R6-arch trim** (= v3 R4 + Markov + drops, no rec/per) for Task B — test EH@5 = 0.746, profile dim 79 (vs 153 untrimmed). Multi-user (22 users, separate report): per-user training, v5 BG features (BG mask + multi-window BG counts + last-screen-on recency) win — v5 E4 leads Task A (mean test Hit@1 0.609), v5 E2 leads Task B (mean test EH@5 0.749, +0.7 pp over MRU-5 mean / +3.3 pp on median, 18/22 wins). Cherry-picked 10-user analysis (`REPORT_v5_cherry_picked.md`) isolates where the trained model adds value: v5 E2 lifts EH@5 by +3.8 pp mean and Coverage@5 by ≈6 % relative on those users.
+3. **`app_usage_data/`** — single-user next-app prediction demo with three tasks on 42 days of real HarmonyOS data:
+   - **Task A** (next-app prediction) and **Task B** (15-min window set prediction): v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified) → v4-trim (FEATURES_v2 drops: scene + F1-F4 + 2h/6h windows + n_trans, empirically validated as no-cost). Production picks: v1 GRU for Task A; **v3 R6-arch trim** for Task B (test EH@5 = 0.746). Multi-user (22 users, separate report): v5 BG features win — v5 E4 leads Task A (mean test Hit@1 0.609), v5 E2 leads Task B (mean test EH@5 0.749, +0.7 pp over MRU-5).
+   - **Task C — Background-app suspension prediction** (`REPORT_bgkill_v3.md`): given the apps in `B(t)`, predict which will NOT be foregrounded in the next 60 min. Single-user, H=60 horizon, 2 h staleness window. Production pick: **Pro-Reg-on-c3.3** (32 features, dropout 0.3 + label-smoothing + cosine-LR + SWA): test PR-AUC 0.935, ROC-AUC 0.826, FK@0.5 0.162 — vs Markov-inverse baseline at 0.897 / 0.744 / 0.180. The grid spans C1, C2, C3.1–C3.4 (cumulative feature ablation) plus C3-Pro variants {Listwise, Wide, Reg, Full, Ensemble} × {c3.2, c3.3} schemas (16 trained models total).
 
 These are separate model implementations with different feature spaces and architectures.
 
@@ -86,6 +88,19 @@ python scripts/27_train_v4.py --task b --use-markov --tag task_b_v4_full
 # Empirically free: same Task B test EH@5 with profile dim 153 -> 79 (no rec/per) or 179 -> 105 (with rec/per).
 DROP="--drop-scene --drop-f1234 --drop-long-windows --drop-n-trans"
 python scripts/27_train_v4.py --task b --use-markov --no-recency --no-periodicity $DROP --tag task_b_v3r6_trim   # production Task B
+
+# Task C — background-app suspension prediction (H=60 min, 2 h staleness)
+python scripts/30_build_bg_data.py                                                   # build B(t) snapshots and labels (bg parquets)
+python scripts/31_run_baselines_bg.py                                                # 6 closed-form baselines (Random / LRU / TimeInBG / LFU-hour / Markov-inv / Hybrid)
+python scripts/34_train_task_c_h60.py --schema c1   --tag C1_h60                     # legacy 14-feature model + cat_emb + app_emb
+python scripts/34_train_task_c_h60.py --schema c2   --tag C2_h60                     # 15-feature v2 schema (no cat_emb)
+python scripts/34_train_task_c_h60.py --schema c3.1 --tag C31_h60                    # + 5 hourly-habit features
+python scripts/36_train_c3_grid.py --variant c3.2                                    # + 9 identity & BG-composition features
+python scripts/36_train_c3_grid.py --variant c3.3                                    # + 3 category-aware features (winning feature schema)
+python scripts/36_train_c3_grid.py --variant c3pro_reg --pro-schema c3.3             # production: dropout 0.3 + label smoothing + cosine LR + SWA
+python scripts/37_train_c3pro_ensemble.py c3.3                                       # 5-seed ensemble
+python scripts/35_eval_h60.py                                                        # bootstrap CIs + Pareto figures
+python scripts/38_generate_features.py                                               # feature-pipeline validator / regression smoke test
 ```
 
 Documentation:
@@ -98,6 +113,12 @@ Documentation:
 - `app_usage_data/REPORT_v5_cherry_picked.md` — 10 users where v5 E2 clearly beats MRU; full mean/median tables across all 17 baseline + neural rows
 - `app_usage_data/FEATURES.md` — every input feature explained (current v3 implementation)
 - `app_usage_data/FEATURES_v2.md` — proposed feature redesign (audit + drops + adds)
+- `app_usage_data/REPORT_bgkill_v3.md` — Task C live writeup (H=60 single-horizon, 2 h staleness, full C3 grid + C3-Pro variants)
+- `app_usage_data/REPORT_bgkill_features_review.md` — full Task C feature catalog + reproduction recipe (run-this-script appendix at end)
+- `app_usage_data/REPORT_bgkill_metrics.md` — FK / MSR / NDCG / Pareto definitions
+- `app_usage_data/REPORT_bgkill_data.md` — `B(t)` state-machine spec, label definition, splits
+- `app_usage_data/REPORT_bgkill_model_plan.md` — feature-track and architecture-track plan that drove the C3 / C3-Pro grid
+- `app_usage_data/REPORT_bgkill.md`, `REPORT_bgkill_v2.md` — historical (H=5/10 single-horizon)
 
 ### Tests
 
@@ -151,6 +172,7 @@ Layered architecture by version (each layer adds to the previous):
 - `lib/` (v1): `data.py` (load XLSX, dedup, sessionize, vocab — collapse <5-event apps to <RARE>), `features.py` (per-event 28-d numeric + 32-d learned app embedding), `baselines.py` (MFU/MRU/HourMFU/Markov-1), `models.py` (GRU-64 and TGT-lite shared backbone, dual head), `train.py` (class weights, window counts), `metrics.py` (Hit@K, MRR, P/R/F1, EventHit@K, Wilson/bootstrap CI)
 - `lib/v2/`: per-task models with three branches (LocalEncoder over last 16 in-session events + GlobalEncoder over last 64 cross-session target events + ProfileEncoder over 38-d hand-crafted statistics), combined via 3-way softmax-gated fusion. Profile stats fit on train only via `fit_profile_stats`.
 - `lib/v3/`: feature enrichment — `categories.py` (11-class hand-built app taxonomy), `location.py` (parses WiFi SSID / Cell ID from `device_state_update_payload` with train-only vocab), `daypart.py` (10 hour×weekday bins), `window_rollups.py` (causal multi-window aggregates), `markov_prior.py` (V×V log P(next|last) on train), `models_v3.py` (TaskBModelV3 adds frozen Markov-prior buffer with one learnable α scalar). Also `recency.py` + `periodicity.py` for the v4 ablation.
+- `lib/bg/` (Task C): `background_state.py` (B(t) state machine — replays the full event stream and snapshots the BG set at each anchor with 2 h staleness cutoff), `features_bg.py` (per-anchor feature extractors, label generators), `baselines_bg.py` (closed-form baselines), `models_bg.py` (per-(anchor, app) MLP architectures, dual-head + single-head variants), `metrics_bg.py` (FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG, Pareto). Train-only stats (`hour_freq`, `app/cat_lifetime_share`, `cat_markov`, `per_app_inter_fg_mean`, etc.) are fit at training time inside `scripts/34_train_task_c_h60.py` and `scripts/36_train_c3_grid.py`.
 
 All train-only stats are marked `fit_split="train"` and asserted on load — that's the leakage barrier. Causality is enforced via strict `<` comparison in `searchsorted` for all multi-window aggregates and recency lookups.
 
