@@ -222,3 +222,75 @@ def compute_positive_only_metrics(
         "n_positive_samples": int(len(pos_ranks)),
         "n_anchors_with_positives": int(n_anchors_with_pos),
     }
+
+
+# ────────────────────────────────────────────────────────────────────
+# Track B — threshold-based metrics
+# ────────────────────────────────────────────────────────────────────
+def compute_threshold_metrics(
+    df: pd.DataFrame,
+    score_col: str,
+    y_col: str,
+    tau: float,
+) -> dict:
+    """Threshold-based binary-classification metrics at a single τ.
+
+    Per (anchor, app) row:
+        predicted_kill = 1 iff score > τ else 0
+        kill_label     = 1 iff y == 0 (safe to kill / OS would benefit from kill)
+
+    Returns:
+        kill_precision, kill_recall, f1, accuracy, mcc, fpr, fnr,
+        tp, fp, tn, fn, n, tau
+    """
+    s = df[score_col].to_numpy(dtype=np.float64)
+    y = df[y_col].to_numpy(dtype=np.int64)
+    pred_kill  = (s > tau).astype(np.int64)
+    kill_label = (1 - y).astype(np.int64)
+
+    tp = int(((pred_kill == 1) & (kill_label == 1)).sum())
+    fp = int(((pred_kill == 1) & (kill_label == 0)).sum())
+    tn = int(((pred_kill == 0) & (kill_label == 0)).sum())
+    fn = int(((pred_kill == 0) & (kill_label == 1)).sum())
+    n = tp + fp + tn + fn
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    accuracy = (tp + tn) / n if n > 0 else 0.0
+    fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+    fnr = fn / (fn + tp) if (fn + tp) > 0 else 0.0
+
+    denom_sq = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
+    mcc = (tp * tn - fp * fn) / float(np.sqrt(denom_sq)) if denom_sq > 0 else 0.0
+
+    return {
+        "tau": float(tau),
+        "kill_precision": float(precision),
+        "kill_recall":    float(recall),
+        "f1":             float(f1),
+        "accuracy":       float(accuracy),
+        "mcc":            float(mcc),
+        "fpr":            float(fpr),
+        "fnr":            float(fnr),
+        "tp": tp, "fp": fp, "tn": tn, "fn": fn, "n": n,
+    }
+
+
+def find_best_tau_by_f1(
+    df: pd.DataFrame,
+    score_col: str,
+    y_col: str,
+    n_grid: int = 49,
+) -> float:
+    """Return the τ that maximises F1 on this df. Use on val, freeze for test."""
+    s = df[score_col].to_numpy(dtype=np.float64)
+    qs = np.linspace(0.02, 0.98, n_grid)
+    tau_grid = np.unique(np.quantile(s, qs))
+    best_tau, best_f1 = float(tau_grid[0]), -1.0
+    for tau in tau_grid:
+        m = compute_threshold_metrics(df, score_col, y_col, tau=float(tau))
+        if m["f1"] > best_f1 + 1e-9:
+            best_f1 = m["f1"]
+            best_tau = float(tau)
+    return best_tau

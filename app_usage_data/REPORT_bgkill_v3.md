@@ -103,15 +103,20 @@ This section consolidates every closed-form baseline and every trained model in 
 | val   |   877 |  4 061 | 0.281 |
 | test  |   817 |  3 121 | 0.217 |
 
+The leaderboard is split into two **tracks** corresponding to two different deployment scenarios (formal definitions in `REPORT_bgkill_metrics.md` §2 and §10):
+
+- **Track A — Rank-based** (§§5.1, 5.2). At each anchor, sort `B(t)` by kill-score and take the top-`K = ⌈r·|B(t)|⌉`. Used when the OS owns the kill budget (RAM-pressure event). Metrics: FK@r, MSR@r, ROC-AUC, PR-AUC, NDCG, Pareto. *Anchor-mean.*
+- **Track B — Threshold-based** (§5.3). At each anchor, kill app *a* iff `score(a) > τ` for a fixed τ. Used when the model owns the per-app yes/no decision. Metrics: KillPrecision@τ, KillRecall@τ, F1@τ, Accuracy@τ, MCC@τ. *Pooled across all (anchor, app) rows.*
+
 Conventions for every table below:
 
-- **PR-AUC**, **ROC-AUC**, **NDCG@half**: higher is better
+- **PR-AUC**, **ROC-AUC**, **NDCG@half**, **KillPrecision**, **KillRecall**, **F1**, **Accuracy**, **MCC**: higher is better
 - **FK@r** (false-kill rate): lower is better — fraction of killed apps that the user actually wanted
 - **MSR@r** (memory-save rate, = "safe-kill recall"): higher is better — fraction of safely-killable apps actually killed
-- All metrics are computed per anchor and averaged with equal anchor weight (`lib/bg/metrics_bg.py`)
+- Track-A metrics are per-anchor, anchor-mean (`lib/bg/metrics_bg.py:compute_metrics`); Track-B metrics are pooled over all rows (`compute_threshold_metrics`).
 - `−` in the `feat` column = closed-form baseline (no learned features)
 
-### 5.1  Val (`bg_val.parquet`)  (n = 877 anchors)
+### 5.1  Track A — Val rank-based (`bg_val.parquet`, n = 877 anchors)
 
 | Model           | feat | PR-AUC | ROC-AUC | FK@.25 | FK@.5  | FK@.75 | MSR@.25 | MSR@.5 | MSR@.75 | NDCG  |
 |-----------------|-----:|-------:|--------:|-------:|-------:|-------:|--------:|-------:|--------:|------:|
@@ -140,9 +145,9 @@ Conventions for every table below:
 
 (*italic* = best closed-form baseline · **bold** = best trained model in that column)
 
-**Val read-out:** the trained models all beat every closed-form baseline on PR-AUC and ROC-AUC. Best baseline is `markov_inv` (PR-AUC 0.864, NDCG 0.834) and `lfu_hour` (ROC-AUC 0.747). Best learned on val is `Pro-Ens/c3.2` (5-seed ensemble) — but the gap to single-seed C3-Pro variants is small (≤ 0.005 PR-AUC) and the ranking flips on test. Use the bootstrap CIs in §5.6 to read these gaps.
+**Val read-out:** the trained models all beat every closed-form baseline on PR-AUC and ROC-AUC. Best baseline is `markov_inv` (PR-AUC 0.864, NDCG 0.834) and `lfu_hour` (ROC-AUC 0.747). Best learned on val is `Pro-Ens/c3.2` (5-seed ensemble) — but the gap to single-seed C3-Pro variants is small (≤ 0.005 PR-AUC) and the ranking flips on test. Use the bootstrap CIs in §5.7 to read these gaps.
 
-### 5.2  Test (`bg_test.parquet`)  (n = 817 anchors)
+### 5.2  Track A — Test rank-based (`bg_test.parquet`, n = 817 anchors)
 
 | Model           | feat | PR-AUC | ROC-AUC | FK@.25 | FK@.5  | FK@.75 | MSR@.25 | MSR@.5 | MSR@.75 | NDCG  |
 |---------------------|-----:|-------:|--------:|-------:|-------:|-------:|--------:|-------:|--------:|------:|
@@ -185,7 +190,85 @@ Conventions for every table below:
 | MSR@.75 | tibg (0.8462)       | Pro-Reg / c3.3 (0.8496)      | **+0.34 pp** |
 | NDCG    | markov_inv (0.8594) | C3.3 (0.8836)                | **+2.42 pp** |
 
-### 5.3  Top-4 trained models — focused comparison
+### 5.3  Track B — Threshold-based (yes/no per-app) results
+
+The metrics in §5.1 / §5.2 evaluate **rank-based** decisions (top-K by score). This section evaluates the **threshold-based** alternative: with a single τ chosen ahead of time, classify every `(anchor, app)` as kill (`s > τ`) or keep. Number of apps killed varies anchor-to-anchor.
+
+**Threshold selection.** For every model independently, **τ\* = arg max F1 on val**, then frozen for test. Each model gets its own τ\* — comparing τ values across rows is meaningless (LRU outputs raw seconds, sigmoid models output probabilities). The metrics, however, are scale-free.
+
+**Confusion-matrix mnemonic at τ:**
+- TP: `s > τ` and `y = 0` (safe-to-kill correctly killed)
+- FP: `s > τ` and `y = 1` (wanted app killed — **user pain**)
+- TN: `s ≤ τ` and `y = 1` (wanted app correctly preserved)
+- FN: `s ≤ τ` and `y = 0` (RAM left on the table)
+
+Definitions in `REPORT_bgkill_metrics.md` §10. Implementation in `lib/bg/metrics_bg.py:compute_threshold_metrics`. Output JSON at `artifacts/bg/results/threshold_metrics.json`.
+
+#### 5.3.1  Val (n = 4 061 rows = 877 anchors × varying \|B(t)\|)
+
+τ\* tuned on val itself; this is the *fitting* number, not the headline. Test below is the honest read.
+
+| Model            |    τ\* | KillPrec ↑ | KillRec ↑ |   F1 ↑ |  Acc ↑ |  MCC ↑ |
+|------------------|------:|-----------:|----------:|-------:|-------:|-------:|
+| random           | 0.020 |     0.7195 |    0.9805 | 0.8300 | 0.7112 | 0.0076 |
+| lru              |   129 |     0.7260 |    0.9890 | 0.8373 | 0.7237 | 0.1072 |
+| tibg             |   139 |     0.7341 |    0.9795 | 0.8392 | 0.7301 | 0.1072 |
+| lfu_hour         | 0.624 |     0.7242 |    0.9863 | 0.8351 | 0.7200 | 0.0785 |
+| *markov_inv*     | 0.281 |     0.7323 |    0.9901 | *0.8419* | 0.7326 | 0.1740 |
+| hybrid_lru_mk    | 0.000 | 0.7653     |    0.8699 | 0.8142 | 0.7146 | *0.2177* |
+| C3.3             | 0.176 | 0.7290     |    0.9832 | 0.8422 | 0.7350 | 0.1904 |
+| **Pro-Reg/c3.3** | 0.176 | 0.7363     |  **0.9829** | 0.8419 | 0.7345 | 0.1876 |
+| **Pro-List/c3.3** | 0.371 | **0.7419** |    0.9699 | 0.8407 | 0.7358 | 0.2016 |
+| **Pro-Wide/c3.3** | 0.202 | 0.7368     |    0.9836 | **0.8425** | 0.7355 | 0.1932 |
+
+#### 5.2.2  Test (n = 3 121 rows = 817 anchors)  ← *the headline numbers*
+
+| Model            | τ\* (val) | KillPrec ↑ | KillRec ↑ |   F1 ↑ |  Acc ↑ |  MCC ↑  |
+|------------------|----------:|-----------:|----------:|-------:|-------:|--------:|
+| random           |   0.020 |     0.7844 |    0.9824 | 0.8723 | 0.7748 | 0.0237  |
+| lru              |     129 |     0.7893 |    0.9873 | 0.8773 | 0.7837 | 0.1072  |
+| tibg             |     139 |     0.7932 |    0.9779 | 0.8758 | 0.7831 | 0.1300  |
+| lfu_hour         |   0.624 |     0.7954 |    0.9718 | 0.8748 | 0.7821 | 0.1403  |
+| *markov_inv*     |   0.281 |     0.7982 |    0.9824 | 0.8808 | 0.7891 | 0.1893  |
+| hybrid_lru_mk    |   0.000 | 0.8323     | 0.8224    | 0.8273 | 0.7286 | 0.2209  |
+| C3.3             |   0.176 | 0.8058     | 0.9779    | 0.8835 | 0.7981 | 0.2411  |
+| **Pro-Reg/c3.3** |   0.176 | 0.8065     | 0.9824    | **0.8858** | **0.8017** | **0.2585** |
+| **Pro-List/c3.3** | 0.371 | 0.8131     | 0.9542    | 0.8780 | 0.7869 | 0.2453  |
+| **Pro-Wide/c3.3** | 0.202 | **0.8091** | 0.9746    | 0.8842 | 0.8001 | 0.2575  |
+
+(*italic* = best closed-form baseline · **bold** = best trained model in that column)
+
+**Test read-out (Track B):**
+
+| Metric | Best baseline       | Best trained          | Δ |
+|--------|---------------------|------------------------|---:|
+| KillPrecision | hybrid_lru_mk (0.832) | Pro-List / c3.3 (0.813) | (Hybrid wins because at τ = 0 it kills nothing — degenerate) |
+| KillRecall    | markov_inv (0.982)    | Pro-Reg / c3.3 (0.982)  | tied at ~0.98 |
+| **F1**        | markov_inv (0.881)    | **Pro-Reg / c3.3 (0.886)** | **+0.5 pp** |
+| Accuracy      | markov_inv (0.792)    | **Pro-Reg / c3.3 (0.802)** | **+1.0 pp** |
+| **MCC**       | hybrid_lru_mk (0.221) | **Pro-Reg / c3.3 (0.259)** | **+3.8 pp** |
+
+**Key observations on Track B vs Track A:**
+
+1. **Track B numbers are less differentiated.** F1 spans a tight range (0.83–0.89) because at the F1-optimal τ the recall pins near 1 for almost every model — leaving precision and FP volume to do the differentiation. Track A's PR-AUC range (0.78–0.93) is wider because it integrates over all thresholds.
+
+2. **MCC is the most informative single number under class imbalance.** The kill class is 78 % of rows (since only ~22 % are positives = wanted apps). Naïve "predict-all-kill" gets accuracy ≈ 0.78 but MCC ≈ 0 (random performance). MCC penalises the trivial baseline correctly — random shows MCC = 0.024, while Pro-Reg/c3.3 reaches 0.259.
+
+- The trained models give **+3.6 pp absolute MCC** over the strongest baseline on test (Pro-Reg/c3.3: 0.259 vs hybrid 0.222). This is roughly half the relative gain that ROC-AUC suggests (+8.7 pp), which is consistent with MCC being a stricter metric on imbalanced data.
+
+3. **Hybrid LRU+Markov has the highest baseline KillPrecision but only because its F1-optimal τ is τ = 0 — i.e. it picks up the smaller-recall corner of the F1 curve.** This is a degenerate corner: KillPrecision and KillRecall trade off, and the baseline's F1 surface happens to peak at a low-recall point. Don't over-read the precision number in isolation.
+
+4. **Track B vs Track A absolute gains** (test, vs the strongest baseline):
+
+| Metric family | Track A best gain | Track B best gain |
+|---|---|---|
+| Ranking quality | ROC-AUC: **+8.71 pp** (Pro-List vs markov_inv) | — (n/a; ROC-AUC is threshold-free) |
+| Decision quality | FK@0.5: **−1.95 pp** (Pro-Wide vs lfu_hour) | F1: **+0.5 pp** (Pro-Reg vs markov_inv) |
+| Robust summary | NDCG: **+2.42 pp** (C3.3 vs markov_inv) | **MCC: +3.6 pp** (Pro-Reg vs hybrid) |
+
+The two tracks broadly agree on the ordering: trained models > Markov-inverse > LFU-hour ≈ LRU ≈ TimeInBG > Hybrid > Random (with hybrid_lru_mk being a quirky outlier on Track B because its score distribution has the F1-optimal τ near zero).
+
+### 5.4  Top-4 trained models — focused comparison
 
 The four picks below cover all four "best-on-X" winners on test, one per key metric. Use this short list for downstream analysis; the full 16-model grid is in §5.1 / §5.2.
 
@@ -204,7 +287,7 @@ All four use the same **c3.3** feature schema (32 features = c2 + 5 hourly-habit
 
 C3-Pro variants together gain only ~ 0.1–0.2 pp test PR-AUC over plain C3.3 — the dominant lift is the **feature schema** (C2 → C3.3 adds +1.2 pp PR-AUC), not the architectural changes.
 
-### 5.4  Pareto frontier — focused (4 best trained models vs 3 baselines)
+### 5.5  Pareto frontier — focused (4 best trained models vs 3 baselines)
 
 ![Test Pareto, focused](figures/bg/pareto_h60_focused_test.png)
 
@@ -219,11 +302,11 @@ C3-Pro variants together gain only ~ 0.1–0.2 pp test PR-AUC over plain C3.3 �
 
 **Reading the test figure:** the four trained models (green / purple / olive / brown) cluster tightly in the upper-right region. At the deployment-relevant operating point (r = 0.5, the middle marker), they reach ≈ (MSR 0.66, kill-precision 0.84) — i.e. ≈ 84 % of their kills are correct. Markov-inverse sits below at (0.64, 0.82); LRU is further below at (0.61, 0.80). The gap widens at the conservative end (r = 0.25) where the trained models reach kill-precision ≈ 0.90 vs Markov-inverse's 0.86 and LRU's 0.84. At the most aggressive end (r = 0.9) every model — including baselines — converges to (≈ 0.92, ≈ 0.76), because at that point almost every app in `B(t)` is killed and ranking quality is moot.
 
-**Reading the val figure:** same ordering, but the gaps are visibly tighter. Markov-inverse lies *just below* the trained-model cluster across the (MSR 0.55 – 0.65) range, reflecting the bootstrap-CI overlap noted in §5.6. LRU performs noticeably worse on val than on test — the val week has more "rare-app reuse" patterns that LRU misses.
+**Reading the val figure:** same ordering, but the gaps are visibly tighter. Markov-inverse lies *just below* the trained-model cluster across the (MSR 0.55 – 0.65) range, reflecting the bootstrap-CI overlap noted in §5.7. LRU performs noticeably worse on val than on test — the val week has more "rare-app reuse" patterns that LRU misses.
 
 The wider H = 5 / H = 10 figures referenced from earlier H=5/H=10 reports (`figures/bg/pareto_H_300_*.png`, `pareto_H_600_*.png`) are kept in the repo for historical comparison; they are not the live numbers.
 
-### 5.5  Positive-only metrics (focus on the wanted apps)
+### 5.6  Positive-only metrics (focus on the wanted apps)
 
 The metrics in §5.1 / §5.2 are computed over the *full* `(anchor, app)` set. A reviewer asked: is there a metric that uses **only the positive samples** — i.e. only the `(anchor, app)` rows where the user actually foregrounded the app? Three candidate metrics, all scale-free and anchor-aware:
 
@@ -273,7 +356,7 @@ Why we did not include raw "mean kill-score on positives": it pools across ancho
 
 #### Read-out
 
-* **WAKR@.5 (the headline)** — Random would kill ~61 % of the user's wanted apps if you killed half of `B(t)`. Markov-inverse is at 44.6 %. The four trained models cluster around **38 %** — a ~6 percentage-point absolute reduction in user-pain over the strongest baseline at the deployment-relevant operating point. The trained models are roughly tied with each other (within 1 pp WAKR@.5), confirming the §5.3 finding that feature schema beats architecture.
+* **WAKR@.5 (the headline)** — Random would kill ~61 % of the user's wanted apps if you killed half of `B(t)`. Markov-inverse is at 44.6 %. The four trained models cluster around **38 %** — a ~6 percentage-point absolute reduction in user-pain over the strongest baseline at the deployment-relevant operating point. The trained models are roughly tied with each other (within 1 pp WAKR@.5), confirming the §5.4 finding that feature schema beats architecture.
 
 * **PosRank** — Random sits at 0.5 (positives equally distributed top-to-bottom of the kill list), as expected. Markov-inverse and LFU-hour reach 0.66–0.67 (positives at the 67th percentile of safety). Trained models reach **0.72–0.73** — the typical wanted app sits in the bottom ~28 % of `B(t)`'s kill priority. This roughly tracks the per-anchor ROC-AUC numbers, just expressed per-positive instead of per-pair.
 
@@ -283,7 +366,7 @@ Why we did not include raw "mean kill-score on positives": it pools across ancho
 
 The script that generates this table is `scripts/40_positive_metrics.py`; the JSON dump lives at `artifacts/bg/results/positive_metrics.json`.
 
-### 5.6  Bootstrap CIs (B = 1000 anchor-resamples, seed 7)
+### 5.7  Bootstrap CIs (B = 1000 anchor-resamples, seed 7)
 
 `scripts/35_eval_h60.py` re-scores every model (baselines + trained) per anchor, then resamples anchors with replacement 1 000 times to produce 95 % CIs on each metric mean. Only the headline metrics shown — full table in `artifacts/bg/results/h60_leaderboard_ci.json`.
 
@@ -308,7 +391,7 @@ Bottom line: ROC-AUC and PR-AUC gains over Markov-inv are robust; FK@0.5 and NDC
 
 **Val** (n = 877 anchors): same ordering as test but the gaps are smaller and almost all CIs overlap. The 28 % positive rate on val genuinely makes this a harder problem than test.
 
-### 5.7  Leave-one-out ablation on the C3.1 hourly-habit features
+### 5.8  Leave-one-out ablation on the C3.1 hourly-habit features
 
 To quantify which of the 5 added features carry weight, each was zeroed out individually (with a fresh seed-7 retrain). All numbers are H = 60 min, val/test split, single sigmoid head.
 
@@ -330,11 +413,11 @@ To quantify which of the 5 added features carry weight, each was zeroed out indi
 
 **Verified the tightened schema (C3.2):** keep `was_fg_24h_ago`, `was_fg_7d_ago`, `log_fg_count_last_24h` (3 hourly-habit features); drop `overdue_ratio` and `log_fg_count_last_7d`. Trained model (5 345 params, 18 features) gives test PR-AUC 0.914 (−0.4 pp vs full C3.1), test ROC-AUC 0.803 (+0.3 pp), test FK@0.5 0.173 (+1.3 pp — *worse*). The +1.3 pp PR-AUC gain from the single-feature drop of `log_fg_count_last_7d` does **not** compound with `overdue_ratio` removal. Within training-seed noise. **Recommendation: keep all 5 hourly-habit features in C3.1.**
 
-### 5.8  Old Pareto curves (FK on x, MSR on y) — kept for reference
+### 5.9  Old Pareto curves (FK on x, MSR on y) — kept for reference
 
-The earlier figures with the axes flipped (FK on x-axis, MSR on y-axis) are kept under `figures/bg/pareto_h60_{val,test}.png` for backward compatibility. They show the same data as §5.4's focused figure but include all 6 baseline curves and only C1 / C2 / C3.1; the focused figure in §5.4 is the canonical one.
+The earlier figures with the axes flipped (FK on x-axis, MSR on y-axis) are kept under `figures/bg/pareto_h60_{val,test}.png` for backward compatibility. They show the same data as §5.5's focused figure but include all 6 baseline curves and only C1 / C2 / C3.1; the focused figure in §5.5 is the canonical one.
 
-### 5.9  Full feature-ablation grid (C3.2 → C3.4) and architectural variants (C3-Pro)
+### 5.10  Full feature-ablation grid (C3.2 → C3.4) and architectural variants (C3-Pro)
 
 Running the full plan from `REPORT_bgkill_model_plan.md`. Each row is a separate trained model, single sigmoid head on `y_3600`, train/val/test splits as in §2. C3.5 (session state) and C3.6 (active-burst intensity) are deferred — they require backward event-stream lookups not exposed by the current parquet pipeline; flagged in §7.
 
@@ -397,11 +480,11 @@ Each schema *adds* its features on top of the previous (C2 → C3.1 → C3.2 →
 
 **Yes, with caveats.** At the deployment-relevant operating point (kill the half of `B(t)` you're least likely to need in the next hour), C3.1 falsely-kills 16.1 % of "wanted" apps vs Markov-inverse's 18.0 %. That is a real but not transformative improvement. The bigger win is at the aggressive end (FK@0.25 = 0.107 vs Markov 0.141, **−3.4 pp**), suggesting C2 is meaningfully better at picking the *most-clearly-stale* apps to drop early.
 
-The bootstrap CIs in §5.6 sharpen the picture:
+The bootstrap CIs in §5.7 sharpen the picture:
 
 * **Ranking-quality gains are statistically robust.** C2's test ROC-AUC CI [0.781, 0.829] does not overlap Markov-inv's [0.711, 0.773] → significant at 95 %.
 * **FK@0.5 / NDCG gains are within bootstrap noise on the current single-user test set.** The means clearly favour the trained models, but the 95 % CIs overlap Markov-inv's CI band. The 817-anchor test set is the limiting factor here.
-**The Pareto curves (§5.4) are unambiguous.** Both val and test show C3.3 / Pro-Reg/c3.3 / Pro-Wide/c3.3 / Pro-List/c3.3 strictly Pareto-dominating every closed-form baseline at every r ∈ {0.1, 0.25, 0.5, 0.75, 0.9} — this is the deployment-relevant view that lifts the result above the per-metric significance debate.
+**The Pareto curves (§5.5) are unambiguous.** Both val and test show C3.3 / Pro-Reg/c3.3 / Pro-Wide/c3.3 / Pro-List/c3.3 strictly Pareto-dominating every closed-form baseline at every r ∈ {0.1, 0.25, 0.5, 0.75, 0.9} — this is the deployment-relevant view that lifts the result above the per-metric significance debate.
 
 The val/test gap (val PR 0.882 → test PR 0.918) is unusual but not unprecedented in this dataset — the test week is more rhythmic than the val week (already noted in `REPORT_v3.md` for Task A/B). Both splits show the same model ordering, so the conclusion is robust.
 
