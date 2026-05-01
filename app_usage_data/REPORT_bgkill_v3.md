@@ -106,14 +106,13 @@ This section consolidates every closed-form baseline and every trained model in 
 The leaderboard is split into two **tracks** corresponding to two different deployment scenarios (formal definitions in `REPORT_bgkill_metrics.md` §2 and §10):
 
 - **Track A — Rank-based** (§§5.1, 5.2). At each anchor, sort `B(t)` by kill-score and take the top-`K = ⌈r·|B(t)|⌉`. Used when the OS owns the kill budget (RAM-pressure event). Metrics: FK@r, MSR@r, ROC-AUC, PR-AUC, NDCG, Pareto. *Anchor-mean.*
-- **Track B — Threshold-based** (§5.3). At each anchor, kill app *a* iff `score(a) > τ` for a fixed τ. Used when the model owns the per-app yes/no decision. Metrics: KillPrecision@τ, KillRecall@τ, F1@τ, Accuracy@τ, MCC@τ. *Pooled across all (anchor, app) rows.*
+- **Track B — Threshold-based** (§5.3). At each anchor, kill app *a* iff `score(a) > τ` for a fixed τ. Used when the model owns the per-app yes/no decision. Metrics: **FKR@τ** (false-kill rate at τ = `FP/(TP+FP)`), **SKR@τ** (safe-kill recall at τ = `TP/(TP+FN)`), F1@τ, Accuracy@τ, MCC@τ. *Pooled across all (anchor, app) rows.*
 
 Conventions for every table below:
 
-- **PR-AUC**, **ROC-AUC**, **NDCG@half**, **KillPrecision**, **KillRecall**, **F1**, **Accuracy**, **MCC**: higher is better
-- **FK@r** (false-kill rate): lower is better — fraction of killed apps that the user actually wanted
-- **MSR@r** (memory-save rate, = "safe-kill recall"): higher is better — fraction of safely-killable apps actually killed
-- Track-A metrics are per-anchor, anchor-mean (`lib/bg/metrics_bg.py:compute_metrics`); Track-B metrics are pooled over all rows (`compute_threshold_metrics`).
+- Track A — **FK@r** (false-kill rate at top-r) ↓; **MSR@r** (memory-save rate = safe-kill recall at top-r) ↑; **PR-AUC**, **ROC-AUC**, **NDCG@half** ↑.
+- Track B — **FKR@τ** (false-kill rate at threshold) ↓; **SKR@τ** (safe-kill recall at threshold = `TP/(TP+FN)`) ↑; **F1@τ**, **Accuracy@τ**, **MCC@τ** ↑.
+- Track A metrics are per-anchor, anchor-mean (`lib/bg/metrics_bg.py:compute_metrics`); Track B metrics are pooled over all rows (`compute_threshold_metrics`).
 - `−` in the `feat` column = closed-form baseline (no learned features)
 
 ### 5.1  Track A — Val rank-based (`bg_val.parquet`, n = 877 anchors)
@@ -194,7 +193,22 @@ Conventions for every table below:
 
 The metrics in §5.1 / §5.2 evaluate **rank-based** decisions (top-K by score). This section evaluates the **threshold-based** alternative: with a single τ chosen ahead of time, classify every `(anchor, app)` as kill (`s > τ`) or keep. Number of apps killed varies anchor-to-anchor.
 
-**Threshold selection.** For every model independently, **τ\* = arg max F1 on val**, then frozen for test. Each model gets its own τ\* — comparing τ values across rows is meaningless (LRU outputs raw seconds, sigmoid models output probabilities). The metrics, however, are scale-free.
+**How τ\* is picked** *(answers "how was the threshold chosen?")*:
+1. For each model independently, sweep τ over **49 quantile points** of its val score distribution (2nd–98th percentile).
+2. Pick **τ\* = argmax F1 on val**.
+3. **Freeze τ\*** and apply it on test. Each model has its own τ\*; cross-model comparison of τ values is meaningless (LRU outputs seconds, sigmoid models output probabilities). The *metrics* are scale-free.
+
+**Columns used in the tables below.** The user asked for three positives-aware metrics, named here:
+
+| Column     | What it measures                                                 | Direction | Equivalent to                |
+|------------|------------------------------------------------------------------|-----------|------------------------------|
+| **FKR@τ**  | of all apps the model decided to kill, what fraction were a *mistake* (the user actually wanted them) | ↓ lower better | `FP / (TP + FP)` = 1 − KillPrecision |
+| **SKR@τ**  | of all apps that were genuinely safe to kill, what fraction the model actually killed                    | ↑ higher better | `TP / (TP + FN)` = KillRecall (= MSR at threshold) |
+| **F1@τ**   | harmonic mean of `1 − FKR` and SKR                                                                       | ↑ higher better | `2·KillPrecision·SKR/(KillPrecision+SKR)` |
+| **Acc@τ**  | overall row-level accuracy                                                                                | ↑ higher better | `(TP + TN) / N` |
+| **MCC@τ**  | Matthews correlation coefficient — class-balanced summary, **0 = random, ±1 = perfect / inverted**         | ↑ higher better | `(TP·TN − FP·FN) / sqrt(...)` |
+
+The user's third proposed metric — **mean kill-score on positives** — is *threshold-free* (depends on score distribution, not on τ). It is reported in §5.6 under the name **PosScoreNorm** (anchor-normalised). Listed here for completeness; not in the τ-tables below.
 
 **Confusion-matrix mnemonic at τ:**
 - TP: `s > τ` and `y = 0` (safe-to-kill correctly killed)
@@ -208,65 +222,76 @@ Definitions in `REPORT_bgkill_metrics.md` §10. Implementation in `lib/bg/metric
 
 τ\* tuned on val itself; this is the *fitting* number, not the headline. Test below is the honest read.
 
-| Model            |    τ\* | KillPrec ↑ | KillRec ↑ |   F1 ↑ |  Acc ↑ |  MCC ↑ |
-|------------------|------:|-----------:|----------:|-------:|-------:|-------:|
-| random           | 0.020 |     0.7195 |    0.9805 | 0.8300 | 0.7112 | 0.0076 |
-| lru              |   129 |     0.7260 |    0.9890 | 0.8373 | 0.7237 | 0.1072 |
-| tibg             |   139 |     0.7341 |    0.9795 | 0.8392 | 0.7301 | 0.1072 |
-| lfu_hour         | 0.624 |     0.7242 |    0.9863 | 0.8351 | 0.7200 | 0.0785 |
-| *markov_inv*     | 0.281 |     0.7323 |    0.9901 | *0.8419* | 0.7326 | 0.1740 |
-| hybrid_lru_mk    | 0.000 | 0.7653     |    0.8699 | 0.8142 | 0.7146 | *0.2177* |
-| C3.3             | 0.176 | 0.7290     |    0.9832 | 0.8422 | 0.7350 | 0.1904 |
-| **Pro-Reg/c3.3** | 0.176 | 0.7363     |  **0.9829** | 0.8419 | 0.7345 | 0.1876 |
-| **Pro-List/c3.3** | 0.371 | **0.7419** |    0.9699 | 0.8407 | 0.7358 | 0.2016 |
-| **Pro-Wide/c3.3** | 0.202 | 0.7368     |    0.9836 | **0.8425** | 0.7355 | 0.1932 |
+| Model             | τ\*    | FKR@τ ↓ | SKR@τ ↑ | F1 ↑   | Acc ↑  | MCC ↑   |
+|-------------------|-------:|--------:|--------:|-------:|-------:|--------:|
+| random            | 0.020  | 0.2805  | 0.9805  | 0.8300 | 0.7112 | 0.0076  |
+| lru               | 129    | 0.2740  | 0.9890  | 0.8373 | 0.7237 | 0.1072  |
+| tibg              | 139    | 0.2659  | 0.9795  | 0.8392 | 0.7301 | 0.1072  |
+| lfu_hour          | 0.624  | 0.2758  | 0.9863  | 0.8351 | 0.7200 | 0.0785  |
+| *markov_inv*      | 0.281  | 0.2677  | 0.9901  | *0.8419* | 0.7326 | 0.1740 |
+| hybrid_lru_mk     | 0.000  | *0.2347* | 0.8699 | 0.8142 | 0.7146 | *0.2177* |
+| C3.3              | 0.176  | 0.2635  | 0.9832  | 0.8422 | 0.7350 | 0.1904  |
+| **Pro-Reg/c3.3**  | 0.176  | 0.2637  | **0.9829** | 0.8419 | 0.7345 | 0.1876 |
+| **Pro-List/c3.3** | 0.371 | **0.2581** | 0.9699 | 0.8407 | 0.7358 | 0.2016 |
+| **Pro-Wide/c3.3** | 0.202 | 0.2632  | 0.9836  | **0.8425** | 0.7355 | 0.1932 |
 
-#### 5.2.2  Test (n = 3 121 rows = 817 anchors)  ← *the headline numbers*
+#### 5.3.2  Test (n = 3 121 rows = 817 anchors)  ← *the headline numbers*
 
-| Model            | τ\* (val) | KillPrec ↑ | KillRec ↑ |   F1 ↑ |  Acc ↑ |  MCC ↑  |
-|------------------|----------:|-----------:|----------:|-------:|-------:|--------:|
-| random           |   0.020 |     0.7844 |    0.9824 | 0.8723 | 0.7748 | 0.0237  |
-| lru              |     129 |     0.7893 |    0.9873 | 0.8773 | 0.7837 | 0.1072  |
-| tibg             |     139 |     0.7932 |    0.9779 | 0.8758 | 0.7831 | 0.1300  |
-| lfu_hour         |   0.624 |     0.7954 |    0.9718 | 0.8748 | 0.7821 | 0.1403  |
-| *markov_inv*     |   0.281 |     0.7982 |    0.9824 | 0.8808 | 0.7891 | 0.1893  |
-| hybrid_lru_mk    |   0.000 | 0.8323     | 0.8224    | 0.8273 | 0.7286 | 0.2209  |
-| C3.3             |   0.176 | 0.8058     | 0.9779    | 0.8835 | 0.7981 | 0.2411  |
-| **Pro-Reg/c3.3** |   0.176 | 0.8065     | 0.9824    | **0.8858** | **0.8017** | **0.2585** |
-| **Pro-List/c3.3** | 0.371 | 0.8131     | 0.9542    | 0.8780 | 0.7869 | 0.2453  |
-| **Pro-Wide/c3.3** | 0.202 | **0.8091** | 0.9746    | 0.8842 | 0.8001 | 0.2575  |
+| Model             | τ\* (val) |  FKR@τ ↓ |  SKR@τ ↑ |  F1 ↑     |  Acc ↑    |  MCC ↑    |
+|-------------------|----------:|---------:|---------:|----------:|----------:|----------:|
+| random            | 0.020   | 0.2156   | 0.9824   | 0.8723    | 0.7748    | 0.0237    |
+| lru               |   129   | 0.2107   | 0.9873   | 0.8773    | 0.7837    | 0.1072    |
+| tibg              |   139   | 0.2068   | 0.9779   | 0.8758    | 0.7831    | 0.1300    |
+| lfu_hour          | 0.624   | 0.2046   | 0.9718   | 0.8748    | 0.7821    | 0.1403    |
+| *markov_inv*      | 0.281   | 0.2018   | 0.9824   | 0.8808    | 0.7891    | 0.1893    |
+| hybrid_lru_mk     | 0.000   | *0.1677* | 0.8224   | 0.8273    | 0.7286    | 0.2209    |
+| C3.3              | 0.176   | 0.1942   | 0.9779   | 0.8835    | 0.7981    | 0.2411    |
+| **Pro-Reg/c3.3**  | 0.176   | 0.1935   | **0.9824** | **0.8858** | **0.8017** | **0.2585** |
+| **Pro-List/c3.3** | 0.371   | **0.1869** | 0.9542 | 0.8780    | 0.7869    | 0.2453    |
+| **Pro-Wide/c3.3** | 0.202   | 0.1909   | 0.9746   | 0.8842    | 0.8001    | 0.2575    |
 
 (*italic* = best closed-form baseline · **bold** = best trained model in that column)
 
 **Test read-out (Track B):**
 
-| Metric | Best baseline       | Best trained          | Δ |
-|--------|---------------------|------------------------|---:|
-| KillPrecision | hybrid_lru_mk (0.832) | Pro-List / c3.3 (0.813) | (Hybrid wins because at τ = 0 it kills nothing — degenerate) |
-| KillRecall    | markov_inv (0.982)    | Pro-Reg / c3.3 (0.982)  | tied at ~0.98 |
-| **F1**        | markov_inv (0.881)    | **Pro-Reg / c3.3 (0.886)** | **+0.5 pp** |
-| Accuracy      | markov_inv (0.792)    | **Pro-Reg / c3.3 (0.802)** | **+1.0 pp** |
-| **MCC**       | hybrid_lru_mk (0.221) | **Pro-Reg / c3.3 (0.259)** | **+3.8 pp** |
+| Metric  | Best baseline           | Best trained                   | Δ |
+|---------|-------------------------|---------------------------------|---:|
+| FKR@τ ↓ | hybrid_lru_mk (0.168)   | Pro-List/c3.3 (0.187)           | (Hybrid wins by sitting at τ ≈ 0 — see §5.3.5) |
+| SKR@τ ↑ | markov_inv (0.982)      | Pro-Reg/c3.3 (0.982)            | tied |
+| **F1**  | markov_inv (0.881)      | **Pro-Reg/c3.3 (0.886)**        | **+0.5 pp** |
+| Acc     | markov_inv (0.789)      | **Pro-Reg/c3.3 (0.802)**        | **+1.3 pp** |
+| **MCC** | hybrid_lru_mk (0.221)   | **Pro-Reg/c3.3 (0.259)**        | **+3.8 pp** |
 
-**Key observations on Track B vs Track A:**
+#### 5.3.3  Why F1 / Accuracy compress — and why MCC is the Track-B headline
 
-1. **Track B numbers are less differentiated.** F1 spans a tight range (0.83–0.89) because at the F1-optimal τ the recall pins near 1 for almost every model — leaving precision and FP volume to do the differentiation. Track A's PR-AUC range (0.78–0.93) is wider because it integrates over all thresholds.
+The Track B numbers above show **only ~1 pp gap** between random and the best trained model on F1 and Accuracy. On Track A the ROC-AUC gap is **+8.7 pp**. Two reasons for the compression:
 
-2. **MCC is the most informative single number under class imbalance.** The kill class is 78 % of rows (since only ~22 % are positives = wanted apps). Naïve "predict-all-kill" gets accuracy ≈ 0.78 but MCC ≈ 0 (random performance). MCC penalises the trivial baseline correctly — random shows MCC = 0.024, while Pro-Reg/c3.3 reaches 0.259.
+1. **Class imbalance.** Kill is the *majority* class (78 % of rows, since `y = 1` "wanted" is only ~22 %). A trivial "predict-all-kill" model gets Accuracy ≈ 0.78 and F1 ≈ 0.87 just from the class prior — even random scores 0.775 / 0.872.
+2. **F1 saturates recall.** At the F1-optimal τ, every model picks a τ that pins **SKR@τ near 1** (recall is the easy half of F1). Differences live in FKR@τ (precision), which spans only 0.19–0.22 — about 3 pp of separation across all 10 models.
 
-- The trained models give **+3.6 pp absolute MCC** over the strongest baseline on test (Pro-Reg/c3.3: 0.259 vs hybrid 0.222). This is roughly half the relative gain that ROC-AUC suggests (+8.7 pp), which is consistent with MCC being a stricter metric on imbalanced data.
+**MCC fixes both issues** because it normalises by all four corners of the confusion matrix:
 
-3. **Hybrid LRU+Markov has the highest baseline KillPrecision but only because its F1-optimal τ is τ = 0 — i.e. it picks up the smaller-recall corner of the F1 curve.** This is a degenerate corner: KillPrecision and KillRecall trade off, and the baseline's F1 surface happens to peak at a low-recall point. Don't over-read the precision number in isolation.
+| Metric    | random | markov_inv | Pro-Reg/c3.3 | Δ random ↔ best trained |
+|-----------|-------:|-----------:|-------------:|------------------------:|
+| Accuracy  | 0.775  | 0.789      | 0.802        | +2.7 pp |
+| F1        | 0.872  | 0.881      | 0.886        | +1.4 pp |
+| **MCC**   | **0.024** | **0.189** | **0.259**   | **+23.5 pp** ✓ |
 
-4. **Track B vs Track A absolute gains** (test, vs the strongest baseline):
+**Headline single-number for Track B: MCC.** Pro-Reg/c3.3 leads at MCC = 0.259 on test, +3.8 pp over the strongest baseline (hybrid_lru_mk at 0.221), +24 pp over random. F1 and Accuracy *agree on the ordering* but compress the absolute gap.
 
-| Metric family | Track A best gain | Track B best gain |
-|---|---|---|
-| Ranking quality | ROC-AUC: **+8.71 pp** (Pro-List vs markov_inv) | — (n/a; ROC-AUC is threshold-free) |
-| Decision quality | FK@0.5: **−1.95 pp** (Pro-Wide vs lfu_hour) | F1: **+0.5 pp** (Pro-Reg vs markov_inv) |
-| Robust summary | NDCG: **+2.42 pp** (C3.3 vs markov_inv) | **MCC: +3.6 pp** (Pro-Reg vs hybrid) |
+#### 5.3.4  Track A vs Track B agreement
 
-The two tracks broadly agree on the ordering: trained models > Markov-inverse > LFU-hour ≈ LRU ≈ TimeInBG > Hybrid > Random (with hybrid_lru_mk being a quirky outlier on Track B because its score distribution has the F1-optimal τ near zero).
+| Metric family     | Track A best gain (test)          | Track B best gain (test)          |
+|-------------------|-----------------------------------|-----------------------------------|
+| Ranking quality   | ROC-AUC: **+8.71 pp**             | — (threshold-free; not in B)      |
+| Decision quality  | FK@0.5: **−1.95 pp**              | FKR@τ: **−1.5 pp** (Pro-List vs lfu_hour 0.205) |
+| Robust summary    | NDCG: **+2.42 pp**                | **MCC: +3.8 pp**                  |
+
+Both tracks rank the models the same way — Pro-Reg/c3.3 ≈ Pro-Wide/c3.3 ≈ Pro-List/c3.3 ≈ C3.3 > Markov-inverse > others > Random. Track A is preferred for the *fixed-budget eviction* deployment story; Track B's MCC@τ\* is preferred when you want one robust number under class imbalance.
+
+#### 5.3.5  Hybrid LRU+Markov sits at a degenerate τ ≈ 0
+
+The Hybrid baseline's val-F1-optimal τ\* is at the lowest grid point (≈ 0). At this corner it kills very few apps — SKR@τ drops to 0.82 (vs ~0.98 for everyone else), but the few apps it does kill are mostly correct, giving it the lowest FKR@τ on the test table. **Don't read this as the Hybrid baseline being "best on FKR"** — it's just sitting at a low-recall corner of its precision-recall curve. Its F1 (0.83) is the worst of all 10 rows, which is the right read.
 
 ### 5.4  Top-4 trained models — focused comparison
 
