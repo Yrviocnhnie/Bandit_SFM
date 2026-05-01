@@ -151,20 +151,31 @@ def main():
         ("Pro-Wide/c3.3",  "score_prowide"),
     ]
 
+    FIXED_TAUS = [0.30, 0.40, 0.50, 0.60, 0.70]
+    TRAINED_LABELS = {"random", "C3.3", "Pro-Reg/c3.3", "Pro-List/c3.3", "Pro-Wide/c3.3"}
+
     out: dict = {}
     for label, col in REPORT_ROWS:
         tau_star = MET.find_best_tau_by_f1(bg_val, col, "y_3600")
-        out[label] = {
+        entry = {
             "tau_star": float(tau_star),
             "val":  MET.compute_threshold_metrics(bg_val,  col, "y_3600", tau_star),
             "test": MET.compute_threshold_metrics(bg_test, col, "y_3600", tau_star),
         }
+        if label in TRAINED_LABELS:
+            entry["fixed"] = {}
+            for tau in FIXED_TAUS:
+                entry["fixed"][f"{tau:.2f}"] = {
+                    "val":  MET.compute_threshold_metrics(bg_val,  col, "y_3600", tau),
+                    "test": MET.compute_threshold_metrics(bg_test, col, "y_3600", tau),
+                }
+        out[label] = entry
 
     out_path = art / "bg" / "results" / "threshold_metrics.json"
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
 
-    # Pretty-print
+    # Pretty-print τ* (all models)
     for split in ("val", "test"):
         print(f"\n=== {split.upper()}   Track B — threshold-based metrics  (τ* = arg max F1 on val) ===")
         print(f"{'Model':<18}{'τ*':<7}{'KillPrec':<10}{'KillRec':<10}"
@@ -176,7 +187,20 @@ def main():
             print(f"{label:<18}{row['tau_star']:<7.3f}"
                   f"{m['kill_precision']:<10.4f}{m['kill_recall']:<10.4f}"
                   f"{m['f1']:<8.4f}{m['accuracy']:<10.4f}{m['mcc']:<8.4f}")
-    print(f"\n[41] wrote {out_path}")
+
+    # Pretty-print fixed-τ sweep (trained models only)
+    print(f"\n=== TEST   Track B — fixed-τ sweep (trained models only) ===")
+    print(f"{'Model':<18}{'τ':<7}{'KillPrec':<10}{'KillRec':<10}"
+          f"{'F1':<8}{'Accuracy':<10}{'MCC':<8}")
+    print("-" * 75)
+    for label in ("random", "C3.3", "Pro-Reg/c3.3", "Pro-List/c3.3", "Pro-Wide/c3.3"):
+        for tau in FIXED_TAUS:
+            m = out[label]["fixed"][f"{tau:.2f}"]["test"]
+            print(f"{label:<18}{tau:<7.2f}"
+                  f"{m['kill_precision']:<10.4f}{m['kill_recall']:<10.4f}"
+                  f"{m['f1']:<8.4f}{m['accuracy']:<10.4f}{m['mcc']:<8.4f}")
+        print()
+    print(f"[41] wrote {out_path}")
     return 0
 
 

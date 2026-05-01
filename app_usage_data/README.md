@@ -6,7 +6,7 @@ Single-user next-app + 15-minute-window prediction + background-app suspension e
 
 - **Task A — next-app prediction.** Given history up to moment *t*, predict the next `APP_FOREGROUND` / `APP_START` event's app. Metric: Hit@1, Hit@5, MRR.
 - **Task B — 15-min window set prediction.** Given history up to anchor time *t*, predict the set of apps the user will open in `[t, t+15 min]`. Metric: EventHit@5 (frequency-weighted coverage), Recall@5, Coverage@5.
-- **Task C — background-app suspension prediction.** Given the apps `B(t)` currently resident in background at anchor *t*, predict which will NOT be foregrounded in the next 60 min — i.e. which are safe to evict from RAM. Metric: PR-AUC, ROC-AUC, FalseKillRate@r, NDCG. The decision space is per-anchor (typically 4–10 apps), not the full 50-token vocab; the cost is asymmetric (false kill > miss).
+- **Task C — background-app suspension prediction.** Given the apps `B(t)` currently resident in background at anchor *t*, predict which will NOT be foregrounded in the next 60 min — i.e. which are safe to evict from RAM. Two evaluation tracks: **Track A (rank-based)** — top-`r·|B(t)|` eviction by score, metrics = PR-AUC, ROC-AUC, FalseKillRate@r, MemorySaveRate@r, NDCG. **Track B (threshold-based)** — per-(anchor, app) yes/no kill at τ, metrics = FKR@τ, SKR@τ, F1, Acc, MCC (with τ\* picked via argmax-F1 on val + a fixed-τ sweep at {0.30, 0.40, 0.50, 0.60, 0.70}). MCC is the headline for Track B because the kill class is 78 % of rows. The decision space is per-anchor (typically 4–10 apps), not the full 50-token vocab; cost is asymmetric (false kill > miss).
 
 All three tasks evaluated on the same 30/5/5-day chronological split (60-min embargo), with a 5-min anchor grid restricted to 06:00–24:00 for Tasks B and C.
 
@@ -70,8 +70,10 @@ python scripts/36_train_c3_grid.py --variant c3.2                             # 
 python scripts/36_train_c3_grid.py --variant c3.3                             # + 3 category-aware features (winning feature schema)
 python scripts/36_train_c3_grid.py --variant c3pro_reg --pro-schema c3.3      # production: dropout 0.3 + label smoothing + cosine LR + SWA
 python scripts/37_train_c3pro_ensemble.py c3.3                                # 5-seed ensemble
-python scripts/35_eval_h60.py                                                 # bootstrap CIs + Pareto FK-vs-MSR figures
-python scripts/38_generate_features.py                                        # feature-pipeline validator / regression test
+python scripts/35_eval_h60.py                                                 # Track A: bootstrap CIs + Pareto FK-vs-MSR figures
+python scripts/38_generate_features.py                                        # feature-pipeline validator / regression smoke test
+python scripts/40_positive_metrics.py                                         # positives-only metrics (WAKR / PosRank / PosScoreNorm)
+python scripts/41_threshold_metrics.py                                        # Track B: τ* (argmax F1 on val) + fixed-τ sweep — FKR / SKR / F1 / Acc / MCC
 ```
 
 ## Layout
@@ -124,7 +126,7 @@ app_usage_data/
 │      ├─ features_bg.py      — per-(anchor, app) feature builders + multi-horizon label generation (5 / 10 / 30 / 60 min)
 │      ├─ baselines_bg.py     — closed-form baselines (Random / LRU / TimeInBG / LFU-hour / Markov-inv / Hybrid)
 │      ├─ models_bg.py        — BgPairMLP (legacy dual-head) + ModelCfg / SingleHeadMLP / WideMLP for the C3 / C3-Pro models
-│      └─ metrics_bg.py       — FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG@half (per-anchor, equal-anchor weight)
+│      └─ metrics_bg.py       — Track A (rank-based): FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG@half · Track B (threshold-based): compute_threshold_metrics (FKR / SKR / F1 / Acc / MCC), find_best_tau_by_f1 (49-quantile sweep), compute_positive_only_metrics (WAKR / PosRank / PosScoreNorm)
 │
 ├─ scripts/
 │  ├─ 01_prep_data.py .. 07_report.py                — v1 pipeline
@@ -137,10 +139,12 @@ app_usage_data/
 │  ├─ 31_run_baselines_bg.py                           — Task C: closed-form baselines on bg parquets
 │  ├─ 32_train_task_c.py / 33_eval_task_c.py           — Task C: legacy dual-head MLP (H=5/10) + eval — historical
 │  ├─ 34_train_task_c_h60.py                           — Task C: single-head MLP for c1 / c2 / c3.1 schemas (H=60)
-│  ├─ 35_eval_h60.py                                   — Task C: bootstrap CIs (B=1000) + Pareto figures
+│  ├─ 35_eval_h60.py                                   — Task C Track A: bootstrap CIs (B=1000) + Pareto figures
 │  ├─ 36_train_c3_grid.py                              — Task C: cumulative C3.x feature track + C3-Pro architectural variants
 │  ├─ 37_train_c3pro_ensemble.py                       — Task C: 5-seed ensemble of best C3-Pro variant
-│  └─ 38_generate_features.py                          — Task C: feature-pipeline validator / sanity report
+│  ├─ 38_generate_features.py                          — Task C: feature-pipeline validator / sanity report
+│  ├─ 40_positive_metrics.py                           — Task C: positives-only metrics (WAKR / PosRank / PosScoreNorm)
+│  └─ 41_threshold_metrics.py                          — Task C Track B: τ* (argmax F1 on val) + fixed-τ sweep — FKR / SKR / F1 / Acc / MCC
 │
 ├─ artifacts/
 │  ├─ splits/{train,val,test}.parquet                                  # all tasks (event-level)
