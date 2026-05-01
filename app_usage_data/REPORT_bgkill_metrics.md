@@ -43,27 +43,54 @@ We'll trace this single anchor through every metric below.
 
 ---
 
-## 2. The deployment frame
+## 2. Two deployment frames
+
+The metrics in this report split into **two parallel families** corresponding to two different deployment scenarios:
+
+### 2.A  Rank-based, fixed-budget eviction  *(see §§3–9)*
 
 At anchor `t`, the OS:
 
 1. Looks at `B(t)` — apps currently in background.
-2. Chooses an **eviction ratio** `r ∈ [0, 1]`.
+2. Chooses an **eviction ratio** `r ∈ [0, 1]` driven by RAM pressure.
 3. Kills the top `K = ⌈r · |B(t)|⌉` apps by `kill_score`.
 
-Outcome of each killed app:
+The OS supplies *how many* to kill; the model only supplies the ranking. This is the Android / HarmonyOS LowMemoryKiller-style "free this much RAM right now" pattern.
 
-- **False kill** — killed, but the user *did* foreground it in `(t, t+H]`. **Bad** (user feels lag, lost state).
-- **Correct kill** — killed, user *didn't* foreground it. **Good** (RAM reclaimed).
+Metrics: **FK@r, SafeKillRecall@r, ROC-AUC, PR-AUC, NDCG, Pareto** (§§3–9).
 
-Metrics quantify this trade-off at fixed `r` (operating-point view) and threshold-free (ranking quality).
+### 2.B  Threshold-based, "yes/no per app"  *(see §10)*
 
-Convention used below:
+At anchor `t`, the model decides per-app:
 
 ```
-score   = kill_score   (higher → more kill-worthy)
-y       = 1 if app was foregrounded in (t, t+H]   (i.e. user came back to it)
-killed  = top-⌈r · |B(t)|⌉ rows of an anchor by score
+predicted_kill(a) = 1  if  score(a) > τ
+                    0  otherwise
+```
+
+τ is a fixed score threshold tuned on val. Number of apps killed varies per anchor — could be 0, could be all of `B(t)`. This matches a "background-suspend if confident" policy where the model owns the kill decision rather than the OS.
+
+Metrics: **KillPrecision@τ, KillRecall@τ, F1@τ, MCC@τ** (§10).
+
+### Outcome categories  *(shared across both frames)*
+
+For any app with `predicted_kill = 1`:
+
+- **False kill** (FP) — user *did* foreground it in `(t, t+H]`. **Bad** (user pain).
+- **Correct kill** (TP) — user *didn't* foreground it. **Good** (RAM saved).
+
+For any app with `predicted_kill = 0`:
+
+- **Missed save** (FN) — user *didn't* foreground; could have killed safely but didn't.
+- **Correct keep** (TN) — user *did* foreground; we correctly kept it alive.
+
+Convention:
+
+```
+score   = kill_score                (higher → more killable)
+y       = 1 if app was foregrounded in (t, t+H]
+killed  (rank-based, §§3–9)  = top-⌈r · |B(t)|⌉ rows of an anchor by score
+killed  (threshold-based, §10) = rows with score > τ
 ```
 
 ---
@@ -353,15 +380,142 @@ The headline `r = 0.5` operating point captures "kill half of B(t)". For C3-Pro 
 
 ---
 
-## 10. The standard leaderboard row
+## 10. Threshold-based metrics (yes/no per-app deployment)
 
-Every model variant emits the following row:
+The metrics in §§3–9 evaluate **rank-based** policies (§2.A) — sort `B(t)` by kill-score, kill the top-K. This section evaluates the **threshold-based** alternative (§2.B): for each app independently, kill iff `score(a) > τ`.
+
+The user picks τ once (e.g. tuned on val for max-F1), freezes it, and the model produces per-app binary kill decisions. This matches the "yes/no per app" deployment that maps directly to the binary `y_3600` ground truth.
+
+### 10.1  Confusion matrix at threshold τ
+
+|                         | GT: y = 0 (safe to kill)            | GT: y = 1 (user wanted)            |
+|-------------------------|--------------------------------------|-------------------------------------|
+| **Predicted: kill (s > τ)** | **TP** — correct kill (RAM saved)   | **FP** — false kill (user pain)    |
+| **Predicted: keep (s ≤ τ)** | **FN** — missed save                | **TN** — correct keep              |
+
+Asymmetric cost: an FP (killing a wanted app) costs more than an FN (failing to save RAM that was safe). This forces τ to lean conservative.
+
+### 10.2  KillPrecision @ τ  *(headline — answers "of kills, how many were correct?")*
 
 ```
-ROC-AUC@H60   PR-AUC@H60   FK@0.5   SafeKillRecall@0.5   NDCG@half
+KillPrecision = TP / (TP + FP)
 ```
 
-Plus per-`r` columns for `FK@0.25`, `FK@0.75` etc. that go into the Pareto figure.
+**Higher is better.** Equivalent to `1 − (false-kill rate at τ)`. The user-proposed metric "of all the apps the model decides to kill, how many were mistakes" is exactly `1 − KillPrecision = FP / (TP+FP)`.
+
+A KillPrecision of 0.85 means: across all apps the model decided to kill, 85 % were genuinely safe to kill and 15 % were apps the user actually wanted.
+
+### 10.3  KillRecall @ τ  *(answers "of safe-to-kill apps, how many got killed?")*
+
+```
+KillRecall = TP / (TP + FN)
+```
+
+**Higher is better.** Equivalent to *SafeKillRecall* at threshold τ. The user-proposed metric "of all the apps GT says we should kill, how many did we actually kill" is exactly KillRecall.
+
+A KillRecall of 0.65 means: of the apps that were safe to kill, the model captured 65 % of them — the other 35 % were left in RAM.
+
+KillPrecision and KillRecall trade off as τ moves: lowering τ lets more apps qualify for killing → KillRecall ↑ but KillPrecision ↓ (more false kills mixed in).
+
+### 10.4  F1 @ τ  *(combined precision/recall summary)*
+
+```
+F1 = 2 · KillPrecision · KillRecall / (KillPrecision + KillRecall)
+```
+
+Harmonic mean — penalizes models that are good at one of P/R but bad at the other. Useful as a single-number target when picking τ on val.
+
+### 10.5  MCC @ τ — Matthews Correlation Coefficient
+
+```
+MCC = (TP·TN − FP·FN) / sqrt((TP+FP) (TP+FN) (TN+FP) (TN+FN))
+```
+
+Range **[−1, +1]**:  −1 = perfectly inverted, 0 = random, +1 = perfect. Robust to class imbalance — a predict-all-zero baseline gets accuracy = 0.78 on this task (since 22 % are positive) but MCC = 0. **MCC = 0** is the right reference for "this model isn't doing anything."
+
+For headline reporting under class imbalance, **MCC is preferred over Accuracy.**
+
+### 10.6  How τ is chosen
+
+Three reasonable rules, all evaluated on val and frozen for test:
+
+| Rule | Formula | When to use |
+|---|---|---|
+| τ = 0.5 (Bayes default) | — | Sigmoid output, well-calibrated. With `pos_weight ≈ 3` in BCE training, this is sub-optimal — kills too eagerly. |
+| τ* = arg max F1 on val | scan τ ∈ [0, 1] | The default for cross-model comparison. Each model gets its own τ*, but applied frozen to test. |
+| τ = at-most-X% false-kill | `min τ s.t. FP/(FP+TP) ≤ X` on val | When there's a hard product constraint on user pain. |
+
+The standard leaderboard reports τ\* (max-F1 on val) for every model.
+
+### 10.7  Worked example (toy anchor from §1.5)
+
+Same 5-app anchor as before. Pick τ = 0.5:
+
+| App | Score | y | Predicted kill (s > 0.5) | Outcome |
+|---|---|---|---|---|
+| A | 0.95 | 0 | 1 | **TP** |
+| B | 0.80 | 0 | 1 | **TP** |
+| C | 0.60 | 1 | 1 | **FP** ✗ |
+| D | 0.30 | 0 | 0 | **FN** |
+| E | 0.10 | 1 | 0 | **TN** |
+
+Counts: TP = 2, FP = 1, FN = 1, TN = 1.
+
+| Metric | Value | Reading |
+|---|---:|---|
+| KillPrecision | 2 / 3 = **0.667** | 2 of the 3 kills were correct; 1 was a mistake |
+| KillRecall | 2 / 3 = **0.667** | 2 of the 3 safe-to-kill apps were killed; 1 was missed |
+| F1 | 2·0.667·0.667/(0.667+0.667) = **0.667** | balanced number |
+| Accuracy | (2+1)/5 = **0.60** | 3 of 5 decisions correct |
+| MCC | (2·1 − 1·1) / √(3·3·2·2) = 1/6 ≈ **0.167** | weakly positive — model is doing slightly better than random on this anchor |
+
+Compare to the rank-based view at r = 0.5 from §3 (same anchor): FK@0.5 = 1/3 ≈ 0.333, SafeKillRecall@0.5 = 2/3 ≈ 0.667. The recall agrees (we caught 2 of 3 safe apps either way). KillPrecision (0.667) = 1 − FK@0.5 (0.333) ✓. The two metric families converge here only because at this anchor the threshold τ = 0.5 happens to kill the same 3 apps as the top-r=0.5 rank cut would; in general they pick different kill sets.
+
+### 10.8  Threshold selection — practical recipe
+
+```python
+from sklearn.metrics import f1_score
+def pick_tau(val_scores, val_y_kill_label):
+    taus = np.linspace(0.02, 0.98, 49)
+    f1s = [f1_score(val_y_kill_label, val_scores > t) for t in taus]
+    return taus[int(np.argmax(f1s))]
+```
+
+For models trained with `pos_weight = 3.0`, expect τ* in the [0.6, 0.8] range — calibration is biased toward predicting kill more eagerly than 0.5 implies.
+
+### 10.9  User-proposed metrics → standard equivalents
+
+| User's name | Standard equivalent | Formula |
+|---|---|---|
+| "of all GT-killed apps at an anchor, how many killed by mistake" | **1 − KillPrecision @ τ** | `FP / (TP + FP)` |
+| "of all GT-killed apps, how many we actually killed" | **KillRecall @ τ** | `TP / (TP + FN)` |
+| "Mean kill-score on positives" | (already in `REPORT_bgkill_v3.md` §5.5 as **PosScoreNorm**) | per-anchor min-max scale, then mean over y=1 rows |
+
+The first two map cleanly onto KillPrecision/Recall — exactly the standard binary-classification metrics. The third (mean kill-score on positives) is rank-aware rather than threshold-based; it lives in §5.5 of `REPORT_bgkill_v3.md` rather than here.
+
+### 10.10  Threshold-based vs rank-based — which to lead with?
+
+| Deployment | Use |
+|---|---|
+| RAM-pressure event with fixed kill-budget | Rank-based (§§3–9): FK@0.5, SafeKillRecall@0.5, Pareto |
+| Continuous "suspend if confident" policy | Threshold-based (§10): KillPrecision@τ\*, KillRecall@τ\*, F1@τ\* |
+| You want one robust number under class imbalance | MCC @ τ\* (this section) |
+| You don't want to commit to any τ | ROC-AUC, PR-AUC (§§5–6) — they integrate over all thresholds |
+
+Both families are valid. They answer different questions. The leaderboard (§11 below) lists both side-by-side.
+
+---
+
+## 11. The standard leaderboard row
+
+Every model variant emits **both** metric families:
+
+```
+Rank-based (§§3–9):       ROC-AUC@H60   PR-AUC@H60   FK@0.5   SafeKillRecall@0.5   NDCG@half
+Threshold-based (§10):    KillPrecision@τ*   KillRecall@τ*   F1@τ*   MCC@τ*
+```
+
+`τ*` = threshold tuned on val to maximise F1 (one τ per model, frozen for test). Plus per-`r` columns for `FK@{0.25, 0.75}` etc. that go into the Pareto figure.
 
 Layout:
 
@@ -377,7 +531,7 @@ Layout:
 
 ---
 
-## 11. Pareto figures (output)
+## 12. Pareto figures (output)
 
 For every (split ∈ {val, test}, horizon = H=60):
 
@@ -388,7 +542,7 @@ For every (split ∈ {val, test}, horizon = H=60):
 
 ---
 
-## 12. Implementation pointer
+## 13. Implementation pointer
 
 All metrics live in **`lib/bg/metrics_bg.py`**:
 
@@ -404,19 +558,21 @@ The function `compute_metrics` already supports any `y_col` so it works with `y_
 
 ---
 
-## 13. What I deliberately don't add
+## 14. What I deliberately don't add
 
 | Skipped | Reason |
 |---|---|
-| **Calibration** (Brier score, expected calibration error) | We use top-K ranking, not absolute probability — calibration matters only if a downstream system trusts the score as a probability. |
+| **Calibration** (Brier score, ECE) | Track-A (rank-based) doesn't depend on calibration. Track-B (threshold-based, §10) does — we side-step it by tuning τ\* per model on val rather than using τ = 0.5. |
 | **Inference-latency / memory footprint** | Single-user CPU prototype; deployment-stage concerns. |
 | **Per-app metrics** (per-app FK rate) | Not actionable for an OS-level decision; plus very few positives per app at this user. |
 | **Per-time-of-day metrics** | Useful for diagnostics, not for the headline leaderboard. |
-| **Bootstrap confidence intervals** | Test set is 975 anchors; CIs are roughly ± 3–4 pp on ROC-AUC. Worth doing once for the final report figure but not per training run. |
+| **Bootstrap confidence intervals on every run** | Test set is 817 anchors; CIs are roughly ± 3–4 pp on ROC-AUC. We do compute them once via `scripts/35_eval_h60.py` for the final report figures (REPORT_bgkill_v3.md §5.6); per training run is wasteful. |
 
 ---
 
-## 14. TL;DR
+## 15. TL;DR
+
+### Track A — rank-based (RAM-pressure / fixed-budget eviction)
 
 | What | Use |
 |---|---|
@@ -425,8 +581,24 @@ The function `compute_metrics` already supports any `y_col` so it works with `y_
 | Full tradeoff curve | **Pareto figure** sweeping r ∈ {0.1, 0.25, 0.5, 0.75, 0.9} |
 | Imbalance-aware secondary | **PR-AUC** |
 | Sanity / top-of-ranking | **NDCG@half** |
-| Always cross-check | **vs Random** (any model with ROC-AUC < 0.55 has a bug) |
 
-Single-line summary of the metric stack:
+### Track B — threshold-based (yes/no per app at fixed τ)
 
-> **ROC-AUC** for ranking, **FK@0.5** for the deployment number, **Pareto** for the figure. Everything else is a sanity check.
+| What | Use |
+|---|---|
+| Headline harmful-decision rate | **1 − KillPrecision@τ*** = false-kill rate |
+| Headline coverage of safe apps | **KillRecall@τ*** |
+| Combined single number | **F1@τ*** for picking τ; **MCC@τ*** for cross-baseline comparability |
+| Threshold | **τ\*** = arg-max F1 on val, frozen on test |
+
+### Always cross-check
+
+| Check | Reason |
+|---|---|
+| ROC-AUC ≥ 0.55 | Below = model has a bug. |
+| KillRecall@τ\* > Random's | Confirms the threshold isn't degenerate. |
+| FK@0.5 ≤ Markov-inverse's | The strongest closed-form baseline. |
+
+Single-line summary of the full metric stack:
+
+> **ROC-AUC** for ranking quality (track A), **MCC@τ\*** for classification quality (track B), **FK@0.5 / KillRecall@τ\*** for the two deployment numbers, **Pareto** for the rank-based tradeoff curve. Everything else is a sanity check.
