@@ -283,7 +283,7 @@ def find_best_tau_by_f1(
     y_col: str,
     n_grid: int = 49,
 ) -> float:
-    """Return the τ that maximises F1 on this df. Use on val, freeze for test."""
+    """Return τ that maximises F1 of the *kill* class on this df."""
     s = df[score_col].to_numpy(dtype=np.float64)
     qs = np.linspace(0.02, 0.98, n_grid)
     tau_grid = np.unique(np.quantile(s, qs))
@@ -294,3 +294,62 @@ def find_best_tau_by_f1(
             best_f1 = m["f1"]
             best_tau = float(tau)
     return best_tau
+
+
+def compute_keep_threshold_metrics(
+    df: pd.DataFrame,
+    score_col: str,
+    y_col: str,
+    tau: float,
+) -> dict:
+    """Threshold-based metrics with the *keep* class as the positive (rare 22% class).
+
+    Per (anchor, app) row:
+        predict_keep = (score <= τ)        # decision is "do NOT kill"
+        truth_keep   = y                   # 1 = user wanted the app
+    """
+    s = df[score_col].to_numpy(dtype=np.float64)
+    y = df[y_col].to_numpy(dtype=np.int64)
+    pred_keep = (s <= tau).astype(np.int64)
+    truth_keep = y
+    tp = int(((pred_keep == 1) & (truth_keep == 1)).sum())
+    fp = int(((pred_keep == 1) & (truth_keep == 0)).sum())
+    tn = int(((pred_keep == 0) & (truth_keep == 0)).sum())
+    fn = int(((pred_keep == 0) & (truth_keep == 1)).sum())
+    n = tp + fp + tn + fn
+    p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+    accuracy = (tp + tn) / n if n > 0 else 0.0
+    denom_sq = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
+    mcc = (tp * tn - fp * fn) / np.sqrt(denom_sq) if denom_sq > 0 else 0.0
+    return {
+        "tau": float(tau),
+        "keep_precision": float(p),
+        "keep_recall":    float(r),
+        "keep_f1":        float(f1),
+        "accuracy":       float(accuracy),
+        "mcc":            float(mcc),
+        "tp_keep": tp, "fp_keep": fp, "tn_keep": tn, "fn_keep": fn,
+        "n": n,
+    }
+
+
+def find_best_tau_by_f1_keep(
+    df: pd.DataFrame,
+    score_col: str,
+    y_col: str,
+    n_grid: int = 49,
+) -> float:
+    """Return τ that maximises F1 of the *keep* (rare) class. Use on val, freeze for test."""
+    s = df[score_col].to_numpy(dtype=np.float64)
+    qs = np.linspace(0.02, 0.98, n_grid)
+    tau_grid = np.unique(np.quantile(s, qs))
+    best_tau, best_f1 = float(tau_grid[0]), -1.0
+    for tau in tau_grid:
+        m = compute_keep_threshold_metrics(df, score_col, y_col, tau=float(tau))
+        if m["keep_f1"] > best_f1 + 1e-9:
+            best_f1 = m["keep_f1"]
+            best_tau = float(tau)
+    return best_tau
+

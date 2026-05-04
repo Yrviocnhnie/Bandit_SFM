@@ -162,6 +162,13 @@ def main():
             "val":  MET.compute_threshold_metrics(bg_val,  col, "y_3600", tau_star),
             "test": MET.compute_threshold_metrics(bg_test, col, "y_3600", tau_star),
         }
+        # Keep-class argmax F1 (positive class flipped to the rare 22 % "keep" class)
+        tau_star_keep = MET.find_best_tau_by_f1_keep(bg_val, col, "y_3600")
+        entry["tau_star_keep"] = float(tau_star_keep)
+        entry["val_keep"]  = MET.compute_keep_threshold_metrics(bg_val,  col, "y_3600", tau_star_keep)
+        entry["test_keep"] = MET.compute_keep_threshold_metrics(bg_test, col, "y_3600", tau_star_keep)
+        # Also compute the *kill-side* metrics at the keep-tuned τ for direct comparison
+        entry["test_kill_at_keep_tau"] = MET.compute_threshold_metrics(bg_test, col, "y_3600", tau_star_keep)
         if label in TRAINED_LABELS:
             entry["fixed"] = {}
             for tau in FIXED_TAUS:
@@ -187,6 +194,21 @@ def main():
             print(f"{label:<18}{row['tau_star']:<7.3f}"
                   f"{m['kill_precision']:<10.4f}{m['kill_recall']:<10.4f}"
                   f"{m['f1']:<8.4f}{m['accuracy']:<10.4f}{m['mcc']:<8.4f}")
+
+    # Pretty-print keep-class argmax τ*
+    print(f"\n=== TEST   Track B — argmax-F1 on KEEP class (rare 22 %) ===")
+    print(f"{'Model':<18}{'τ_keep':<8}{'F1_keep':<10}{'F1_kill':<10}"
+          f"{'MCC':<8}{'FKR':<8}{'SKR':<8}{'Acc':<8}")
+    print("-" * 85)
+    for label, _ in REPORT_ROWS:
+        row = out[label]
+        mk = row["test_keep"]
+        mki = row["test_kill_at_keep_tau"]
+        fkr = 1.0 - mki["kill_precision"]
+        print(f"{label:<18}{row['tau_star_keep']:<8.3f}"
+              f"{mk['keep_f1']:<10.4f}{mki['f1']:<10.4f}"
+              f"{mki['mcc']:<8.4f}{fkr:<8.4f}{mki['kill_recall']:<8.4f}"
+              f"{mki['accuracy']:<8.4f}")
 
     # Pretty-print fixed-τ sweep (trained models only)
     print(f"\n=== TEST   Track B — fixed-τ sweep (trained models only) ===")

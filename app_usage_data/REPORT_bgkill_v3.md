@@ -354,6 +354,40 @@ Both tracks rank the trained models the same way (Pro-Reg/c3.3 ≈ Pro-Wide/c3.3
 
 Practical takeaway: **τ depends on which metric you optimise.** F1 → τ\* ≈ 0.18–0.20 (kill aggressively, SKR ≈ 0.98). MCC → **τ ≈ 0.30–0.40** (+5 pp MCC vs τ\*). Conservative knob that minimises false-kills → τ = 0.60 (FKR ≈ 0.05, SKR ≈ 0.36).
 
+#### 5.3.6  Flipping the positive class — argmax F1 on the **keep** (rare) class
+
+F1 isn't symmetric in the class definition: it ignores TN and only rewards correctly identifying the *positive* class. With kill = 78 % majority, F1(kill) saturates near 0.87 for any model — random scores 0.872, trained 0.886, gap = 1.4 pp. Picking τ\* by argmax-F1(kill) puts us in the recall-saturated regime where models look the same.
+
+**Fix:** flip the positive class to "keep" (the rare 22 %). Now F1 actually rewards getting the rare class right.
+
+**Test set with τ\* = argmax F1(keep) on val** (5 models):
+
+| Model             | τ_keep   | F1_keep ↑  | F1_kill ↑ | MCC ↑      | FKR ↓      | SKR ↑      | Acc ↑      |
+|-------------------|---------:|-----------:|-----------:|-----------:|-----------:|-----------:|-----------:|
+| random            | 0.980    | 0.3589     | 0.0455     | 0.0378     | **0.1094** | 0.0233     | 0.2329     |
+| C3.3              | 0.405    | 0.4738     | **0.7336** | 0.2947     | 0.1059     | **0.6219** | **0.6463** |
+| **Pro-Reg/c3.3**  | **0.415**| **0.4835** | 0.6970     | **0.3178** | 0.0799     | 0.5610     | 0.6181     |
+| Pro-List/c3.3     | 0.522    | 0.4593     | 0.7086     | 0.2717     | 0.1086     | 0.5880     | 0.6213     |
+| Pro-Wide/c3.3     | 0.548    | 0.4587     | 0.6105     | 0.2871     | **0.0658** | 0.4534     | 0.5469     |
+
+**Side-by-side: kill-class argmax (current §5.3.2) vs keep-class argmax:**
+
+| Model           | argmax F1(kill)<br>τ\*   MCC | argmax F1(keep)<br>τ_keep   MCC | Δ MCC      |
+|-----------------|----------------:|----------------:|-----------:|
+| random          | 0.020   0.024   | 0.980   0.038   |  +1.4 pp   |
+| C3.3            | 0.176   0.241   | 0.405   **0.295** | **+5.4 pp** |
+| **Pro-Reg/c3.3** | 0.176   0.259  | 0.415   **0.318** | **+6.0 pp** |
+| Pro-List/c3.3   | 0.371   0.245   | 0.522   0.272   |  +2.7 pp   |
+| Pro-Wide/c3.3   | 0.202   0.258   | 0.548   0.287   |  +3.0 pp   |
+
+**Three observations:**
+
+1. **τ_keep lands at MCC's natural sweet spot.** Every trained model picks τ_keep ≈ 0.40 – 0.55 — precisely where MCC peaks in the §5.3.5 fixed-τ sweep. **Argmax-F1(keep) is essentially a free implementation of argmax-MCC** via a more principled objective (you don't need to know about MCC).
+2. **F1(keep) is far more discriminative than F1(kill)** under our class imbalance. Random gets F1(keep) ≈ 0.36 (the saturation floor for the rare class); trained models reach ≈ 0.47 – 0.48. **+12 pp gap, vs only +1 pp on F1(kill).** When the metric you tune τ to is itself discriminative, you don't have to triangulate via MCC after the fact.
+3. **The deployment trade is right.** Compared to argmax-F1(kill): SKR drops (~0.98 → 0.45 – 0.62, we kill fewer apps overall), but FKR drops too (~0.19 → 0.07 – 0.11, far fewer wanted apps killed). False-kill is the more expensive UX failure, so this trade goes the right way.
+
+**Recommendation:** make `find_best_tau_by_f1_keep` (already in `lib/bg/metrics_bg.py`) the default τ-picker. Headline Pro-Reg MCC moves **0.259 → 0.318 (+5.9 pp)** with no model change. Equivalently, pick τ by argmax-MCC on val — the two converge on the same operating point.
+
 ### 5.4  Top-4 trained models — focused comparison
 
 The four picks below cover all four "best-on-X" winners on test, one per key metric. Use this short list for downstream analysis; the full 16-model grid is in §5.1 / §5.2.

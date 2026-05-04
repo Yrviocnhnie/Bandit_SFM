@@ -126,7 +126,7 @@ app_usage_data/
 │      ├─ features_bg.py      — per-(anchor, app) feature builders + multi-horizon label generation (5 / 10 / 30 / 60 min)
 │      ├─ baselines_bg.py     — closed-form baselines (Random / LRU / TimeInBG / LFU-hour / Markov-inv / Hybrid)
 │      ├─ models_bg.py        — BgPairMLP (legacy dual-head) + ModelCfg / SingleHeadMLP / WideMLP for the C3 / C3-Pro models
-│      └─ metrics_bg.py       — Track A (rank-based): FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG@half · Track B (threshold-based): compute_threshold_metrics (FKR / SKR / F1 / Acc / MCC), find_best_tau_by_f1 (49-quantile sweep), compute_positive_only_metrics (WAKR / PosRank / PosScoreNorm)
+│      └─ metrics_bg.py       — Track A (rank-based): FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG@half · Track B (threshold-based): compute_threshold_metrics + find_best_tau_by_f1 (kill class as positive); compute_keep_threshold_metrics + find_best_tau_by_f1_keep (flipped — rare keep class); compute_positive_only_metrics (WAKR / PosRank / PosScoreNorm)
 │
 ├─ scripts/
 │  ├─ 01_prep_data.py .. 07_report.py                — v1 pipeline
