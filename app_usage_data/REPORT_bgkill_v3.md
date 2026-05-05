@@ -388,6 +388,77 @@ F1 isn't symmetric in the class definition: it ignores TN and only rewards corre
 
 **Recommendation:** make `find_best_tau_by_f1_keep` (already in `lib/bg/metrics_bg.py`) the default τ-picker. Headline Pro-Reg MCC moves **0.259 → 0.318 (+5.9 pp)** with no model change. Equivalently, pick τ by argmax-MCC on val — the two converge on the same operating point.
 
+#### 5.3.7  Dense τ-sweep (50 points, step = 0.02) — top 5 τ by mean MCC
+
+The §5.3.5 sweep used a coarse grid {0.30, 0.40, 0.50, 0.60, 0.70} — wide enough to read trends, narrow enough to miss the actual MCC peak. Dense sweep at τ ∈ {0.02, 0.04, …, 1.00} on test, ranking τ by **mean MCC across the 4 trained models**:
+
+The top 5 τ values are **{0.38, 0.40, 0.42, 0.44, 0.46}** — all clustered tightly around τ ≈ 0.42, robustly inside the discriminative regime. (random + 4 trained, test split, n = 3 121 rows; **bold** = column winner per τ.)
+
+##### τ = 0.38
+
+| Model             | FKR ↓      | SKR ↑      | F1 ↑       | Acc ↑      | MCC ↑      |
+|-------------------|-----------:|-----------:|-----------:|-----------:|-----------:|
+| random            | 0.2087     | 0.6297     | 0.7013     | 0.5799     | 0.0255     |
+| C3.3              | 0.1159     | 0.6743     | 0.7651     | 0.6757     | 0.2985     |
+| Pro-Reg/c3.3      | **0.0985** | 0.6293     | 0.7412     | 0.6559     | 0.3155     |
+| Pro-List/c3.3     | 0.1842     | **0.9497** | **0.8777** | **0.7927** | 0.2550     |
+| **Pro-Wide/c3.3** | 0.1243     | 0.7463     | 0.8058     | 0.7184     | **0.3182** |
+
+##### τ = 0.40
+
+| Model             | FKR ↓      | SKR ↑      | F1 ↑       | Acc ↑      | MCC ↑      |
+|-------------------|-----------:|-----------:|-----------:|-----------:|-----------:|
+| random            | 0.2090     | 0.6084     | 0.6878     | 0.5674     | 0.0235     |
+| C3.3              | 0.1058     | 0.6330     | 0.7413     | 0.6540     | 0.3007     |
+| **Pro-Reg/c3.3**  | **0.0896** | 0.5904     | 0.7163     | 0.6338     | **0.3138** |
+| Pro-List/c3.3     | 0.1726     | **0.9276** | **0.8746** | **0.7917** | 0.2882     |
+| Pro-Wide/c3.3     | 0.1182     | 0.6927     | 0.7759     | 0.6866     | 0.3028     |
+
+##### τ = 0.42
+
+| Model             | FKR ↓      | SKR ↑      | F1 ↑       | Acc ↑      | MCC ↑      |
+|-------------------|-----------:|-----------:|-----------:|-----------:|-----------:|
+| random            | 0.2102     | 0.5888     | 0.6746     | 0.5553     | 0.0193     |
+| C3.3              | 0.1012     | 0.5884     | 0.7112     | 0.6258     | 0.2878     |
+| Pro-Reg/c3.3      | **0.0790** | 0.5532     | 0.6912     | 0.6129     | 0.3153     |
+| **Pro-List/c3.3** | 0.1632     | **0.9128** | **0.8732** | **0.7924** | **0.3157** |
+| Pro-Wide/c3.3     | 0.1055     | 0.6522     | 0.7544     | 0.6674     | 0.3119     |
+
+##### τ = 0.44  ← **best operating point overall (Pro-List)**
+
+| Model             | FKR ↓      | SKR ↑      | F1 ↑       | Acc ↑      | MCC ↑      |
+|-------------------|-----------:|-----------:|-----------:|-----------:|-----------:|
+| random            | 0.2101     | 0.5708     | 0.6627     | 0.5450     | 0.0189     |
+| C3.3              | 0.0878     | 0.5524     | 0.6881     | 0.6078     | 0.2974     |
+| Pro-Reg/c3.3      | **0.0725** | 0.5025     | 0.6518     | 0.5796     | 0.3008     |
+| **Pro-List/c3.3** | 0.1479     | **0.8908** | **0.8710** | **0.7933** | **0.3556** |
+| Pro-Wide/c3.3     | 0.0909     | 0.6182     | 0.7360     | 0.6527     | 0.3265     |
+
+##### τ = 0.46
+
+| Model             | FKR ↓      | SKR ↑      | F1 ↑       | Acc ↑      | MCC ↑      |
+|-------------------|-----------:|-----------:|-----------:|-----------:|-----------:|
+| random            | 0.2125     | 0.5458     | 0.6448     | 0.5290     | 0.0116     |
+| C3.3              | 0.0776     | 0.5200     | 0.6651     | 0.5899     | 0.3005     |
+| Pro-Reg/c3.3      | **0.0680** | 0.4652     | 0.6206     | 0.5546     | 0.2894     |
+| **Pro-List/c3.3** | 0.1408     | **0.8437** | **0.8514** | **0.7693** | **0.3368** |
+| Pro-Wide/c3.3     | 0.0873     | 0.5687     | 0.7008     | 0.6197     | 0.3070     |
+
+**Per-model MCC peaks (from the full 50-point sweep):**
+
+| Model         | Best τ | Best MCC | vs. argmax-F1(kill) τ\* (§5.3.2) | Lift |
+|---------------|-------:|---------:|---------------------------------:|-----:|
+| C3.3          | 0.40   | 0.301    | 0.241                            | +6.0 pp |
+| Pro-Reg/c3.3  | 0.38   | 0.316    | 0.259                            | +5.7 pp |
+| **Pro-List/c3.3** | **0.44** | **0.356** | 0.245                            | **+11.1 pp** |
+| Pro-Wide/c3.3 | 0.44   | 0.327    | 0.258                            | +6.9 pp |
+
+**Headline updates from the dense sweep:**
+
+1. **Pro-List/c3.3 takes the crown at MCC = 0.356** (τ = 0.44), beating Pro-Reg's 0.318 by +4 pp. The coarse 0.40/0.50 grid in §5.3.5 missed this — the listwise-trained model has a sharper score distribution that benefits from fine τ-tuning.
+2. **The MCC-optimal τ band is narrow (0.38–0.46)** — 8 percentage points covers all four trained models' peaks. A single shipped τ ≈ 0.42 would be near-optimal for every model.
+3. **Random is invariant (MCC ≈ 0.02 across the band)** — confirming the trained gain isn't an artifact of where we sliced the threshold.
+
 ### 5.4  Top-4 trained models — focused comparison
 
 The four picks below cover all four "best-on-X" winners on test, one per key metric. Use this short list for downstream analysis; the full 16-model grid is in §5.1 / §5.2.

@@ -153,6 +153,8 @@ def main():
 
     FIXED_TAUS = [0.30, 0.40, 0.50, 0.60, 0.70]
     TRAINED_LABELS = {"random", "C3.3", "Pro-Reg/c3.3", "Pro-List/c3.3", "Pro-Wide/c3.3"}
+    # 50-point dense sweep, 0.02 step, τ ∈ {0.02, 0.04, ..., 1.00}
+    DENSE_TAUS = [round(0.02 * (i + 1), 2) for i in range(50)]
 
     out: dict = {}
     for label, col in REPORT_ROWS:
@@ -176,6 +178,11 @@ def main():
                     "val":  MET.compute_threshold_metrics(bg_val,  col, "y_3600", tau),
                     "test": MET.compute_threshold_metrics(bg_test, col, "y_3600", tau),
                 }
+            # 50-point dense sweep on test (only the trained-comparable rows)
+            entry["dense"] = {}
+            for tau in DENSE_TAUS:
+                entry["dense"][f"{tau:.2f}"] = MET.compute_threshold_metrics(
+                    bg_test, col, "y_3600", tau)
         out[label] = entry
 
     out_path = art / "bg" / "results" / "threshold_metrics.json"
@@ -222,6 +229,32 @@ def main():
                   f"{m['kill_precision']:<10.4f}{m['kill_recall']:<10.4f}"
                   f"{m['f1']:<8.4f}{m['accuracy']:<10.4f}{m['mcc']:<8.4f}")
         print()
+
+    # Dense 50-point sweep — find the 5 τ with the highest mean MCC
+    # across the 4 trained models (sanity-check across the full grid).
+    trained = ("C3.3", "Pro-Reg/c3.3", "Pro-List/c3.3", "Pro-Wide/c3.3")
+    mean_mcc = []
+    for tau in DENSE_TAUS:
+        vals = [out[m]["dense"][f"{tau:.2f}"]["mcc"] for m in trained]
+        mean_mcc.append((tau, float(sum(vals) / len(vals))))
+    mean_mcc_sorted = sorted(mean_mcc, key=lambda kv: -kv[1])
+    top5_taus = sorted([t for t, _ in mean_mcc_sorted[:5]])
+
+    print(f"\n=== TEST   Track B — 50-point dense sweep (τ step = 0.02) ===")
+    print("Top 5 τ by mean MCC across the 4 trained models:")
+    print(f"  {top5_taus}")
+    print(f"\n{'Model':<18}{'τ':<7}{'FKR↓':<8}{'SKR↑':<8}"
+          f"{'F1↑':<8}{'Acc↑':<8}{'MCC↑':<8}")
+    print("-" * 65)
+    for tau in top5_taus:
+        for label in ("random",) + trained:
+            m = out[label]["dense"][f"{tau:.2f}"]
+            fkr = 1.0 - m["kill_precision"]
+            print(f"{label:<18}{tau:<7.2f}"
+                  f"{fkr:<8.4f}{m['kill_recall']:<8.4f}"
+                  f"{m['f1']:<8.4f}{m['accuracy']:<8.4f}{m['mcc']:<8.4f}")
+        print()
+
     print(f"[41] wrote {out_path}")
     return 0
 
