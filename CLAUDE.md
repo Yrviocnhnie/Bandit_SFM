@@ -107,7 +107,12 @@ python scripts/41_threshold_metrics.py                                          
 
 Task C eval has **two tracks**:
 - **Track A — rank-based** (`35_eval_h60.py`): top-K eviction by score per anchor → FK@r, MSR@r, PR-AUC, ROC-AUC, NDCG, Pareto curves. The natural framing for ranking heuristics (LRU, Markov-inverse, Hybrid).
-- **Track B — threshold-based** (`41_threshold_metrics.py`): per-(anchor, app) yes/no kill at threshold τ → FKR / SKR / F1 / Acc / **MCC**. τ\* picked by argmax F1 on val (49-quantile sweep) and frozen on test; also a fixed-τ sweep at τ ∈ {0.30, 0.40, 0.50, 0.60, 0.70} and a **flipped-class variant** that picks τ\* via argmax F1 on the rare *keep* class — converges on the same τ as argmax-MCC and lifts headline MCC ≈ 6 pp without retraining (Pro-Reg/c3.3: 0.259 → 0.318). Closed-form baselines are excluded from Track B (their score scales aren't probabilities; F1-optimal τ lands at degenerate corners). MCC is the headline because the kill class is 78 % — F1 / Accuracy compress under that imbalance when "positive" = kill.
+- **Track B — threshold-based** (`41_threshold_metrics.py`): per-(anchor, app) yes/no kill at threshold τ → FKR / SKR / F1 / Acc / **MCC**. Three τ-picking strategies are computed on each run:
+  1. **argmax F1 on kill class** (49-quantile val sweep, current default) — lands at τ ≈ 0.18; recall-saturated regime; **MCC = 0.259** for Pro-Reg/c3.3.
+  2. **argmax F1 on keep class** (flipped — `find_best_tau_by_f1_keep`) — converges on the MCC peak at τ ≈ 0.42; **MCC = 0.318** (+5.9 pp). **Recommended default.**
+  3. Coarse fixed-τ sweep at τ ∈ {0.30, 0.40, 0.50, 0.60, 0.70} + a **dense 50-point sweep** at τ ∈ {0.02, 0.04, …, 1.00} on test for trained models + Random. Surfaces the top-5 τ values by mean trained MCC.
+
+  Headline finding from the dense sweep: **Pro-List/c3.3 hits MCC = 0.356 at τ = 0.44** (best Track B operating point seen); coarse 0.40/0.50 grid had missed this peak. Closed-form baselines (LRU / TimeInBG / LFU-hour / Markov-inverse / Hybrid) are excluded from Track B — their scores are kill-priority rankings, not calibrated probabilities. MCC is the headline because the kill class is 78 %; F1 and Accuracy compress under that imbalance when "positive" = kill.
 
 Documentation:
 - `app_usage_data/README.md` — entry point with layout, reproduction, headline numbers

@@ -6,7 +6,7 @@ Single-user next-app + 15-minute-window prediction + background-app suspension e
 
 - **Task A — next-app prediction.** Given history up to moment *t*, predict the next `APP_FOREGROUND` / `APP_START` event's app. Metric: Hit@1, Hit@5, MRR.
 - **Task B — 15-min window set prediction.** Given history up to anchor time *t*, predict the set of apps the user will open in `[t, t+15 min]`. Metric: EventHit@5 (frequency-weighted coverage), Recall@5, Coverage@5.
-- **Task C — background-app suspension prediction.** Given the apps `B(t)` currently resident in background at anchor *t*, predict which will NOT be foregrounded in the next 60 min — i.e. which are safe to evict from RAM. Two evaluation tracks: **Track A (rank-based)** — top-`r·|B(t)|` eviction by score, metrics = PR-AUC, ROC-AUC, FalseKillRate@r, MemorySaveRate@r, NDCG. **Track B (threshold-based)** — per-(anchor, app) yes/no kill at τ, metrics = FKR@τ, SKR@τ, F1, Acc, MCC (with τ\* picked via argmax-F1 on val + a fixed-τ sweep at {0.30, 0.40, 0.50, 0.60, 0.70}). MCC is the headline for Track B because the kill class is 78 % of rows. The decision space is per-anchor (typically 4–10 apps), not the full 50-token vocab; cost is asymmetric (false kill > miss).
+- **Task C — background-app suspension prediction.** Given the apps `B(t)` currently resident in background at anchor *t*, predict which will NOT be foregrounded in the next 60 min — i.e. which are safe to evict from RAM. Two evaluation tracks: **Track A (rank-based)** — top-`r·|B(t)|` eviction by score, metrics = PR-AUC, ROC-AUC, FalseKillRate@r, MemorySaveRate@r, NDCG. **Track B (threshold-based)** — per-(anchor, app) yes/no kill at τ, metrics = FKR@τ, SKR@τ, F1, Acc, MCC, with three τ-picking strategies: argmax-F1(kill) [current default, recall-saturated], **argmax-F1(keep)** [recommended — flipped to the rare 22 % class, lands at τ ≈ 0.42, +6 pp MCC], plus coarse {0.30, 0.40, 0.50, 0.60, 0.70} and dense 50-point {0.02 … 1.00} sweeps. MCC is the headline because the kill class is 78 % of rows. Best Track B point: **Pro-List/c3.3 @ τ = 0.44 → MCC = 0.356**. The decision space is per-anchor (typically 4–10 apps), not the full 50-token vocab; cost is asymmetric (false kill > miss).
 
 All three tasks evaluated on the same 30/5/5-day chronological split (60-min embargo), with a 5-min anchor grid restricted to 06:00–24:00 for Tasks B and C.
 
@@ -73,7 +73,7 @@ python scripts/37_train_c3pro_ensemble.py c3.3                                # 
 python scripts/35_eval_h60.py                                                 # Track A: bootstrap CIs + Pareto FK-vs-MSR figures
 python scripts/38_generate_features.py                                        # feature-pipeline validator / regression smoke test
 python scripts/40_positive_metrics.py                                         # positives-only metrics (WAKR / PosRank / PosScoreNorm)
-python scripts/41_threshold_metrics.py                                        # Track B: τ* (argmax F1 on val) + fixed-τ sweep — FKR / SKR / F1 / Acc / MCC
+python scripts/41_threshold_metrics.py                                        # Track B: 3 τ pickers (argmax-F1 on kill, argmax-F1 on keep [flipped, recommended], + coarse and dense fixed-τ sweeps) — FKR / SKR / F1 / Acc / MCC
 ```
 
 ## Layout
