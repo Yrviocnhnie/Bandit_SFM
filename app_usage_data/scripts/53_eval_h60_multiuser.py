@@ -326,21 +326,42 @@ def main():
     # ── Slice B: cold-start single-user
     if args.include_slice_b:
         sub_path = art_dir / "bg" / "splits" / "bg_test.parquet"
-        if sub_path.exists():
+        single_vocab_path = art_dir / "vocab.json"
+        if sub_path.exists() and single_vocab_path.exists():
             bg_test_su = pd.read_parquet(sub_path)
-            # Inject required columns to match the multi-user schema
-            single_uid = "single_user"
+            # Re-map app_idx and last_fg_app_idx from single-user vocab → pooled vocab.
+            # The single-user parquet has `app_label` (str); use that to look up the
+            # pooled vocab. Apps the cohort doesn't know fall to <RARE>.
+            with open(single_vocab_path) as f:
+                single_vocab = json.load(f)
+            inv_single = {i: a for a, i in single_vocab.items()}
+            pooled_vocab = ctx_multi["vocab"]
+            rare_idx = pooled_vocab.get("<RARE>", 2)
+
+            def remap_idx(idx_arr):
+                """Map single-user idx → pooled idx via the app label string."""
+                out = np.full(len(idx_arr), rare_idx, dtype=np.int64)
+                for i, v in enumerate(idx_arr):
+                    name = inv_single.get(int(v))
+                    if name and name in pooled_vocab:
+                        out[i] = pooled_vocab[name]
+                return out
+
             bg_test_su = bg_test_su.copy()
+            bg_test_su["app_idx"] = remap_idx(bg_test_su["app_idx"].to_numpy())
+            bg_test_su["last_fg_app_idx"] = remap_idx(bg_test_su["last_fg_app_idx"].to_numpy())
+
+            # Treat the single-user as user_id_idx == 0 in a temp ctx with their own
+            # stats. We DON'T add them to the main ctx_multi (would change tensor shapes);
+            # instead we score with random/LRU/TimeInBG (no stats needed) + report what
+            # the global model could see by simulating a "user 0" lookup.
+            single_uid = "single_user"
             bg_test_su["user_uid"] = single_uid
-            # The single-user model was trained with vocab_size=50; the multi-user
-            # model uses vocab_size=243. The single-user `app_idx` is from the OLD
-            # vocab. To score, we need to re-map — fall back to UNK for now. This
-            # is an honest cold-start representation.
-            bg_test_su["user_id_idx"] = -1  # cold-start sentinel
-            print(f"\n[53] slice B (cold-start single user): rows={len(bg_test_su)}")
-            print("[53]   note: slice B uses index -1 (cold-start) — no per-user stats injected.")
-            # We can still run baselines that don't need per-user stats: random, lru, tibg
-            cold = bg_test_su.copy().reset_index(drop=True)
+            bg_test_su["user_id_idx"] = 0
+            bg_test_su = bg_test_su.reset_index(drop=True)
+
+            # 1) Stats-free baselines on the re-mapped data
+            cold = bg_test_su.copy()
             cold = add_random_score(cold, seed=7)
             cold = add_lru_score(cold)
             cold = add_time_in_bg_score(cold)
@@ -348,9 +369,30 @@ def main():
             for label, col in (("random", "score_random"), ("lru", "score_lru"), ("tibg", "score_tibg")):
                 m = compute_metrics(cold, score_col=col, y_col="y_3600", r_values=R_SWEEP)
                 simple[label] = m
-            leaderboard["slice_b"] = {"test": simple, "n_rows": int(len(cold))}
-            print(f"[53] slice B baselines: " + ", ".join(
+            print(f"\n[53] slice B (cold-start single user, vocab-remapped): rows={len(bg_test_su)}")
+            print(f"[53]   stats-free baselines: " + ", ".join(
                 f"{k}: PR={v['pr_auc_mean']:.3f}" for k, v in simple.items()))
+
+            # 2) Score the global model using the FIRST user's stats as a stand-in
+            #    (a realistic deployment proxy for cold-start: "use the average user's
+            #    feature scaling until we collect ~30 days of usage").
+            #    This is approximate; a proper cold-start would fit single-user stats.
+            trained_b = {}
+            for r in TRAINED_PICKS:
+                ckpt = bg_multi / "checkpoints" / f"task_c_multi_{r}.pt"
+                if not ckpt.exists():
+                    continue
+                bg_test_su[f"score_{r}"] = score_trained(r, bg_test_su, ctx_multi, art_dir)
+                m = compute_metrics(bg_test_su, score_col=f"score_{r}",
+                                     y_col="y_3600", r_values=R_SWEEP)
+                trained_b[RECIPE_LABELS[r]] = m
+            print(f"[53]   trained models (using user 0 stats as proxy): " + ", ".join(
+                f"{k}: PR={v['pr_auc_mean']:.3f}" for k, v in trained_b.items()))
+            leaderboard["slice_b"] = {
+                "test_baselines": simple, "test_trained": trained_b,
+                "n_rows": int(len(bg_test_su)),
+                "note": "Trained-model scores use user 0's stats as cold-start proxy.",
+            }
         else:
             print(f"[53] slice B requested but {sub_path} doesn't exist; skipping")
 
