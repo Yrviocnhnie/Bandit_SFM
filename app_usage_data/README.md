@@ -74,6 +74,15 @@ python scripts/35_eval_h60.py                                                 # 
 python scripts/38_generate_features.py                                        # feature-pipeline validator / regression smoke test
 python scripts/40_positive_metrics.py                                         # positives-only metrics (WAKR / PosRank / PosScoreNorm)
 python scripts/41_threshold_metrics.py                                        # Track B: 3 τ pickers (argmax-F1 on kill, argmax-F1 on keep [flipped, recommended], + coarse and dense fixed-τ sweeps) — FKR / SKR / F1 / Acc / MCC
+
+# --- Task C: multi-user variant (22 users, one global model with per-user features) ---
+python scripts/50_build_bg_data_multiuser.py                                  # pooled vocab + per-user splits + per-user feature stats + pooled bg parquets
+python scripts/51_run_baselines_bg_multiuser.py                               # per-user closed-form baselines, mean/median/std across users
+python scripts/52_train_task_c_multiuser.py --epochs 30 --patience 4          # train all 4 picks (c3p3 / c3pro_reg / c3pro_listwise / c3pro_wide) on pooled data
+python scripts/53_eval_h60_multiuser.py --include-slice-b                     # Track A per-user metrics + Pareto + cold-start single-user (slice B)
+python scripts/54_threshold_multiuser.py                                      # Track B per-user τ* + global τ* + dense τ-sweep
+python scripts/55_positive_metrics_multiuser.py                               # positives-only metrics, mean across users
+python -m pytest lib/bg_multi/tests/ -v                                       # 54 tests, 7 layers (causality, lookups, model IO, metric ranges)
 ```
 
 ## Layout
@@ -93,6 +102,7 @@ app_usage_data/
 ├─ REPORT_bgkill.md                           # Task C v1 — original 14-feature C1 writeup (H=5/10, historical)
 ├─ REPORT_bgkill_v2.md                        # Task C v2 — feature audit, C2 schema (15 Task-C-relevant features, H=5/10)
 ├─ REPORT_bgkill_v3.md                        # **Task C live writeup** — H=60 single-horizon, 2 h staleness, full C3.x + C3-Pro grid
+├─ REPORT_bgkill_multiuser.md                 # **Task C multi-user benchmark** — 22 users, one global model, per-user features fed via lookup, slice-A pooled-test + slice-B cold-start
 ├─ REPORT_bgkill_data.md                      # B(t) state machine + label definition spec
 ├─ REPORT_bgkill_metrics.md                   # FK / MSR / PR-AUC / ROC-AUC / NDCG / Pareto definitions
 ├─ REPORT_bgkill_model_plan.md                # plan that drove the C3.x feature track + C3-Pro architectural track
@@ -121,12 +131,15 @@ app_usage_data/
 │  │   ├─ models_v3.py        — LocalEncoderV3 / GlobalEncoderV3 / ProfileEncoderV3 / Task{A,B}ModelV3
 │  │   ├─ datasets_v3.py      — v3 torch Datasets
 │  │   └─ prep.py             — shared target-stream builder + last_app lookup
-│  └─ bg/                                            # Task C
-│      ├─ background_state.py — B(t) state machine: replays full event stream, snapshots BG set per anchor (2 h staleness, screen-on / kill tracking)
-│      ├─ features_bg.py      — per-(anchor, app) feature builders + multi-horizon label generation (5 / 10 / 30 / 60 min)
-│      ├─ baselines_bg.py     — closed-form baselines (Random / LRU / TimeInBG / LFU-hour / Markov-inv / Hybrid)
-│      ├─ models_bg.py        — BgPairMLP (legacy dual-head) + ModelCfg / SingleHeadMLP / WideMLP for the C3 / C3-Pro models
-│      └─ metrics_bg.py       — Track A (rank-based): FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG@half · Track B (threshold-based): compute_threshold_metrics + find_best_tau_by_f1 (kill class as positive); compute_keep_threshold_metrics + find_best_tau_by_f1_keep (flipped — rare keep class); compute_positive_only_metrics (WAKR / PosRank / PosScoreNorm)
+│  ├─ bg/                                            # Task C (single-user)
+│  │   ├─ background_state.py — B(t) state machine: replays full event stream, snapshots BG set per anchor (2 h staleness, screen-on / kill tracking)
+│  │   ├─ features_bg.py      — per-(anchor, app) feature builders + multi-horizon label generation (5 / 10 / 30 / 60 min)
+│  │   ├─ baselines_bg.py     — closed-form baselines (Random / LRU / TimeInBG / LFU-hour / Markov-inv / Hybrid)
+│  │   ├─ models_bg.py        — BgPairMLP (legacy dual-head) + ModelCfg / SingleHeadMLP / WideMLP for the C3 / C3-Pro models
+│  │   └─ metrics_bg.py       — Track A (rank-based): FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG@half · Track B (threshold-based): compute_threshold_metrics + find_best_tau_by_f1 (kill class as positive); compute_keep_threshold_metrics + find_best_tau_by_f1_keep (flipped — rare keep class); compute_positive_only_metrics (WAKR / PosRank / PosScoreNorm)
+│  └─ bg_multi/                                      # Task C (multi-user variant)
+│      ├─ helpers.py          — list_cohort_users, build_pooled_vocab, fit_per_user_stats, stack_per_user, make_global_anchor_id, attach_user_columns
+│      └─ tests/              — 54 pytest tests across 7 layers (helpers, data build, feature lookup, baselines, model IO, metrics, smoke E2E)
 │
 ├─ scripts/
 │  ├─ 01_prep_data.py .. 07_report.py                — v1 pipeline
@@ -144,7 +157,13 @@ app_usage_data/
 │  ├─ 37_train_c3pro_ensemble.py                       — Task C: 5-seed ensemble of best C3-Pro variant
 │  ├─ 38_generate_features.py                          — Task C: feature-pipeline validator / sanity report
 │  ├─ 40_positive_metrics.py                           — Task C: positives-only metrics (WAKR / PosRank / PosScoreNorm)
-│  └─ 41_threshold_metrics.py                          — Task C Track B: τ* (argmax F1 on val) + fixed-τ sweep — FKR / SKR / F1 / Acc / MCC
+│  ├─ 41_threshold_metrics.py                          — Task C Track B: τ* (argmax F1 on val) + fixed-τ sweep — FKR / SKR / F1 / Acc / MCC
+│  ├─ 50_build_bg_data_multiuser.py                    — Task C MULTI: pooled vocab + per-user splits + per-user feature stats + pooled bg_{train,val,test}.parquet
+│  ├─ 51_run_baselines_bg_multiuser.py                 — Task C MULTI: per-user closed-form baselines, mean/median/std across users
+│  ├─ 52_train_task_c_multiuser.py                     — Task C MULTI: train all 4 picks on pooled data with per-user features fed via vectorized lookup
+│  ├─ 53_eval_h60_multiuser.py                         — Task C MULTI: Track A per-user metrics + Pareto + slice-B cold-start
+│  ├─ 54_threshold_multiuser.py                        — Task C MULTI: Track B per-user τ* + global τ* + dense τ-sweep
+│  └─ 55_positive_metrics_multiuser.py                 — Task C MULTI: positives-only metrics, mean across users
 │
 ├─ artifacts/
 │  ├─ splits/{train,val,test}.parquet                                  # all tasks (event-level)
@@ -302,6 +321,7 @@ R6-arch trim ties R6 on Task B test EH@5 (0.746) with **profile dim 79 vs 153** 
 - `REPORT_v5_cherry_picked.md` — focuses on **10 users where the trained model clearly beats MRU-5** (sorted by Δ EH@5 = v5 E2 − MRU). Shows mean/median tables for all 17 baselines × all standard metrics. On the picked subset: v5 E2 lifts Task B EH@5 by +3.8 pp mean / +2.9 pp median, Recall@5 by +3.1 pp, Coverage@5 by +2.4 pp absolute (≈6 % relative). Companion to the cohort-wide `REPORT_v5_multiuser.md` — exists to characterise *which* users benefit from training.
 - **Task C reports:**
   - `REPORT_bgkill_v3.md` — **live writeup**. Single-horizon H = 60 min, 2 h staleness. Full grid: closed-form baselines, C1 / C2 / C3.1–C3.4, C3-Pro Listwise/Wide/Reg/Full/Ensemble × c3.2/c3.3 schemas. Bootstrap CIs (B=1000), Pareto curves, leave-one-out feature ablation, statistical-significance discussion. **Production pick: Pro-Reg-on-c3.3** (test PR=0.935 / ROC=0.826 / FK@0.5=0.162; +3.8 / +8.7 / −2.1 pp over Markov-inverse).
+  - `REPORT_bgkill_multiuser.md` — **multi-user benchmark** (22 users from `/data00/ruiqing/app_forecasting/data/cleaned/`). One global model trained on pooled bg rows (V_pool=243, ~626k train), with per-user feature stats (Markov / hour_freq / lifetime stats / fg_timeline) injected as feature inputs at scoring time via vectorized lookup. Two eval slices: (A) 22-user pooled bg_test with per-user metric aggregation + bootstrap CIs across users; (B) cold-start single-user transfer. 54 pytest tests across 7 layers (`lib/bg_multi/tests/`).
   - `REPORT_bgkill_features_review.md` — feature-space audit (every C1 → C2 → C3 feature with rationale, drops, and code pointers) + **reproduction recipe** (Appendix B with end-to-end command list, validator script `38_generate_features.py`, sanity-report schema).
   - `REPORT_bgkill_data.md` — `B(t)` state-machine spec, label generator, multi-horizon design, anchor-grid logic.
   - `REPORT_bgkill_metrics.md` — FK@r / MSR@r / PR-AUC / ROC-AUC / NDCG / Pareto formal definitions and worked examples.

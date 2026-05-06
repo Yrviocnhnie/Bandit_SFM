@@ -11,6 +11,7 @@ This repo contains a Python prototype of a contextual bandit recommender system 
 3. **`app_usage_data/`** — single-user next-app prediction demo with three tasks on 42 days of real HarmonyOS data:
    - **Task A** (next-app prediction) and **Task B** (15-min window set prediction): v1 (GRU/TGT-lite baselines) → v2 (per-task hierarchical encoder) → v3 (feature enrichment + Markov fusion) → v4 (recency/periodicity ablation, falsified) → v4-trim (FEATURES_v2 drops: scene + F1-F4 + 2h/6h windows + n_trans, empirically validated as no-cost). Production picks: v1 GRU for Task A; **v3 R6-arch trim** for Task B (test EH@5 = 0.746). Multi-user (22 users, separate report): v5 BG features win — v5 E4 leads Task A (mean test Hit@1 0.609), v5 E2 leads Task B (mean test EH@5 0.749, +0.7 pp over MRU-5).
    - **Task C — Background-app suspension prediction** (`REPORT_bgkill_v3.md`): given the apps in `B(t)`, predict which will NOT be foregrounded in the next 60 min. Single-user, H=60 horizon, 2 h staleness window. Production pick: **Pro-Reg-on-c3.3** (32 features, dropout 0.3 + label-smoothing + cosine-LR + SWA): test PR-AUC 0.935, ROC-AUC 0.826, FK@0.5 0.162 — vs Markov-inverse baseline at 0.897 / 0.744 / 0.180. The grid spans C1, C2, C3.1–C3.4 (cumulative feature ablation) plus C3-Pro variants {Listwise, Wide, Reg, Full, Ensemble} × {c3.2, c3.3} schemas (16 trained models total).
+   - **Task C — multi-user variant** (`REPORT_bgkill_multiuser.md`, scripts `50–55`): same problem on the **22-user cohort** at `/data00/ruiqing/app_forecasting/data/cleaned/{M_beta_Top30,top2000}/*.xlsx`. **One global model** trained on pooled bg rows (V_pool = 243, 625k train / 75k val / 65k test), with per-user feature stats (Markov / hour_freq / per-app inter-fg mean / lifetime stats) injected as feature inputs at scoring time via vectorized lookup keyed by `user_id_idx`. Listwise loss + metric groupbys use a global-anchor-id (`user_id_idx * 1e6 + per_user_anchor_id`) to keep different users' anchors distinct. Two eval slices: (A) the 22-user pooled bg_test, aggregated as mean / median / bootstrap CI across users; (B) cold-start single-user transfer onto the existing single-user bg_test. 54 pytest tests across 7 layers cover causality, per-user lookups, model IO, and metric ranges.
 
 These are separate model implementations with different feature spaces and architectures.
 
@@ -103,6 +104,15 @@ python scripts/35_eval_h60.py                                                   
 python scripts/38_generate_features.py                                               # feature-pipeline validator / regression smoke test
 python scripts/40_positive_metrics.py                                                # positives-only: WAKR / PosRank / PosScoreNorm
 python scripts/41_threshold_metrics.py                                               # Track B: threshold-based (FKR/SKR/F1/Acc/MCC) — τ* + fixed-τ sweep
+
+# Task C — multi-user variant (22 users, one global model with per-user features)
+python scripts/50_build_bg_data_multiuser.py                                         # pooled vocab + per-user splits + per-user feature stats + pooled bg parquets
+python scripts/51_run_baselines_bg_multiuser.py                                      # per-user closed-form baselines, mean/median/std across users
+python scripts/52_train_task_c_multiuser.py --epochs 30 --patience 4                 # train all 4 picks (c3p3 / c3pro_reg / c3pro_listwise / c3pro_wide) on pooled data
+python scripts/53_eval_h60_multiuser.py --include-slice-b                            # Track A per-user metrics + Pareto + cold-start single-user (slice B)
+python scripts/54_threshold_multiuser.py                                             # Track B per-user τ* + global τ* + dense τ-sweep
+python scripts/55_positive_metrics_multiuser.py                                      # positives-only metrics, mean across users
+python -m pytest lib/bg_multi/tests/ -v                                              # 54 tests covering causality, lookups, model IO, metric ranges
 ```
 
 Task C eval has **two tracks**:
@@ -125,6 +135,7 @@ Documentation:
 - `app_usage_data/FEATURES.md` — every input feature explained (current v3 implementation)
 - `app_usage_data/FEATURES_v2.md` — proposed feature redesign (audit + drops + adds)
 - `app_usage_data/REPORT_bgkill_v3.md` — Task C live writeup (H=60 single-horizon, 2 h staleness, full C3 grid + C3-Pro variants)
+- `app_usage_data/REPORT_bgkill_multiuser.md` — Task C multi-user benchmark (22 users, one global model with per-user features fed via vectorized lookup)
 - `app_usage_data/REPORT_bgkill_features_review.md` — full Task C feature catalog + reproduction recipe (run-this-script appendix at end)
 - `app_usage_data/REPORT_bgkill_metrics.md` — FK / MSR / NDCG / Pareto definitions
 - `app_usage_data/REPORT_bgkill_data.md` — `B(t)` state-machine spec, label definition, splits
