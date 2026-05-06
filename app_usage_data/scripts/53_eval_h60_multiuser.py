@@ -175,11 +175,27 @@ def bootstrap_user_ci(per_user_vals: list[float], n_boot: int = 1000,
 
 
 def plot_pareto(scored_dfs: dict[str, pd.DataFrame], out_path: Path, title: str):
-    """One Pareto curve per (model, baseline). x = MSR, y = (1 - FK)."""
-    plt.figure(figsize=(9, 6.5), dpi=140)
-    cmap = {"random": "#7f7f7f", "lru": "#1f77b4", "markov_inv": "#d62728",
-            "C3.3": "#2ca02c", "Pro-Reg/c3.3": "#9467bd",
-            "Pro-List/c3.3": "tab:brown", "Pro-Wide/c3.3": "tab:olive"}
+    """One Pareto curve per (model, baseline). x = MSR, y = (1 - FK).
+
+    Each baseline + each trained pick gets a distinct, deliberate colour and
+    line-style so the curves don't blur together.
+    """
+    plt.figure(figsize=(9.5, 6.8), dpi=140)
+    # Distinct colour per baseline (dashed) and per trained pick (solid).
+    cmap = {
+        # Baselines (dashed lines)
+        "random":         {"color": "#7f7f7f", "ls": ":",  "marker": "x"},
+        "lru":            {"color": "#1f77b4", "ls": "--", "marker": "s"},
+        "tibg":           {"color": "#17becf", "ls": "--", "marker": "^"},
+        "lfu_hour":       {"color": "#ff7f0e", "ls": "--", "marker": "D"},
+        "markov_inv":     {"color": "#d62728", "ls": "--", "marker": "v"},
+        "hybrid_lru_mk":  {"color": "#8c564b", "ls": "--", "marker": "P"},
+        # Trained picks (solid lines)
+        "C3.3":           {"color": "#2ca02c", "ls": "-",  "marker": "o"},
+        "Pro-Reg/c3.3":   {"color": "#9467bd", "ls": "-",  "marker": "o"},
+        "Pro-List/c3.3":  {"color": "#e377c2", "ls": "-",  "marker": "o"},
+        "Pro-Wide/c3.3":  {"color": "#bcbd22", "ls": "-",  "marker": "o"},
+    }
     for label, df in scored_dfs.items():
         per_u = per_user_metrics(df, score_col=f"score_for_{label}")
         msr_means = [np.mean([per_u[u]["memory_save_rate"][f"{r}"] for u in per_u])
@@ -187,13 +203,16 @@ def plot_pareto(scored_dfs: dict[str, pd.DataFrame], out_path: Path, title: str)
         fk_means = [np.mean([per_u[u]["false_kill_rate"][f"{r}"] for u in per_u])
                      for r in R_SWEEP]
         kp_means = [1.0 - v for v in fk_means]
-        c = cmap.get(label, "#333")
-        plt.plot(msr_means, kp_means, marker="o", color=c, linewidth=2,
-                 markersize=6, label=label)
-    plt.xlabel("Memory-save rate (mean across users)")
-    plt.ylabel("Kill precision  =  1 − False-kill rate")
+        style = cmap.get(label, {"color": "#333", "ls": "-", "marker": "o"})
+        plt.plot(msr_means, kp_means,
+                 marker=style["marker"], color=style["color"],
+                 linestyle=style["ls"], linewidth=2.0, markersize=7,
+                 markeredgecolor="black", markeredgewidth=0.6,
+                 label=label)
+    plt.xlabel("Memory-save rate (mean across users)  ↑ better →", fontsize=10)
+    plt.ylabel("Kill precision = 1 − False-kill rate  ↑ better →", fontsize=10)
     plt.title(title, fontsize=12)
-    plt.legend(loc="lower left", fontsize=9, framealpha=0.95)
+    plt.legend(loc="lower left", fontsize=9, framealpha=0.95, ncol=2)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(out_path, dpi=140, bbox_inches="tight")
@@ -202,7 +221,12 @@ def plot_pareto(scored_dfs: dict[str, pd.DataFrame], out_path: Path, title: str)
 
 
 def plot_per_user_pr_auc(scored_dfs: dict[str, pd.DataFrame], out_path: Path):
-    """One bar per (user, model) showing PR-AUC, sorted by mean across models."""
+    """One bar per (user, model) showing PR-AUC, sorted by mean across models.
+
+    Y-axis is auto-scaled to the actual data range (with 2% padding) so the
+    visible variation between users / models isn't squashed into the top
+    1/4 of a 0–1 plot.
+    """
     user_pr: dict[str, dict[str, float]] = {}
     for label, df in scored_dfs.items():
         per_u = per_user_metrics(df, score_col=f"score_for_{label}")
@@ -214,19 +238,46 @@ def plot_per_user_pr_auc(scored_dfs: dict[str, pd.DataFrame], out_path: Path):
     mean_per_user = {u: float(np.nanmean(list(user_pr[u].values()))) for u in users}
     users_sorted = sorted(users, key=lambda u: -mean_per_user[u])
     labels = list(scored_dfs.keys())
+    # Distinct colour per (baseline / trained pick) — same palette as the Pareto
+    cmap = {
+        "random": "#7f7f7f", "lru": "#1f77b4", "tibg": "#17becf",
+        "lfu_hour": "#ff7f0e", "markov_inv": "#d62728", "hybrid_lru_mk": "#8c564b",
+        "C3.3": "#2ca02c", "Pro-Reg/c3.3": "#9467bd",
+        "Pro-List/c3.3": "#e377c2", "Pro-Wide/c3.3": "#bcbd22",
+    }
 
-    fig, ax = plt.subplots(figsize=(11, 5.5), dpi=140)
+    # Compute y-range with 2 % padding above and below
+    all_ys = [v for u in users_sorted for v in user_pr[u].values()
+              if isinstance(v, float) and not np.isnan(v)]
+    if all_ys:
+        y_min = max(0.0, min(all_ys) - 0.02)
+        y_max = min(1.0, max(all_ys) + 0.02)
+    else:
+        y_min, y_max = 0.0, 1.0
+
+    fig, ax = plt.subplots(figsize=(13, 6.5), dpi=140)
     x = np.arange(len(users_sorted))
-    width = 0.8 / max(1, len(labels))
+    width = 0.85 / max(1, len(labels))
     for i, lab in enumerate(labels):
         ys = [user_pr[u].get(lab, np.nan) for u in users_sorted]
-        ax.bar(x + i * width, ys, width=width, label=lab)
+        ax.bar(x + i * width, ys, width=width, label=lab,
+               color=cmap.get(lab, "#333"), edgecolor="black", linewidth=0.3)
+
     ax.set_xticks(x + width * (len(labels) - 1) / 2)
-    ax.set_xticklabels(users_sorted, rotation=70, fontsize=7)
-    ax.set_ylabel("test PR-AUC")
-    ax.set_title("Per-user PR-AUC (sorted by mean across models)")
-    ax.legend(fontsize=8, loc="lower left", ncol=3)
-    ax.grid(True, alpha=0.3, axis="y")
+    ax.set_xticklabels(users_sorted, rotation=60, fontsize=7, ha="right")
+    ax.set_ylabel("Test PR-AUC", fontsize=10)
+    ax.set_xlabel("User (sorted by mean PR-AUC across models, descending)", fontsize=10)
+    ax.set_ylim(y_min, y_max)
+    ax.set_title(
+        f"Per-user test PR-AUC across 22 users × {len(labels)} models  "
+        f"(y-axis: {y_min:.2f}–{y_max:.2f})",
+        fontsize=11,
+    )
+    ax.legend(fontsize=8, loc="lower left", ncol=5, framealpha=0.95)
+    ax.grid(True, alpha=0.3, axis="y", linestyle="--")
+    ax.axhline(y=np.nanmean([mean_per_user[u] for u in users_sorted]),
+               color="black", linestyle=":", linewidth=1.0, alpha=0.5,
+               label=None)
     plt.tight_layout()
     plt.savefig(out_path, dpi=140, bbox_inches="tight")
     plt.close()
