@@ -127,9 +127,13 @@ Numbers from `artifacts/bg_multi/results/baselines_bg.json`, computed per user w
 - **Best FK@0.5: Pro-Wide/c3.3 = 0.1512** (−1.3 pp over Markov-inv 0.1641).
 - The trained models are within ~1 pp of each other on every metric — like single-user, the dominant lift is the c3.3 feature schema, not the architectural variants.
 
-**Pareto curve (test, mean across users):** `figures/bg_multi/pareto_h60_test.png` — every trained pick sits above all baselines at every operating point r ∈ {0.1, 0.25, 0.5, 0.75, 0.9}. C3.3 / Pro-Reg / Pro-List / Pro-Wide are visually almost indistinguishable; the trained envelope strictly dominates Markov-inv.
+**Pareto curve (test, mean across users)** — every trained pick sits above all baselines at every operating point r ∈ {0.1, 0.25, 0.5, 0.75, 0.9}. C3.3 / Pro-Reg / Pro-List / Pro-Wide are visually almost indistinguishable; the trained envelope strictly dominates Markov-inv.
 
-**Per-user breakdown:** `figures/bg_multi/per_user_pr_auc.png` — bar chart of test PR-AUC per (user, model). Useful for spotting outliers (the user with pos-rate ≈ 0.003 has degenerate PR-AUC and skews per-user stats).
+![Test Pareto frontier — multi-user mean across 22 users](artifacts/bg_multi/figures/pareto_h60_test.png)
+
+**Per-user breakdown** — bar chart of test PR-AUC per (user, model). Useful for spotting outliers (the user with pos-rate ≈ 0.003 has degenerate PR-AUC and skews per-user stats).
+
+![Per-user test PR-AUC, sorted](artifacts/bg_multi/figures/per_user_pr_auc.png)
 
 ---
 
