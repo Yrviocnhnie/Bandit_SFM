@@ -283,18 +283,44 @@ Listed in groups of c2 / c3.1 / c3.2 / c3.3 cumulative blocks:
 
 > **Note:** the multi-user `build_c2_multi` differs slightly from single-user `build_c2`: it has cyclic `sin/cos(weekday)` (2 features) instead of the binary `is_weekend` flag (1 feature) — net +1 feature, immaterial difference (both encode weekend vs weekday). All 4 trained multi-user checkpoints use the 33-feature schema above. Full reference inventory in `REPORT_bgkill_multiuser.md` §2.
 
-### 13.2 Where to invest next (not yet implemented)
+### 13.2 Where to invest next (the c3.4 candidate set — **not yet implemented**)
 
-| Feature idea                                    | Captures | Estimated lift |
-|-------------------------------------------------|---------|----------------|
-| **2-step Markov** `P(app \| last2_fg, last_fg)` | Multi-step transitions (Pattern E) | ~+0.5 pp PR-AUC |
-| **App-app co-FG matrix** `P(a in B(t) used \| b just FG'd)` | Co-occurrence (Pattern E) | ~+0.5 – 1 pp |
-| **B(t) composition embedding** (mean-pool of `app_emb` over B(t)) | Pattern G (U-shape) | ~+0.3 pp |
-| **Cross-user same-app prior** = mean pos-rate across other users | Cold-start handling (slice B) | small on slice A, **bigger on slice B** |
-| **Day-of-week × hour interaction** | Weekend/weekday patterns | ~+0.1 pp (Pattern not strong) |
-| **App popularity bucket** (rare/medium/common) | Long-tail handling | ~+0.1 pp |
+| # | Feature idea | Example value | Captures | Est. lift |
+|--:|--------------|---------------|----------|----------:|
+| F1 | **2-step Markov** `P(app \| last2_fg, last_fg)` | last2 = AWEME, last = WECHAT → `P(WECHAT \| AWEME → WECHAT) = 0.85` | Multi-step transitions; current 1-step Markov misses "user went AWEME → WECHAT and is likely to bounce back to WECHAT" (Pattern E) | ~+0.5 pp |
+| F2 | **App-app co-FG matrix** `co_fg[app, b]` for `b ∈ B(t)` | for each `b ∈ B(t)`, how often does `app` come back when `b` was just FG'd; row sum or max → 0.72 | Captures "if I see app B in B(t), app A is more likely to come back" (Pattern E) | ~+0.5 – 1 pp |
+| F3 | **Day-of-week × hour interaction** `P(app \| dow, hour)` | (Wed, 14:00) → 0.92 — distinct from Mon @ 14h or Sat @ 14h | Fine-grained habit memory | ~+0.1 pp (small) |
+| F4 | **B(t) composition embedding** = **mean-pool of `cat_emb`** over apps in B(t) | 4-d vector, e.g. `[0.6, 0.1, 0.3, 0.0]` (heavy on social, light on system) | Pattern G U-shape — full BG context as a learned vector, not just `bg_unique_cat_cnt` (which is just an integer). **Requires re-adding `cat_emb`** (see §13.3). | ~+0.3 pp |
+| F5 | **App popularity bucket** (rare / medium / common) | "common" (WECHAT in all 22 users) vs "long-tail" (XHSHOS in 3 users) | Long-tail handling — model can fall back to category for rare apps | ~+0.1 pp |
+| F6 | **Cross-user same-app prior** = mean pos-rate across other users | for WECHAT: mean pos rate across 22 users = 0.64 | Generalisation — useful for **cold-start** users where per-user `app_lifetime_kill_rate` is undefined | small on slice A, **bigger on slice B** |
+| F7 | **Hour-segment one-hot** (morning / lunch / afternoon / evening / night) | (14:00) → "afternoon" = 1 (others 0) | Already approximated via `daypart`; making it explicit might help the MLP | ~+0.1 pp |
 
-**Verdict:** most of the highest-leverage features (LRU, app identity, hour-cond, per-user Markov, recency-rank, BG composition) are *already* in c3.3 — which explains why architectural variants barely move the needle. The next-tier wins are 2-step Markov and co-FG matrix.
+**Verdict:** most high-leverage features (LRU, app identity, hour-cond, per-user Markov, recency-rank, basic BG composition) are *already* in c3.3 — which explains why architectural variants barely move the needle. The next-tier wins are **F1 (2-step Markov)** and **F2 (co-FG matrix)**, both targeting Pattern E.
+
+### 13.3 Should we explicitly include `cat_emb` as a model input?
+
+**Current:** c3.x **does not** use `cat_emb`. Category info enters via 5 numeric features (`cat_match`, `cat_lifetime_share`, `bg_unique_cat_cnt`, `cat_markov_prob`, `bg_apps_in_same_cat`). The single-user `bgkill_features_review.md` argues this is enough for a single user with a small vocab.
+
+**Recommendation: re-add `cat_emb` for the c3.4 multi-user model.** Three reasons specific to the multi-user setting:
+
+1. **F4 (B(t) composition embedding) literally needs `cat_emb`.** Mean-pool of category embeddings over apps in `B(t)` gives a continuous 4-d vector that captures "social-heavy" vs "system-heavy" vs "media-heavy" BG sets. You cannot build this from the existing numeric category features — `bg_unique_cat_cnt` is just an integer count.
+2. **144 long-tail apps benefit from category fallback.** Apps appearing in ≤ 4 users have nearly-untrained `app_emb` rows (very few gradient updates). The category embedding gives them a useful signal — every WeChat-like app inherits the "social" cluster's representation, and every clock app inherits the "utility" cluster.
+3. **Cheap to add.** `cat_emb = nn.Embedding(11, 4)` = **44 parameters**. The original drop reason (parameter parsimony for a single-user model) doesn't apply at multi-user scale.
+
+**Proposed architecture for c3.4 multi-user:**
+```
+input: app_idx (long), cat_idx (long), 33 numeric features
+
+  app_emb       = nn.Embedding(243, 16)(app_idx)        # 16-d
+  cat_emb_self  = nn.Embedding(11, 4)(cat_idx)          # 4-d  ← NEW
+  bg_comp_emb   = mean-pool of cat_emb over apps in B(t) # 4-d ← NEW (F4)
+  numeric       = build_schema_data_multi("c3.4", ...)   # 33 + new = e.g. 38
+
+  x = concat([app_emb, cat_emb_self, bg_comp_emb, numeric])  # 16 + 4 + 4 + 38 = 62-d
+  → MLP → sigmoid
+```
+
+**Total new params:** ~50 for `cat_emb` + ~50 for first-layer expansion = **~100 extra**. Negligible.
 
 ---
 
