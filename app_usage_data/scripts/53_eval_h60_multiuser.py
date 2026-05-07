@@ -60,12 +60,16 @@ _TRAIN_MULTI = _load("train_multi_for_eval", ROOT / "scripts" / "52_train_task_c
 
 # ============================================================================
 R_SWEEP = (0.1, 0.25, 0.5, 0.75, 0.9)
-TRAINED_PICKS = ("c3p3", "c3pro_reg", "c3pro_listwise", "c3pro_wide")
+TRAINED_PICKS = ("c3p3", "c3pro_reg", "c3pro_listwise", "c3pro_wide",
+                  "c3p4_cheap", "c3p4_full", "c3p4_full_cat")
 RECIPE_LABELS = {
-    "c3p3":           "C3.3",
-    "c3pro_reg":      "Pro-Reg/c3.3",
-    "c3pro_listwise": "Pro-List/c3.3",
-    "c3pro_wide":     "Pro-Wide/c3.3",
+    "c3p3":            "C3.3",
+    "c3pro_reg":       "Pro-Reg/c3.3",
+    "c3pro_listwise":  "Pro-List/c3.3",
+    "c3pro_wide":      "Pro-Wide/c3.3",
+    "c3p4_cheap":      "C3.4n-cheap",
+    "c3p4_full":       "C3.4n-full",
+    "c3p4_full_cat":   "C3.4-full+catEmb",
 }
 BASELINES = [
     ("random",        "score_random"),
@@ -99,8 +103,8 @@ def score_trained(model_recipe: str, df: pd.DataFrame, ctx_multi: dict,
     """Forward the recipe's checkpoint over `df` (must have user_id_idx); return kill_score."""
     ckpt_path = art_dir / "bg_multi" / "checkpoints" / f"task_c_multi_{model_recipe}.pt"
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-    data_d = _TRAIN_MULTI.build_schema_data_multi("c3.3", df, ctx_multi)
     rec = _TRAIN_MULTI.RECIPES[model_recipe]
+    data_d = _TRAIN_MULTI._build_data_dispatch(rec["schema"], df, ctx_multi)
     model = _TRAIN_MULTI.make_model(
         rec, num_features=int(data_d["features"].shape[1]),
         vocab_size=len(ctx_multi["vocab"]),

@@ -249,6 +249,181 @@ def add_c33_cols_multi(bg_df, app_to_cat, cat_markov_probs_stack):
     return np.stack([cat_markov, t_since_cat, bg_in_cat], axis=1).astype(np.float32)
 
 
+# ============================================================================
+# c3.4 STAGE 1 — cheap features (F3 / F5 / F6 / F7)
+# ============================================================================
+HOUR_SEGMENT_BINS = [(6, 11, 0),    # morning   (6 - 10)
+                     (11, 14, 1),   # lunch     (11 - 13)
+                     (14, 18, 2),   # afternoon (14 - 17)
+                     (18, 22, 3),   # evening   (18 - 21)
+                     (22, 6, 4)]    # night     (22 - 5, wraps)
+
+
+def hour_segment_onehot(hours: np.ndarray) -> np.ndarray:
+    """Convert hours-of-day → 5-class one-hot (morning/lunch/afternoon/evening/night)."""
+    n = len(hours)
+    out = np.zeros((n, 5), dtype=np.float32)
+    h = hours.astype(np.int64) % 24
+    for (a, b, k) in HOUR_SEGMENT_BINS:
+        if a <= b:
+            mask = (h >= a) & (h < b)
+        else:  # wrap-around (night)
+            mask = (h >= a) | (h < b)
+        out[mask, k] = 1.0
+    return out
+
+
+def add_c34_cheap_features_multi(bg_df: pd.DataFrame, ctx: dict) -> np.ndarray:
+    """8 columns total: F3 (1) + F5 (1) + F6 (1) + F7 (5)."""
+    uid_idx = bg_df["user_id_idx"].to_numpy(dtype=np.int64)
+    hr = bg_df["anchor_hour"].to_numpy(dtype=np.int64) % 24
+    dow = bg_df["anchor_weekday"].to_numpy(dtype=np.int64) % 7
+    app = bg_df["app_idx"].to_numpy(dtype=np.int64)
+    V = ctx["dow_hour_freq_stack"].shape[3]
+    app_clip = np.clip(app, 0, V - 1)
+
+    # F3: per-user P(app | dow, hour)
+    f3 = ctx["dow_hour_freq_stack"][uid_idx, dow, hr, app_clip].astype(np.float32)
+
+    # F5: app popularity bucket (scalar 0/1/2)
+    f5 = ctx["app_popularity_bucket"][app_clip].astype(np.float32)
+
+    # F6: cross-user same-app prior (per-user)
+    f6 = np.empty(len(bg_df), dtype=np.float32)
+    cu = ctx["cross_user_app_prior_per_user"]
+    uid_str = bg_df["user_uid"].to_numpy()
+    for u in np.unique(uid_str):
+        mask = uid_str == u
+        prior = cu.get(str(u))
+        if prior is None:
+            f6[mask] = 0.5
+        else:
+            f6[mask] = prior[app_clip[mask]]
+
+    # F7: hour-segment one-hot (5 cols)
+    f7 = hour_segment_onehot(hr)
+
+    return np.concatenate(
+        [f3[:, None], f5[:, None], f6[:, None], f7],
+        axis=1,
+    ).astype(np.float32)
+
+
+def build_c34n_cheap_multi(schema: str, bg_df: pd.DataFrame, ctx: dict) -> dict:
+    """c3.3 schema + 8 cheap features (F3, F5, F6, F7). 33 + 8 = 41 numeric features."""
+    base = build_schema_data_multi("c3.3", bg_df, ctx)
+    extra = add_c34_cheap_features_multi(bg_df, ctx)
+    base["features"] = np.concatenate([base["features"], extra], axis=1)
+    return base
+
+
+def _build_data_dispatch(schema: str, bg_df: pd.DataFrame, ctx: dict) -> dict:
+    """Schema-aware feature builder dispatch."""
+    if schema == "c3.4n_cheap":
+        return build_c34n_cheap_multi(schema, bg_df, ctx)
+    if schema == "c3.4n_full":
+        return build_c34n_full_multi(schema, bg_df, ctx)
+    return build_schema_data_multi(schema, bg_df, ctx)
+
+
+# ============================================================================
+# c3.4 STAGE 2 — heavier numeric features (F1 = 2-step Markov, F2 = co-FG)
+# ============================================================================
+def attach_last2_fg(bg_df: pd.DataFrame, ctx: dict) -> pd.DataFrame:
+    """Add a `last2_fg_app_idx` int64 column to bg_df via per-user lookup.
+
+    Idempotent — overwrites if present. Uses ctx['flat_fg_per_user'][uid] which
+    is a dict {'ts', 'app'} of sorted (ts_ns, app_idx) arrays.
+    """
+    from lib.bg_multi.c34_features import compute_last2_fg_for_anchors
+    out = np.zeros(len(bg_df), dtype=np.int64)
+    uid_str = bg_df["user_uid"].to_numpy()
+    anchor_ts_ns = bg_df["anchor_ts_ns"].to_numpy(dtype=np.int64)
+    for u in np.unique(uid_str):
+        mask = uid_str == u
+        flat = ctx["flat_fg_per_user"].get(str(u))
+        if flat is None or len(flat["ts"]) == 0:
+            continue
+        out[mask] = compute_last2_fg_for_anchors(
+            anchor_ts_ns[mask], flat["ts"], flat["app"],
+        )
+    df = bg_df.copy()
+    df["last2_fg_app_idx"] = out
+    return df
+
+
+def add_c34_full_features_multi(bg_df: pd.DataFrame, ctx: dict) -> np.ndarray:
+    """3 columns: F1 (1) + F2 (2). Requires `last2_fg_app_idx` in bg_df."""
+    if "last2_fg_app_idx" not in bg_df.columns:
+        raise KeyError("bg_df must have last2_fg_app_idx; call attach_last2_fg first")
+    n = len(bg_df)
+    uid_str = bg_df["user_uid"].to_numpy()
+    last2 = bg_df["last2_fg_app_idx"].to_numpy(dtype=np.int64)
+    last  = bg_df["last_fg_app_idx"].to_numpy(dtype=np.int64)
+    app   = bg_df["app_idx"].to_numpy(dtype=np.int64)
+
+    markov_stack = ctx["markov_probs_stack"]   # (U, V, V)
+    V = markov_stack.shape[1]
+    uid_idx = bg_df["user_id_idx"].to_numpy(dtype=np.int64)
+
+    # F1: 2-step Markov P(app | last2, last) — fall back to 1-step Markov on miss
+    f1 = np.zeros(n, dtype=np.float32)
+    for u in np.unique(uid_str):
+        m_u = ctx["two_step_per_user"].get(str(u), {})
+        mask = uid_str == u
+        idxs = np.where(mask)[0]
+        for i in idxs:
+            key = (int(last2[i]), int(last[i]))
+            probs = m_u.get(key)
+            a = int(min(max(int(app[i]), 0), V - 1))
+            if probs is not None and a < probs.shape[0]:
+                f1[i] = float(probs[a])
+            else:
+                f1[i] = float(markov_stack[
+                    uid_idx[i], min(max(int(last[i]), 0), V - 1), a,
+                ])
+
+    # F2: co-FG matrix lookup
+    co_fg = ctx["co_fg_per_user"]
+    f2_self = np.zeros(n, dtype=np.float32)   # co_fg[uid][app, last]
+    f2_mean = np.zeros(n, dtype=np.float32)   # mean over peers in B(t)
+    for u in np.unique(uid_str):
+        mat = co_fg.get(str(u))
+        mask = uid_str == u
+        if mat is None:
+            continue
+        a_idx = np.clip(app[mask], 0, V - 1)
+        b_idx = np.clip(last[mask], 0, V - 1)
+        f2_self[mask] = mat[a_idx, b_idx]
+
+    df = bg_df.assign(_row=np.arange(n))
+    for (uid, anchor_id), grp in df.groupby(["user_uid", "anchor_id"], sort=False):
+        mat = co_fg.get(str(uid))
+        if mat is None:
+            continue
+        rows = grp["_row"].to_numpy()
+        b = int(np.clip(grp["last_fg_app_idx"].iloc[0], 0, V - 1))
+        peers = np.clip(grp["app_idx"].to_numpy(dtype=np.int64), 0, V - 1)
+        peer_co = mat[peers, b]
+        for j, r in enumerate(rows):
+            others = np.delete(peer_co, j)
+            f2_mean[r] = float(others.mean()) if others.size > 0 else float(peer_co[j])
+
+    return np.stack([f1, f2_self, f2_mean], axis=1).astype(np.float32)
+
+
+def build_c34n_full_multi(schema: str, bg_df: pd.DataFrame, ctx: dict) -> dict:
+    """c3.4n_cheap + 3 features (F1 + F2). 41 + 3 = 44 numeric features."""
+    bg_df = attach_last2_fg(bg_df, ctx)
+    base = build_c34n_cheap_multi("c3.4n_cheap", bg_df, ctx)
+    extra = add_c34_full_features_multi(bg_df, ctx)
+    base["features"] = np.concatenate([base["features"], extra], axis=1)
+    return base
+
+
+# ============================================================================
+# c3.3 schema (original)
+# ============================================================================
 def build_schema_data_multi(schema: str, bg_df: pd.DataFrame, ctx: dict) -> dict:
     """Multi-user equivalent of `_GRID.build_schema_data`. Currently supports c3.3."""
     if schema not in ("c2", "c3.1", "c3.2", "c3.3"):
@@ -325,6 +500,71 @@ def build_ctx_multi(art_dir: Path) -> dict:
     for uid, idx in uid_to_idx.items():
         fg_timeline_per_user[int(idx)] = per_user[uid]["fg_timeline"]
 
+    # ===================================================================
+    # c3.4 stage 1 stats — fit on the fly (cheap, ~20s for 22 users)
+    # ===================================================================
+    from lib.bg_multi.c34_features import (
+        fit_dow_hour_freq, fit_app_popularity_bucket, fit_cross_user_app_prior,
+    )
+    print(f"[ctx] fitting c3.4 stage-1 stats (DOW × hour, popularity, cross-user prior)...")
+    train_dfs_per_user: dict[str, pd.DataFrame] = {}
+    dow_hour_freq_per_user: dict[str, dict] = {}
+    for uid in uid_to_idx:
+        # Reuse existing per-user enriched train.parquet from 40_prep_multiuser.py
+        candidates = list((art_dir / "multiuser").glob(f"*/{uid}/splits/train.parquet"))
+        if not candidates:
+            raise FileNotFoundError(
+                f"per-user train.parquet not found for uid={uid}. "
+                f"Run scripts/40_prep_multiuser.py first."
+            )
+        tr = pd.read_parquet(candidates[0])
+        train_dfs_per_user[uid] = tr
+        dow_hour_freq_per_user[uid] = {"dow_hour_freq": fit_dow_hour_freq(tr, vocab)}
+    dow_hour_freq_stack = stack_per_user(dow_hour_freq_per_user, "dow_hour_freq", uid_to_idx)
+    app_popularity_bucket = fit_app_popularity_bucket(
+        train_dfs_per_user, vocab, common_min=15, medium_min=5,
+    )
+    bg_train_pooled = pd.read_parquet(bg_multi / "splits" / "bg_train.parquet")
+    cross_user_app_prior_per_user = fit_cross_user_app_prior(bg_train_pooled, vocab)
+    print(f"[ctx]   dow_hour_freq_stack {dow_hour_freq_stack.shape}, "
+          f"popularity_bucket V={len(app_popularity_bucket)}, "
+          f"cross_user_app_prior n_users={len(cross_user_app_prior_per_user)}")
+
+    # ===================================================================
+    # c3.4 stage 2 stats — F1 (2-step Markov) + F2 (co-FG matrix)
+    # Plus flat per-user FG timeline for last2 lookups.
+    # ===================================================================
+    from lib.bg_multi.c34_features import (
+        fit_two_step_markov_per_user, fit_co_fg_matrix_per_user,
+    )
+    print(f"[ctx] fitting c3.4 stage-2 stats (2-step Markov, co-FG matrix, flat FG timeline)...")
+    flat_fg_per_user: dict[str, dict] = {}
+    for uid, idx in uid_to_idx.items():
+        ftl = fg_timeline_per_user[int(idx)]
+        all_ts: list[np.ndarray] = []
+        all_app: list[np.ndarray] = []
+        for ai, ts_arr in ftl.items():
+            if len(ts_arr) == 0:
+                continue
+            all_ts.append(ts_arr)
+            all_app.append(np.full(len(ts_arr), int(ai), dtype=np.int64))
+        if all_ts:
+            ts_cat = np.concatenate(all_ts)
+            app_cat = np.concatenate(all_app)
+            order = np.argsort(ts_cat, kind="mergesort")
+            flat_fg_per_user[uid] = {"ts": ts_cat[order], "app": app_cat[order]}
+        else:
+            flat_fg_per_user[uid] = {"ts": np.zeros(0, dtype=np.int64),
+                                      "app": np.zeros(0, dtype=np.int64)}
+    two_step_per_user: dict[str, dict] = {}
+    for uid, tr in train_dfs_per_user.items():
+        two_step_per_user[uid] = fit_two_step_markov_per_user(tr, vocab)
+    co_fg_per_user = fit_co_fg_matrix_per_user(bg_train_pooled, vocab)
+    n_two_step_keys = sum(len(v) for v in two_step_per_user.values())
+    print(f"[ctx]   flat_fg_per_user n_users={len(flat_fg_per_user)}, "
+          f"two_step_per_user total_keys={n_two_step_keys}, "
+          f"co_fg_per_user n_users={len(co_fg_per_user)}")
+
     return {
         "vocab": vocab,
         "uid_to_idx": uid_to_idx,
@@ -337,6 +577,16 @@ def build_ctx_multi(art_dir: Path) -> dict:
         "cat_lifetime_share_stack": cat_lifetime_share_stack,
         "cat_markov_probs_stack": cat_markov_probs_stack,
         "fg_timeline_per_user": fg_timeline_per_user,
+        # c3.4 stage 1 additions
+        "dow_hour_freq_stack": dow_hour_freq_stack,
+        "app_popularity_bucket": app_popularity_bucket,
+        "cross_user_app_prior_per_user": cross_user_app_prior_per_user,
+        "_train_dfs_per_user": train_dfs_per_user,
+        "_bg_train_pooled": bg_train_pooled,
+        # c3.4 stage 2 additions
+        "flat_fg_per_user": flat_fg_per_user,
+        "two_step_per_user": two_step_per_user,
+        "co_fg_per_user": co_fg_per_user,
     }
 
 
@@ -373,6 +623,12 @@ RECIPES = {
                        "label_smooth": 0.0, "swa": False, "listwise_lambda": 0.5},
     "c3pro_wide":     {"schema": "c3.3", "wide": True,  "dropout": 0.3,
                        "label_smooth": 0.0, "swa": False, "listwise_lambda": 0.0},
+    # c3.4 stage-1 candidate (c3.3 + F3/F5/F6/F7)
+    "c3p4_cheap":     {"schema": "c3.4n_cheap", "wide": False, "dropout": 0.2,
+                       "label_smooth": 0.0, "swa": False, "listwise_lambda": 0.0},
+    # c3.4 stage-2 candidate (c3.4n_cheap + F1 2-step Markov + F2 co-FG)
+    "c3p4_full":      {"schema": "c3.4n_full",  "wide": False, "dropout": 0.2,
+                       "label_smooth": 0.0, "swa": False, "listwise_lambda": 0.0},
 }
 
 
@@ -392,9 +648,9 @@ def train_recipe(recipe_name: str, ctx: dict,
     schema = rec["schema"]
     print(f"[52] building features for schema={schema!r} ...")
     t0 = time.time()
-    d_tr = build_schema_data_multi(schema, bg_train, ctx)
-    d_va = build_schema_data_multi(schema, bg_val, ctx)
-    d_te = build_schema_data_multi(schema, bg_test, ctx)
+    d_tr = _build_data_dispatch(schema, bg_train, ctx)
+    d_va = _build_data_dispatch(schema, bg_val, ctx)
+    d_te = _build_data_dispatch(schema, bg_test, ctx)
     print(f"[52]   feature build: {time.time() - t0:.1f}s   "
           f"feature_dim={d_tr['features'].shape[1]}  "
           f"train_rows={d_tr['features'].shape[0]:,}")

@@ -80,8 +80,8 @@ def score_trained(recipe: str, df: pd.DataFrame, ctx_multi: dict,
         art_dir / "bg_multi" / "checkpoints" / f"task_c_multi_{recipe}.pt",
         map_location="cpu", weights_only=False,
     )
-    data_d = _TRAIN_MULTI.build_schema_data_multi("c3.3", df, ctx_multi)
     rec = _TRAIN_MULTI.RECIPES[recipe]
+    data_d = _TRAIN_MULTI._build_data_dispatch(rec["schema"], df, ctx_multi)
     model = _TRAIN_MULTI.make_model(rec, num_features=int(data_d["features"].shape[1]),
                                      vocab_size=len(ctx_multi["vocab"]))
     model.load_state_dict(ckpt["state_dict"], strict=False)
