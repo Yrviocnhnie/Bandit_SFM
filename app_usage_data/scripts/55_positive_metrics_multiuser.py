@@ -42,12 +42,15 @@ _TRAIN_MULTI = _load("train_multi_for_pos", ROOT / "scripts" / "52_train_task_c_
 
 
 R_SWEEP = (0.1, 0.25, 0.5, 0.75, 0.9)
-TRAINED_PICKS = ("c3p3", "c3pro_reg", "c3pro_listwise", "c3pro_wide")
+TRAINED_PICKS = ("c3p3", "c3pro_reg", "c3pro_listwise", "c3pro_wide",
+                  "c3p4_cheap", "c3p4_full")
 RECIPE_LABELS = {
     "c3p3":           "C3.3",
     "c3pro_reg":      "Pro-Reg/c3.3",
     "c3pro_listwise": "Pro-List/c3.3",
     "c3pro_wide":     "Pro-Wide/c3.3",
+    "c3p4_cheap":     "C3.4n-cheap",
+    "c3p4_full":      "C3.4n-full",
 }
 BASELINES = [
     ("random",        "score_random"),
