@@ -269,19 +269,32 @@ For each app appearing in ≥ 11 users, the cross-user **standard deviation** of
 
 ## 13. What features could help (recommendations)
 
-Based on the above, here's where to invest if we want to increase the trained-model gap:
+### 13.1 What's already in the c3.3 multi-user schema (33 features + 16-d app_emb)
+
+Listed in groups of c2 / c3.1 / c3.2 / c3.3 cumulative blocks:
+
+| Block (count) | Features | Pattern captured |
+|--------------|---------|------------------|
+| **c2 (16)** | 1) `log1p(time_in_bg)`, 2) `log1p(time_since_fg)`, 3) `recency_rank_in_bg`, 4) `log1p(fg_count_today)`, 5) `log1p(fg_count_last_3600s)`, 6) `log1p(fg_count_last_21600s)`, 7) `sin(hour)`, 8) `cos(hour)`, 9) `sin(weekday)`, 10) `cos(weekday)`, 11) `daypart_match`, 12) `markov_prob` (per-user), 13) `hour_cond_prob` (per-user), 14) `bg_recency_min_norm`, 15) `tso_norm` (= `time_since_screen_on_norm`), 16) `prev_killed_app_match` | LRU (Pattern A), hour cyclic (Pattern C), Markov stickiness (Pattern D), per-user calibration |
+| **c3.1 (+5)** | 17) `overdue_ratio`, 18) `was_fg_24h_ago`, 19) `was_fg_7d_ago`, 20) `log_fg_count_last_24h`, 21) `log_fg_count_last_7d` | Daily / weekly habit memory |
+| **c3.2 (+9)** | 22) `cat_match`, 23) `is_system_app`, 24) `app_lifetime_share` (per-user), 25) `app_lifetime_kill_rate` (per-user — the memorisation feature in §4), 26) `cat_lifetime_share` (per-user), 27) `bg_recency_mean`, 28) `bg_recency_max`, 29) `bg_unique_cat_cnt`, 30) `log_bg_size` | App identity (Pattern B), B(t) composition (Pattern G) |
+| **c3.3 (+3)** | 31) `cat_markov_prob` (per-user), 32) `time_since_cat_last_used`, 33) `bg_apps_in_same_cat` | Category-level transitions, co-occurrence within B(t) |
+| **+ app_emb** | 16-d learned embedding of `app_idx`, vocab_size = 243, concat'd with the 33-d numeric vector | Long-tail app handling, learned per-app priors |
+
+> **Note:** the multi-user `build_c2_multi` differs slightly from single-user `build_c2`: it has cyclic `sin/cos(weekday)` (2 features) instead of the binary `is_weekend` flag (1 feature) — net +1 feature, immaterial difference (both encode weekend vs weekday). All 4 trained multi-user checkpoints use the 33-feature schema above. Full reference inventory in `REPORT_bgkill_multiuser.md` §2.
+
+### 13.2 Where to invest next (not yet implemented)
 
 | Feature idea                                    | Captures | Estimated lift |
 |-------------------------------------------------|---------|----------------|
 | **2-step Markov** `P(app \| last2_fg, last_fg)` | Multi-step transitions (Pattern E) | ~+0.5 pp PR-AUC |
 | **App-app co-FG matrix** `P(a in B(t) used \| b just FG'd)` | Co-occurrence (Pattern E) | ~+0.5 – 1 pp |
-| **Time-of-day × app interaction explicit feature** | Pattern C (already there as `hour_cond_prob`) | Already in c3.3 |
-| **B(t) composition embedding** (sum-pool of cat_emb) | Pattern G (U-shape) | ~+0.3 pp |
-| **Recency-rank within anchor** | Pattern G | Already in c3.3 |
-| **Per-user pos-rate as feature** | Memorisation (§4) | Already injected as `app_lifetime_kill_rate` |
+| **B(t) composition embedding** (mean-pool of `app_emb` over B(t)) | Pattern G (U-shape) | ~+0.3 pp |
+| **Cross-user same-app prior** = mean pos-rate across other users | Cold-start handling (slice B) | small on slice A, **bigger on slice B** |
 | **Day-of-week × hour interaction** | Weekend/weekday patterns | ~+0.1 pp (Pattern not strong) |
+| **App popularity bucket** (rare/medium/common) | Long-tail handling | ~+0.1 pp |
 
-Most of the highest-leverage features are already in c3.3 — which explains why architectural variants barely move the needle.
+**Verdict:** most of the highest-leverage features (LRU, app identity, hour-cond, per-user Markov, recency-rank, BG composition) are *already* in c3.3 — which explains why architectural variants barely move the needle. The next-tier wins are 2-step Markov and co-FG matrix.
 
 ---
 

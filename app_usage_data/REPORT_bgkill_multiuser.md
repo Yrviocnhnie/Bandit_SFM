@@ -79,6 +79,62 @@ Single-user Task C (`REPORT_bgkill_v3.md`) reached **test PR-AUC 0.935 / MCC 0.3
 
 **Recipes:** identical to single-user `36_train_c3_grid.py`. Hyperparams unchanged (LR=1e-3, AdamW, batch=512, ≤30 epochs, patience 4).
 
+**Feature inventory (33 numeric + 16-d app_emb).** What the model sees per (anchor, app) row:
+
+```
+# c2 block (16 features) — basic recency / time / per-user Markov / hour signals
+ 1. log1p(time_in_bg_sec)                    — LRU signal
+ 2. log1p(time_since_fg_sec)                  — LRU variant
+ 3. recency_rank_in_bg                        — within-anchor rank by time-in-bg
+ 4. log1p(fg_count_today)
+ 5. log1p(fg_count_last_3600s)                — last-hour usage
+ 6. log1p(fg_count_last_21600s)               — last-6h usage
+ 7. sin(2π · hour / 24)                       — hour cyclic
+ 8. cos(2π · hour / 24)
+ 9. sin(2π · weekday / 7)                     — weekday cyclic [†]
+10. cos(2π · weekday / 7)                     — weekday cyclic [†]
+11. (anchor_daypart == last_fg_daypart) flag  — daypart match
+12. markov_prob[uid, last_fg, app]            — per-user 1-step Markov
+13. hour_cond_prob[uid, hour, app]            — per-user P(app | hour)
+14. log1p(bg_recency_min_sec) / log1p(6h)     — anchor BG freshness
+15. tso_norm = log1p(time_since_screen_on)/log1p(1h)
+16. prev_killed_app_match (== app_idx flag)
+
+# c3.1 block (+5) — hourly / weekly habit memory
+17. overdue_ratio = clip(time_in_bg / per_app_inter_fg_mean, 0, 5)
+18. was_fg_24h_ago (±30 min match)            — daily-habit memory
+19. was_fg_7d_ago  (±30 min match)            — weekly-habit memory
+20. log1p(fg_count_last_24h)
+21. log1p(fg_count_last_7d)
+
+# c3.2 block (+9) — category + identity + BG-set composition
+22. cat_match (cat[app] == cat[last_fg])
+23. is_system_app (cat ∈ telephony/contacts/system)
+24. app_lifetime_share[uid, app]              — fraction of user's FGs
+25. app_lifetime_kill_rate[uid, app]          — historical kill rate (memorisation feature)
+26. cat_lifetime_share[uid, cat]
+27. bg_recency_mean (within anchor)           — log1p of mean time_since_fg
+28. bg_recency_max  (within anchor)
+29. bg_unique_cat_cnt                         — # distinct categories in B(t)
+30. log1p(bg_set_size)
+
+# c3.3 block (+3) — category-aware
+31. cat_markov_prob[uid, last_cat, cat]
+32. time_since_cat_last_used (within anchor, normalised)
+33. bg_apps_in_same_cat (count within anchor)
+
+# Plus, separately fed into the model:
+   app_idx → 16-d learned embedding (V_pool × 16 = 243 × 16 = 3,888 params)
+            concat'd with the 33-d feature vector → 49-d input to the MLP.
+```
+
+**Notable design choices:**
+- *No `cat_emb`* — c3.x intentionally drops the category embedding; category info enters via numeric features (#22, #26, #29, #31, #33) instead. (See `REPORT_bgkill_features_review.md` for the rationale.)
+- All per-user features (#12, #13, #24, #25, #26, #31) use vectorized lookup `stack[uid_idx, ...]` keyed by the anchor's `user_id_idx`.
+- All train-only stats are fit per-user with `fit_split="train"` assertion.
+
+**[†] One discrepancy from single-user.** Single-user `build_c2` uses `is_weekend = (weekday >= 5)` flag (1 feature). Multi-user `build_c2_multi` instead uses cyclic `sin(2π·weekday/7), cos(2π·weekday/7)` (2 features) — net +1 feature in multi-user (33 vs 32). The two encodings are largely redundant (both capture weekend vs weekday); we kept the multi-user encoding as-trained since the difference is immaterial and the trained checkpoints in `artifacts/bg_multi/checkpoints/` use this schema.
+
 **Training time on test machine** (224-core server, shared with other workloads): ~8–14 min per recipe, ~45 min total for 4 recipes.
 
 **Tests.** 54 pytest tests across 7 layers covering: helper unit semantics, data-build integrity (causality, pooled coverage, anchor uniqueness), per-user stat lookup, baseline correctness, model + checkpoint round-trip, metric range/monotonicity, and an end-to-end smoke pipeline. All green at commit time.
