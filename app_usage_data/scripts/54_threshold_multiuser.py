@@ -48,7 +48,7 @@ _TRAIN_MULTI = _load("train_multi_for_thr", ROOT / "scripts" / "52_train_task_c_
 
 
 TRAINED_PICKS = ("c3p3", "c3pro_reg", "c3pro_listwise", "c3pro_wide",
-                  "c3p4_cheap", "c3p4_full")
+                  "c3p4_cheap", "c3p4_full", "c3p3_cat")
 RECIPE_LABELS = {
     "c3p3":           "C3.3",
     "c3pro_reg":      "Pro-Reg/c3.3",
@@ -56,6 +56,7 @@ RECIPE_LABELS = {
     "c3pro_wide":     "Pro-Wide/c3.3",
     "c3p4_cheap":     "C3.4n-cheap",
     "c3p4_full":      "C3.4n-full",
+    "c3p3_cat":       "C3.3+catEmb",
 }
 DENSE_TAUS = [round(0.02 * (i + 1), 2) for i in range(50)]
 
@@ -66,6 +67,7 @@ def score_trained_into_df(recipe: str, df: pd.DataFrame, ctx_multi: dict,
     ckpt_path = art_dir / "bg_multi" / "checkpoints" / f"task_c_multi_{recipe}.pt"
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     rec = _TRAIN_MULTI.RECIPES[recipe]
+    use_cat = bool(rec.get("use_cat_emb"))
     data_d = _TRAIN_MULTI._build_data_dispatch(rec["schema"], df, ctx_multi)
     model = _TRAIN_MULTI.make_model(rec, num_features=int(data_d["features"].shape[1]),
                                      vocab_size=len(ctx_multi["vocab"]))
@@ -73,10 +75,14 @@ def score_trained_into_df(recipe: str, df: pd.DataFrame, ctx_multi: dict,
     model.eval()
     f = torch.as_tensor(data_d["features"].copy(), dtype=torch.float32)
     a = torch.as_tensor(data_d["app_idx"].copy(), dtype=torch.long)
+    c = torch.as_tensor(data_d["cat_idx"].copy(), dtype=torch.long) if use_cat else None
     out = []
     with torch.no_grad():
         for s in range(0, f.shape[0], 4096):
-            logits = model(a[s:s + 4096], f[s:s + 4096])
+            if use_cat:
+                logits = model(a[s:s + 4096], f[s:s + 4096], c[s:s + 4096])
+            else:
+                logits = model(a[s:s + 4096], f[s:s + 4096])
             out.append(torch.sigmoid(logits).cpu().numpy())
     df = df.copy()
     df[f"score_{recipe}"] = 1.0 - np.concatenate(out)

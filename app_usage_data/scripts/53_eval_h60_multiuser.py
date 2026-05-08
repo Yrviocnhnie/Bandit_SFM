@@ -61,7 +61,7 @@ _TRAIN_MULTI = _load("train_multi_for_eval", ROOT / "scripts" / "52_train_task_c
 # ============================================================================
 R_SWEEP = (0.1, 0.25, 0.5, 0.75, 0.9)
 TRAINED_PICKS = ("c3p3", "c3pro_reg", "c3pro_listwise", "c3pro_wide",
-                  "c3p4_cheap", "c3p4_full", "c3p4_full_cat")
+                  "c3p4_cheap", "c3p4_full", "c3p3_cat")
 RECIPE_LABELS = {
     "c3p3":            "C3.3",
     "c3pro_reg":       "Pro-Reg/c3.3",
@@ -69,7 +69,7 @@ RECIPE_LABELS = {
     "c3pro_wide":      "Pro-Wide/c3.3",
     "c3p4_cheap":      "C3.4n-cheap",
     "c3p4_full":       "C3.4n-full",
-    "c3p4_full_cat":   "C3.4-full+catEmb",
+    "c3p3_cat":        "C3.3+catEmb",
 }
 BASELINES = [
     ("random",        "score_random"),
@@ -104,6 +104,7 @@ def score_trained(model_recipe: str, df: pd.DataFrame, ctx_multi: dict,
     ckpt_path = art_dir / "bg_multi" / "checkpoints" / f"task_c_multi_{model_recipe}.pt"
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     rec = _TRAIN_MULTI.RECIPES[model_recipe]
+    use_cat = bool(rec.get("use_cat_emb"))
     data_d = _TRAIN_MULTI._build_data_dispatch(rec["schema"], df, ctx_multi)
     model = _TRAIN_MULTI.make_model(
         rec, num_features=int(data_d["features"].shape[1]),
@@ -113,10 +114,14 @@ def score_trained(model_recipe: str, df: pd.DataFrame, ctx_multi: dict,
     model.eval()
     f = torch.as_tensor(data_d["features"].copy(), dtype=torch.float32)
     a = torch.as_tensor(data_d["app_idx"].copy(), dtype=torch.long)
+    c = torch.as_tensor(data_d["cat_idx"].copy(), dtype=torch.long) if use_cat else None
     out = []
     with torch.no_grad():
         for s in range(0, f.shape[0], 4096):
-            logits = model(a[s:s + 4096], f[s:s + 4096])
+            if use_cat:
+                logits = model(a[s:s + 4096], f[s:s + 4096], c[s:s + 4096])
+            else:
+                logits = model(a[s:s + 4096], f[s:s + 4096])
             out.append(torch.sigmoid(logits).cpu().numpy())
     p = np.concatenate(out)
     return 1.0 - p

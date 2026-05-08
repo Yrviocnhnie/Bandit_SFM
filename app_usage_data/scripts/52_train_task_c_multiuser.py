@@ -590,15 +590,20 @@ def build_ctx_multi(art_dir: Path) -> dict:
     }
 
 
-def evaluate_multi(model: torch.nn.Module, bg_df: pd.DataFrame, data_d: dict) -> dict:
-    """Forward + per-(user, anchor) Track A metrics."""
+def evaluate_multi(model: torch.nn.Module, bg_df: pd.DataFrame, data_d: dict,
+                    use_cat_emb: bool = False) -> dict:
+    """Forward + per-(user, anchor) Track A metrics. Forwards cat_idx when use_cat_emb."""
     model.eval()
     f = torch.as_tensor(data_d["features"].copy(), dtype=torch.float32)
     a = torch.as_tensor(data_d["app_idx"].copy(), dtype=torch.long)
+    c = torch.as_tensor(data_d["cat_idx"].copy(), dtype=torch.long) if use_cat_emb else None
     probs = []
     with torch.no_grad():
         for s in range(0, f.shape[0], 4096):
-            logits = model(a[s:s + 4096], f[s:s + 4096])
+            if use_cat_emb:
+                logits = model(a[s:s + 4096], f[s:s + 4096], c[s:s + 4096])
+            else:
+                logits = model(a[s:s + 4096], f[s:s + 4096])
             probs.append(torch.sigmoid(logits).cpu().numpy())
     p = np.concatenate(probs)
     merged = bg_df.copy()
@@ -609,6 +614,142 @@ def evaluate_multi(model: torch.nn.Module, bg_df: pd.DataFrame, data_d: dict) ->
                                                  "_global_aid": "anchor_id"})
     return MET.compute_metrics(merged_for_metric, "score_model", Y_COL,
                                 r_values=R_SWEEP)
+
+
+# ============================================================================
+# c3.4 STAGE 3 — cat_emb forward path (model-side wiring; numeric features
+# unchanged). Forks _GRID.train_one with cat_idx forwarded into the model.
+# ============================================================================
+import torch.nn as _nn
+from torch.utils.data import DataLoader as _DataLoader
+
+# Default hparams for cat-emb path — mirrors _GRID
+_LR = 1e-3
+_WD = 1e-4
+_BATCH = 256
+
+
+def make_baseline_with_cat_emb(num_features: int, vocab_size: int,
+                                num_categories: int = 11,
+                                cat_emb_dim: int = 4,
+                                d_hidden: int = 64,
+                                dropout: float = 0.2):
+    """Single-head MLP with explicit cat_emb. Re-uses _TRAINER.SingleHeadMLP
+    which already supports use_cat_emb=True."""
+    cfg = _TRAINER.ModelCfg(
+        vocab_size=vocab_size,
+        num_features=num_features,
+        use_cat_emb=True,
+        num_categories=num_categories,
+        cat_emb_dim=cat_emb_dim,
+        d_hidden=d_hidden,
+        dropout=dropout,
+    )
+    return _TRAINER.SingleHeadMLP(cfg)
+
+
+class _PairDSCat(torch.utils.data.Dataset):
+    """Dataset that surfaces cat_idx alongside app_idx + features."""
+    def __init__(self, d):
+        self.f = torch.as_tensor(d["features"].copy(), dtype=torch.float32)
+        self.ai = torch.as_tensor(d["app_idx"].copy(), dtype=torch.long)
+        self.ci = torch.as_tensor(d["cat_idx"].copy(), dtype=torch.long)
+        self.y = torch.as_tensor(d["y"].copy(), dtype=torch.float32)
+        self.aid = torch.as_tensor(d["anchor_id"].copy(), dtype=torch.long)
+
+    def __len__(self):
+        return self.f.shape[0]
+
+    def __getitem__(self, i):
+        return {"features": self.f[i], "app_idx": self.ai[i],
+                "cat_idx": self.ci[i], "y": self.y[i],
+                "anchor_id": self.aid[i]}
+
+
+def train_one_cat(d_tr: dict, d_va: dict, d_te: dict,
+                   bg_val: pd.DataFrame, bg_test: pd.DataFrame, vocab: dict,
+                   tag: str, model_fn,
+                   listwise_lambda: float = 0.0, label_smooth: float = 0.0,
+                   epochs: int = 30, patience: int = 4, dropout: float = 0.2,
+                   swa: bool = False, seed: int = 7,
+                   log_prefix: str = "") -> dict:
+    """Forked _GRID.train_one with cat_idx forwarded into the model.
+
+    Same loss, optimizer, scheduling, early-stop as _GRID.train_one. The only
+    change is `model(b["app_idx"], b["features"], b["cat_idx"])`.
+    """
+    import time as _time
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    pos = float(d_tr["y"].mean())
+    pw = torch.tensor([(1.0 - pos) / max(pos, 1e-6)])
+    num_features = int(d_tr["features"].shape[1])
+    model = model_fn(num_features=num_features, vocab_size=len(vocab))
+    bce = _nn.BCEWithLogitsLoss(pos_weight=pw)
+    opt = torch.optim.AdamW(model.parameters(), lr=_LR, weight_decay=_WD)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs) if swa else None
+    swa_model = torch.optim.swa_utils.AveragedModel(model) if swa else None
+
+    dl_tr = _DataLoader(_PairDSCat(d_tr), batch_size=_BATCH, shuffle=True)
+    best_pr = -1.0
+    best_state = None
+    pat = 0
+    log = []
+    t0 = _time.time()
+    swa_start = max(1, int(epochs * 0.7))
+    for ep in range(1, epochs + 1):
+        model.train()
+        tot, n = 0.0, 0
+        for b in dl_tr:
+            logit = model(b["app_idx"], b["features"], b["cat_idx"])
+            y = b["y"].float()
+            if label_smooth > 0:
+                y = y * (1 - label_smooth) + 0.5 * label_smooth
+            loss_main = bce(logit, y)
+            if listwise_lambda > 0:
+                loss_list = _GRID.listwise_softmax_nll(logit, b["y"], b["anchor_id"])
+                loss = loss_main + listwise_lambda * loss_list
+            else:
+                loss = loss_main
+            opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            opt.step()
+            tot += float(loss.item()) * len(b["y"])
+            n += len(b["y"])
+        if sched is not None:
+            sched.step()
+        if swa_model is not None and ep >= swa_start:
+            swa_model.update_parameters(model)
+        eval_model = swa_model.module if (swa_model is not None and ep >= swa_start) else model
+        val_m = evaluate_multi(eval_model, bg_val, d_va, use_cat_emb=True)
+        pr = float(val_m["pr_auc_mean"])
+        log.append({"epoch": ep, "train_loss": tot / max(1, n),
+                    "val_pr": pr, "val_roc": float(val_m["roc_auc_mean"]),
+                    "val_fk_05": float(val_m["false_kill_rate"]["0.5"])})
+        print(f"  {log_prefix}ep{ep:02d}  loss={tot/max(1,n):.4f}  val_PR={pr:.4f}  "
+              f"val_ROC={float(val_m['roc_auc_mean']):.4f}  val_FK@.5={float(val_m['false_kill_rate']['0.5']):.4f}")
+        if pr > best_pr + 1e-6:
+            best_pr = pr
+            best_state = {k: v.detach().cpu().clone() for k, v in eval_model.state_dict().items()}
+            pat = 0
+        else:
+            pat += 1
+            if pat >= patience:
+                print(f"  {log_prefix}early stop at ep{ep}")
+                break
+    if best_state is not None:
+        model.load_state_dict(best_state, strict=False)
+    return {
+        "feature_dim": num_features,
+        "n_params": sum(p.numel() for p in model.parameters()),
+        "elapsed_sec": _time.time() - t0,
+        "train_log": log,
+        "best_val_pr": best_pr,
+        "val": evaluate_multi(model, bg_val, d_va, use_cat_emb=True),
+        "test": evaluate_multi(model, bg_test, d_te, use_cat_emb=True),
+        "state_dict": best_state,
+    }
 
 
 # ============================================================================
@@ -629,10 +770,20 @@ RECIPES = {
     # c3.4 stage-2 candidate (c3.4n_cheap + F1 2-step Markov + F2 co-FG)
     "c3p4_full":      {"schema": "c3.4n_full",  "wide": False, "dropout": 0.2,
                        "label_smooth": 0.0, "swa": False, "listwise_lambda": 0.0},
+    # c3.4 stage-3 candidate (architecture change): c3.3 numeric features +
+    # explicit cat_emb. Tests whether category embedding alone helps,
+    # isolated from any numeric feature additions.
+    "c3p3_cat":       {"schema": "c3.3", "wide": False, "dropout": 0.2,
+                       "label_smooth": 0.0, "swa": False, "listwise_lambda": 0.0,
+                       "use_cat_emb": True},
 }
 
 
 def make_model(recipe: dict, num_features: int, vocab_size: int) -> torch.nn.Module:
+    if recipe.get("use_cat_emb"):
+        return make_baseline_with_cat_emb(num_features=num_features,
+                                            vocab_size=vocab_size,
+                                            dropout=recipe["dropout"])
     if recipe["wide"]:
         return _GRID.make_wide_model(num_features=num_features, vocab_size=vocab_size,
                                       dropout=recipe["dropout"])
@@ -655,9 +806,11 @@ def train_recipe(recipe_name: str, ctx: dict,
           f"feature_dim={d_tr['features'].shape[1]}  "
           f"train_rows={d_tr['features'].shape[0]:,}")
 
-    # Use existing single-user train_one (it operates on the data_d dict + bg_df)
+    # Dispatch on whether the recipe uses cat_emb (different forward signature).
     print(f"[52] training recipe={recipe_name} ...")
-    result = _GRID.train_one(
+    use_cat = bool(rec.get("use_cat_emb"))
+    train_fn = train_one_cat if use_cat else _GRID.train_one
+    result = train_fn(
         d_tr, d_va, d_te, bg_val, bg_test, ctx["vocab"],
         tag=recipe_name,
         model_fn=lambda num_features, vocab_size: make_model(
@@ -668,13 +821,15 @@ def train_recipe(recipe_name: str, ctx: dict,
         epochs=epochs, patience=patience, dropout=rec["dropout"],
         swa=rec["swa"], seed=seed, log_prefix=f"[{recipe_name}] ",
     )
-    # Replace the (single-user) val/test metrics with multi-user-grouped ones
+    # Replace the (single-user) val/test metrics with multi-user-grouped ones.
+    # train_one_cat already evaluates on multi-user grouped metrics; the c3.x
+    # path goes through _GRID.train_one and needs the override.
     state = result.get("state_dict")
     model = make_model(rec, num_features=d_tr["features"].shape[1], vocab_size=len(ctx["vocab"]))
     if state is not None:
         model.load_state_dict(state, strict=False)
-    result["val"] = evaluate_multi(model, bg_val, d_va)
-    result["test"] = evaluate_multi(model, bg_test, d_te)
+    result["val"] = evaluate_multi(model, bg_val, d_va, use_cat_emb=use_cat)
+    result["test"] = evaluate_multi(model, bg_test, d_te, use_cat_emb=use_cat)
     return result
 
 
