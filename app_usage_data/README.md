@@ -78,11 +78,11 @@ python scripts/41_threshold_metrics.py                                        # 
 # --- Task C: multi-user variant (22 users, one global model with per-user features) ---
 python scripts/50_build_bg_data_multiuser.py                                  # pooled vocab + per-user splits + per-user feature stats + pooled bg parquets
 python scripts/51_run_baselines_bg_multiuser.py                               # per-user closed-form baselines, mean/median/std across users
-python scripts/52_train_task_c_multiuser.py --epochs 30 --patience 4          # train all 4 picks (c3p3 / c3pro_reg / c3pro_listwise / c3pro_wide) on pooled data
+python scripts/52_train_task_c_multiuser.py --epochs 30 --patience 4          # train all 7 picks on pooled data: original 4 (c3p3 / c3pro_reg / c3pro_listwise / c3pro_wide) + c3.4 expansion (c3p4_cheap = 41 numeric features F3/F5/F6/F7; c3p4_full = 44 features F1/F2 added; c3p3_cat = c3.3 numerics + 4-d learnable cat_emb arch change — gate-passer at +0.36 pp PR-AUC)
 python scripts/53_eval_h60_multiuser.py --include-slice-b                     # Track A per-user metrics + Pareto + cold-start single-user (slice B)
 python scripts/54_threshold_multiuser.py                                      # Track B per-user τ* + global τ* + dense τ-sweep
 python scripts/55_positive_metrics_multiuser.py                               # positives-only metrics, mean across users
-python -m pytest lib/bg_multi/tests/ -v                                       # 54 tests, 7 layers (causality, lookups, model IO, metric ranges)
+python -m pytest lib/bg_multi/tests/ -v                                       # 63 tests (54 base + 9 c3.4 fitter tests), 7 layers: causality, lookups, model IO, metric ranges
 ```
 
 ## Layout
@@ -103,6 +103,7 @@ app_usage_data/
 ├─ REPORT_bgkill_v2.md                        # Task C v2 — feature audit, C2 schema (15 Task-C-relevant features, H=5/10)
 ├─ REPORT_bgkill_v3.md                        # **Task C live writeup** — H=60 single-horizon, 2 h staleness, full C3.x + C3-Pro grid
 ├─ REPORT_bgkill_multiuser.md                 # **Task C multi-user benchmark** — 22 users, one global model, per-user features fed via lookup, slice-A pooled-test + slice-B cold-start
+├─ REPORT_bgkill_multiuser_c34.md             # **Task C multi-user c3.4 ablation** — F1-F7 numeric features (Stages 1+2: regress / marginal) + cat_emb arch change (Stage 3: PASSES gate, +0.36 pp PR-AUC, wins WAKR@.25 / FK@.25 / MSR@.25)
 ├─ REPORT_bgkill_data.md                      # B(t) state machine + label definition spec
 ├─ REPORT_bgkill_metrics.md                   # FK / MSR / PR-AUC / ROC-AUC / NDCG / Pareto definitions
 ├─ REPORT_bgkill_model_plan.md                # plan that drove the C3.x feature track + C3-Pro architectural track
@@ -139,7 +140,8 @@ app_usage_data/
 │  │   └─ metrics_bg.py       — Track A (rank-based): FalseKillRate@r, MemorySaveRate@r, PR-AUC, ROC-AUC, NDCG@half · Track B (threshold-based): compute_threshold_metrics + find_best_tau_by_f1 (kill class as positive); compute_keep_threshold_metrics + find_best_tau_by_f1_keep (flipped — rare keep class); compute_positive_only_metrics (WAKR / PosRank / PosScoreNorm)
 │  └─ bg_multi/                                      # Task C (multi-user variant)
 │      ├─ helpers.py          — list_cohort_users, build_pooled_vocab, fit_per_user_stats, stack_per_user, make_global_anchor_id, attach_user_columns
-│      └─ tests/              — 54 pytest tests across 7 layers (helpers, data build, feature lookup, baselines, model IO, metrics, smoke E2E)
+│      ├─ c34_features.py     — c3.4 fitters: fit_dow_hour_freq (F3), fit_app_popularity_bucket (F5), fit_cross_user_app_prior (F6), compute_last2_fg_for_anchors, fit_two_step_markov_per_user (F1), fit_co_fg_matrix_per_user (F2)
+│      └─ tests/              — 63 pytest tests across 7 layers (helpers, data build, feature lookup, baselines, model IO, metrics, smoke E2E) + 9 c3.4 fitter unit tests in test_c34_features.py
 │
 ├─ scripts/
 │  ├─ 01_prep_data.py .. 07_report.py                — v1 pipeline
@@ -160,7 +162,7 @@ app_usage_data/
 │  ├─ 41_threshold_metrics.py                          — Task C Track B: τ* (argmax F1 on val) + fixed-τ sweep — FKR / SKR / F1 / Acc / MCC
 │  ├─ 50_build_bg_data_multiuser.py                    — Task C MULTI: pooled vocab + per-user splits + per-user feature stats + pooled bg_{train,val,test}.parquet
 │  ├─ 51_run_baselines_bg_multiuser.py                 — Task C MULTI: per-user closed-form baselines, mean/median/std across users
-│  ├─ 52_train_task_c_multiuser.py                     — Task C MULTI: train all 4 picks on pooled data with per-user features fed via vectorized lookup
+│  ├─ 52_train_task_c_multiuser.py                     — Task C MULTI: train any of 7 recipes (`--recipes c3p3,c3pro_reg,c3pro_listwise,c3pro_wide,c3p4_cheap,c3p4_full,c3p3_cat`) on pooled data with per-user features fed via vectorized lookup; c3p3_cat adds 4-d learnable cat_emb arch change on c3.3 numerics
 │  ├─ 53_eval_h60_multiuser.py                         — Task C MULTI: Track A per-user metrics + Pareto + slice-B cold-start
 │  ├─ 54_threshold_multiuser.py                        — Task C MULTI: Track B per-user τ* + global τ* + dense τ-sweep
 │  └─ 55_positive_metrics_multiuser.py                 — Task C MULTI: positives-only metrics, mean across users
@@ -231,7 +233,8 @@ Different framing: per-anchor restricted decision set (just `B(t)`, typically 5�
 | C3.1 | 20 + app_emb | + 5 hourly-habit (overdue_ratio, was_fg_24h_ago, was_fg_7d_ago, log_fg_count_last_{24h,7d}) | `34_train_task_c_h60.py:build_c31` |
 | C3.2 | 29 + app_emb | + 9 identity / BG-comp (category_match, is_system_app, app_lifetime_{share, kill_rate}, cat_lifetime_share, bg_recency_{mean, max}, bg_unique_cat_cnt, log_bg_size) | `36_train_c3_grid.py:add_c32_features` |
 | **C3.3** | 32 + app_emb | + 3 category-aware (cat_markov_prob, time_since_cat_last_used, bg_apps_in_same_cat) | `36_train_c3_grid.py:add_c33_cols` |
-| C3.4 | 33 + app_emb | + 1 two-step Markov (sparse table + 1-step fallback) — *regresses* | `36_train_c3_grid.py:add_c34_col` |
+| C3.4 (single-user) | 33 + app_emb | + 1 two-step Markov (sparse table + 1-step fallback) — *regresses* | `36_train_c3_grid.py:add_c34_col` |
+| **c3.4 multi-user (Stages 1+2+3)** | 41 / 44 / 33 | Stage 1 (`c3p4_cheap` = +F3/F5/F6/F7, marginal +0.24 pp PR-AUC); Stage 2 (`c3p4_full` = +F1 2-step Markov + F2 co-FG matrix, **regresses −0.77 pp**); **Stage 3 (`c3p3_cat` = c3.3 features + 4-d learnable `cat_emb`, +0.36 pp PR-AUC — PASSES gate**, wins WAKR@.25 / FK@.25 / MSR@.25 / P_kill@τ_keep) | `lib/bg_multi/c34_features.py` + `scripts/52_train_task_c_multiuser.py` |
 
 **Architectural variants (Track B, all on the best feature schema):**
 
@@ -281,6 +284,23 @@ n = 870 anchors with `|B(t)| ≥ 1`; pos-rate of `y_3600` = 21.7 %.
 
 **What's noise:** FK@0.5 / NDCG gains are within bootstrap CI band on the 870-anchor test set; the Pro-Ensemble on c3.3 (test PR=0.918) does *not* beat the best single seed — averaging hurts in this small-data regime. C3.4 (2-step Markov) regresses because the V × V × V table is too sparse on a single-user stream.
 
+### Task C — multi-user headline (test split, H = 60 min, 22 users, per-user mean)
+
+V_pool = 243, ~626k train / 75k val / 65k test rows pooled across 22 users; one global model + per-user feature stats fed via vectorized lookup. See `REPORT_bgkill_multiuser.md` (base recipes) and `REPORT_bgkill_multiuser_c34.md` (c3.4 expansion + cat_emb).
+
+| Model | feat | PR-AUC | ROC-AUC | FK@.25 | FK@.5 | MSR@.25 | MSR@.5 | MCC@τ_keep | WAKR@.25 |
+|---|---|---|---|---|---|---|---|---|---|
+| Markov-inverse (best baseline) | — | 0.890 | 0.817 | 0.134 | 0.164 | 0.457 | 0.646 | — | 0.177 |
+| C3.3 (c3p3) | 33 | 0.904 | 0.810 | 0.117 | 0.153 | 0.468 | 0.658 | 0.385 | 0.209 |
+| Pro-Reg/c3.3 | 33 | 0.907 | 0.818 | 0.117 | 0.153 | 0.468 | 0.657 | 0.392 | 0.203 |
+| Pro-List/c3.3 | 33 | 0.908 | **0.834** | 0.121 | 0.155 | 0.466 | 0.656 | 0.381 | 0.168 |
+| **Pro-Wide/c3.3** | 33 | 0.905 | 0.819 | 0.118 | **0.151** | 0.467 | **0.658** | **0.394** | 0.168 |
+| C3.4n-cheap (F3/F5/F6/F7) | 41 | 0.907 | 0.830 | 0.118 | 0.155 | 0.468 | 0.654 | 0.384 | 0.165 |
+| C3.4n-full (+ F1 / F2) | 44 | 0.897 | 0.805 | 0.125 | 0.158 | 0.462 | 0.651 | 0.378 | 0.169 |
+| **C3.3 + cat_emb (c3p3_cat)** | 33 | **0.908** | 0.821 | **0.116** | 0.153 | **0.470** | 0.657 | 0.384 | **0.160** |
+
+**Multi-user headline:** the c3.4 numeric features (Stages 1+2 = F1–F7) are mostly redundant or noisy — Stage 1 marginal (+0.24 pp PR-AUC, just under the +0.3 pp gate), Stage 2 regresses (−0.77 pp). The **architecture change is the lever**: a 4-d learnable `cat_emb` (44 params + ~250 first-layer expansion = +300 total) on top of c3.3 numerics buys **+0.36 pp PR-AUC**, passes the gate, and surfaces as the new leader on 5 of 9 metrics (PR-AUC, FK@.25, MSR@.25, WAKR@.25, P_kill at τ_keep) — without regressing on any other.
+
 ## Iterative ablation rounds (v3)
 
 All share v2's three-branch encoder architecture; rounds add features incrementally.
@@ -308,6 +328,7 @@ R6-arch trim ties R6 on Task B test EH@5 (0.746) with **profile dim 79 vs 153** 
 - **Test > val gap** on Task B across all v3 rounds is because the chronological test window (last 5 days, April 8–13) happens to be more predictable for this user than the val window (April 3–7). Selection is on val, so no test-set overfitting.
 - **Overfitting guards held**: dropout 0.2, weight decay 1e-4, grad-clip 1.0, early-stop patience 6 on val metric, all stats fit train-only with `fit_split="train"` assertions.
 - **Task C** (background suspension, H = 60 min): the right *feature schema* (C3.3 = +9 identity / BG-comp + 3 category-aware over C3.1) earns ~1.5 pp test PR-AUC; *architectural levers* (Listwise / Wide / Reg / SWA) add only ~0.1–0.2 pp on top — confirming the dominant signal is hourly-cadence + per-app priors rather than model capacity. C3.4 (2-step Markov) regressed because the V × V × V table is too sparse on a single user's stream; the 5-seed ensemble underperformed every single seed on test, since per-seed selection variance dominates ensembling gains at 877 val anchors.
+- **Task C — multi-user c3.4 ablation:** the F1–F7 *numeric* features candidate set (cumulative on c3.3) doesn't reliably help — Stage 1 (cheap features F3/F5/F6/F7) is marginal (+0.24 pp PR-AUC) and Stage 2 (F1 2-step Markov + F2 co-FG matrix) regresses by −0.77 pp because the per-cell estimates are too sparse on 22 users × ~28 k anchors each. The **architecture change is the actual lever**: adding a 4-d learnable `cat_emb` (11 categories, +44 params, +300 total) on top of unchanged c3.3 numerics gives **+0.36 pp PR-AUC** and the best long-tail handling (WAKR@.25, FK@.25, MSR@.25). This validates the EDA hypothesis that the multi-user bottleneck is *signal sharing across long-tail apps*, not richer per-row features.
 
 ## See also
 
@@ -321,7 +342,8 @@ R6-arch trim ties R6 on Task B test EH@5 (0.746) with **profile dim 79 vs 153** 
 - `REPORT_v5_cherry_picked.md` — focuses on **10 users where the trained model clearly beats MRU-5** (sorted by Δ EH@5 = v5 E2 − MRU). Shows mean/median tables for all 17 baselines × all standard metrics. On the picked subset: v5 E2 lifts Task B EH@5 by +3.8 pp mean / +2.9 pp median, Recall@5 by +3.1 pp, Coverage@5 by +2.4 pp absolute (≈6 % relative). Companion to the cohort-wide `REPORT_v5_multiuser.md` — exists to characterise *which* users benefit from training.
 - **Task C reports:**
   - `REPORT_bgkill_v3.md` — **live writeup**. Single-horizon H = 60 min, 2 h staleness. Full grid: closed-form baselines, C1 / C2 / C3.1–C3.4, C3-Pro Listwise/Wide/Reg/Full/Ensemble × c3.2/c3.3 schemas. Bootstrap CIs (B=1000), Pareto curves, leave-one-out feature ablation, statistical-significance discussion. **Production pick: Pro-Reg-on-c3.3** (test PR=0.935 / ROC=0.826 / FK@0.5=0.162; +3.8 / +8.7 / −2.1 pp over Markov-inverse).
-  - `REPORT_bgkill_multiuser.md` — **multi-user benchmark** (22 users from `/data00/ruiqing/app_forecasting/data/cleaned/`). One global model trained on pooled bg rows (V_pool=243, ~626k train), with per-user feature stats (Markov / hour_freq / lifetime stats / fg_timeline) injected as feature inputs at scoring time via vectorized lookup. Two eval slices: (A) 22-user pooled bg_test with per-user metric aggregation + bootstrap CIs across users; (B) cold-start single-user transfer. 54 pytest tests across 7 layers (`lib/bg_multi/tests/`).
+  - `REPORT_bgkill_multiuser.md` — **multi-user benchmark** (22 users from `/data00/ruiqing/app_forecasting/data/cleaned/`). One global model trained on pooled bg rows (V_pool=243, ~626k train), with per-user feature stats (Markov / hour_freq / lifetime stats / fg_timeline) injected as feature inputs at scoring time via vectorized lookup. Two eval slices: (A) 22-user pooled bg_test with per-user metric aggregation + bootstrap CIs across users; (B) cold-start single-user transfer. 63 pytest tests across 7 layers (`lib/bg_multi/tests/`).
+  - `REPORT_bgkill_multiuser_c34.md` — **multi-user c3.4 ablation** (3-stage feature/architecture expansion on top of `REPORT_bgkill_multiuser.md`). Stage 1 (c3p4_cheap = +F3 DOW×hour, +F5 popularity bucket, +F6 cross-user prior, +F7 hour-segment one-hot, **41 numeric features**) → +0.24 pp PR-AUC (gate-marginal). Stage 2 (c3p4_full = +F1 2-step Markov, +F2 co-FG matrix, **44 features**) → −0.77 pp PR-AUC (regression, sparse-cell noise). **Stage 3 (c3p3_cat = c3.3 numerics + 4-d learnable `cat_emb` over 11 categories, +44 params, +300 total) → +0.36 pp PR-AUC** — only c3.4-family change that clears the +0.3 pp gate, and the new leader on PR-AUC (0.908) / FK@.25 (0.116) / MSR@.25 (0.470) / WAKR@.25 (0.160) / P_kill at τ_keep (0.878). Validates the EDA hypothesis: bottleneck is long-tail signal sharing, not numeric feature richness.
   - `REPORT_bgkill_features_review.md` — feature-space audit (every C1 → C2 → C3 feature with rationale, drops, and code pointers) + **reproduction recipe** (Appendix B with end-to-end command list, validator script `38_generate_features.py`, sanity-report schema).
   - `REPORT_bgkill_data.md` — `B(t)` state-machine spec, label generator, multi-horizon design, anchor-grid logic.
   - `REPORT_bgkill_metrics.md` — FK@r / MSR@r / PR-AUC / ROC-AUC / NDCG / Pareto formal definitions and worked examples.
